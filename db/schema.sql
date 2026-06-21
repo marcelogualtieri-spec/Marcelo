@@ -85,3 +85,17 @@ create table if not exists searches (
     resultado  text,   -- 'verde' | 'amarelo' | 'vermelho'
     created_at timestamptz not null default now()
 );
+
+
+-- ----------------------------------------------------------------------------
+-- SEGURANCA: Row Level Security (RLS)
+-- Tranca todas as tabelas: por padrao, ninguem de FORA le/escreve. O nosso
+-- servidor usa a chave service_role, que passa por cima do RLS - entao o bot
+-- continua funcionando normalmente. E so protecao extra contra vazamento da
+-- chave publica.
+-- ----------------------------------------------------------------------------
+alter table members         enable row level security;
+alter table providers       enable row level security;
+alter table recommendations enable row level security;
+alter table edges           enable row level security;
+alter table searches        enable row level security;
