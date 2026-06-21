@@ -1,0 +1,11 @@
+# Arquivos que NÃO devem ir para o GitHub.
+
+# Cache do Python (gerado automaticamente, não serve pra nada no cofre)
+__pycache__/
+*.pyc
+
+# Arquivo de segredos (senhas, chaves). Nunca, jamais subir isso pro GitHub!
+.env
+
+# Pasta do "ambiente virtual" do Python, se um dia criarmos uma
+venv/
