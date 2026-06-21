@@ -9,8 +9,12 @@
 # ---------------------------------------------------------------------------
 
 import os
+import re
+import secrets
+import string
 from datetime import datetime, timezone
 from html import escape
+from urllib.parse import quote
 
 from flask import Flask, request, Response
 from supabase import create_client
@@ -52,11 +56,12 @@ def buscar_provider(provider_id):
     return resposta.data[0] if resposta.data else None
 
 
-def criar_membro(wa_id, nome_perfil):
+def criar_membro(wa_id, nome_perfil, invited_by=None):
     supabase.table("members").insert({
         "wa_id": wa_id,
         "nome_perfil": nome_perfil,
         "consent": False,
+        "invited_by": invited_by,   # quem convidou (None se a pessoa chegou sozinha)
     }).execute()
 
 
@@ -130,6 +135,43 @@ def tratar_recomendacao(membro, texto):
     return (f"Anotado: {nome} como {servico} em {bairro}! ✅\n\n"
             "Quando alguem da sua rede pedir isso, sua indicacao aparece "
             "(com seu nome, so pra eles). Valeu por ajudar! 🙏")
+
+
+# ===========================================================================
+# CONVITE (Camada 7 / tela 7.4)
+# ===========================================================================
+
+def gerar_codigo_convite():
+    """Cria um codigo curto e aleatorio (ex: 'A1B2C3') pra identificar o convite."""
+    alfabeto = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alfabeto) for _ in range(6))
+
+
+def obter_ou_criar_codigo(membro):
+    """Devolve o codigo de convite do membro; se ainda nao tiver, cria e guarda."""
+    if membro.get("invite_code"):
+        return membro["invite_code"]
+    codigo = gerar_codigo_convite()
+    supabase.table("members").update({"invite_code": codigo}).eq("id", membro["id"]).execute()
+    return codigo
+
+
+def montar_link_convite(numero_bot, codigo):
+    """Monta o link wa.me que abre o WhatsApp da Doroteia com a mensagem pronta."""
+    mensagem = f"Oi! Quero entrar na Doroteia 🙂 (convite: {codigo})"
+    return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
+
+
+def extrair_codigo_convite(texto):
+    """Procura um codigo de convite dentro do texto (ex: '(convite: A1B2C3)')."""
+    achado = re.search(r"convite:\s*([A-Za-z0-9]{6})", texto)
+    return achado.group(1).upper() if achado else None
+
+
+def membro_por_codigo(codigo):
+    """Acha o membro dono de um codigo de convite (quem convidou)."""
+    resposta = supabase.table("members").select("id").eq("invite_code", codigo).execute()
+    return resposta.data[0] if resposta.data else None
 
 
 # ===========================================================================
@@ -291,8 +333,16 @@ TEXTO_AJUDA = (
     "Posso te ajudar assim 🙂:\n"
     "- *Pedir um servico*: ex. \"preciso de um encanador em Perdizes\".\n"
     "- *Recomendar alguem*: digite *recomendar*.\n"
+    "- *Convidar alguem*: digite *convidar*.\n"
     "- *Adicionar contatos*: me manda os numeros das pessoas de confianca."
 )
+
+
+def texto_convite(link):
+    return ("Manda esse link pra quem voce quiser trazer: 👇\n"
+            f"{link}\n\n"
+            "Quando a pessoa entra por ele, voces ja ficam conectados aqui - e as "
+            "indicacoes de voces passam a aparecer um pro outro. 🤝")
 
 TEXTO_PEDIR_RECOMENDACAO = (
     "Que otimo! 🙌 Me manda numa mensagem so: o nome do prestador, o telefone "
@@ -318,7 +368,14 @@ def webhook():
 
     # CASO 1 - pessoa nova
     if membro is None:
-        criar_membro(wa_id, nome_perfil)
+        # Veio por um link de convite? Se sim, ja deixamos os dois conectados.
+        invited_by = None
+        codigo = extrair_codigo_convite(texto_recebido)
+        if codigo:
+            convidante = membro_por_codigo(codigo)
+            if convidante:
+                invited_by = convidante["id"]
+        criar_membro(wa_id, nome_perfil, invited_by)
         return resposta_whatsapp(TEXTO_BOAS_VINDAS)
 
     # CASO 2 - ja consentiu
@@ -338,6 +395,12 @@ def webhook():
                                "recomendar um", "quero recomendar"):
             definir_estado(wa_id, "recomendando")
             return resposta_whatsapp(TEXTO_PEDIR_RECOMENDACAO)
+
+        # 2b2) Pediu pra convidar alguem? Geramos o link unico dele (Camada 7).
+        if texto_minusculo in ("convidar", "convite", "convidar alguem", "quero convidar"):
+            codigo = obter_ou_criar_codigo(membro)
+            numero_bot = request.form.get("To", "").replace("whatsapp:", "").replace("+", "")
+            return resposta_whatsapp(texto_convite(montar_link_convite(numero_bot, codigo)))
 
         # 2c) Mandou numeros (sem ser recomendacao)? Tratamos como contatos (Camada 4).
         numeros = extrair_numeros_de_texto(texto_recebido)

@@ -18,6 +18,7 @@ create table if not exists members (
     consent_at  timestamptz,                                -- data/hora em que deu o ok
     invited_by  uuid references members(id) on delete set null, -- qual outro membro convidou essa pessoa
     estado      text,                                       -- em que ponto da conversa a pessoa esta (ex: "recomendando")
+    invite_code text unique,                                -- codigo unico do link de convite dessa pessoa
     created_at  timestamptz not null default now()          -- quando essa pessoa entrou
 );
 
