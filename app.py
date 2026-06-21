@@ -95,6 +95,19 @@ def contar(tabela, member_id):
     return len(supabase.table(tabela).select("id").eq("member_id", member_id).execute().data)
 
 
+def registrar_busca(servico, bairro, resultado):
+    """Metrica (sem dado pessoal): anota o que foi procurado e a cor da resposta.
+    Se falhar, apenas avisa no log - nunca atrapalha a resposta ao usuario."""
+    try:
+        supabase.table("searches").insert({
+            "servico": servico.lower(),
+            "bairro": bairro,
+            "resultado": resultado,
+        }).execute()
+    except Exception as erro:
+        print(f"[METRICA] nao consegui registrar a busca: {erro}")
+
+
 def excluir_membro(membro):
     """Apaga o membro. edges e recommendations somem junto (ON DELETE CASCADE)."""
     supabase.table("members").delete().eq("id", membro["id"]).execute()
@@ -247,9 +260,12 @@ def tratar_pedido_servico(pedidor, servico, bairro, voc):
             sem_nome.append(prestador)
 
     if com_nome:
+        registrar_busca(servico, bairro, "verde")
         return texto_verde(servico, bairro, com_nome, voc)
     if sem_nome:
+        registrar_busca(servico, bairro, "amarelo")
         return texto_amarelo(servico, bairro, sem_nome)
+    registrar_busca(servico, bairro, "vermelho")
     return t.VERMELHO.format(servico=servico, bairro=bairro) + t.RODAPE
 
 

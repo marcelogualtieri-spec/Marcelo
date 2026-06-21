@@ -72,3 +72,16 @@ create index if not exists idx_recommendations_servico_bairro on recommendations
 
 -- Busca no grafo pelo hash do contato (usada no "casamento" do item 5):
 create index if not exists idx_edges_contact_hash on edges (contact_hash);
+
+
+-- ----------------------------------------------------------------------------
+-- TABELA searches  ->  METRICAS de demanda (sem dado pessoal)
+-- Anota cada pedido de servico: o que, o bairro e a cor da resposta.
+-- ----------------------------------------------------------------------------
+create table if not exists searches (
+    id         uuid primary key default gen_random_uuid(),
+    servico    text,
+    bairro     text,
+    resultado  text,   -- 'verde' | 'amarelo' | 'vermelho'
+    created_at timestamptz not null default now()
+);
