@@ -102,6 +102,17 @@ create table if not exists pending_invites (
 
 
 -- ----------------------------------------------------------------------------
+-- TABELA short_links  ->  encurtador proprio (a Doroteia gera links curtos)
+-- /c/<code> redireciona pro link longo. Nao depende de servico externo.
+-- ----------------------------------------------------------------------------
+create table if not exists short_links (
+    code       text primary key,
+    url        text not null,
+    created_at timestamptz not null default now()
+);
+
+
+-- ----------------------------------------------------------------------------
 -- SEGURANCA: Row Level Security (RLS)
 -- Tranca todas as tabelas: por padrao, ninguem de FORA le/escreve. O nosso
 -- servidor usa a chave service_role, que passa por cima do RLS - entao o bot
@@ -114,3 +125,4 @@ alter table recommendations enable row level security;
 alter table edges           enable row level security;
 alter table searches        enable row level security;
 alter table pending_invites enable row level security;
+alter table short_links     enable row level security;

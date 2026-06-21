@@ -12,7 +12,7 @@ import string
 import traceback
 from datetime import datetime, timezone
 from html import escape
-from urllib.parse import quote, urlencode
+from urllib.parse import quote
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 
@@ -327,17 +327,22 @@ def numeros_de_contatos_compartilhados():
     return numeros
 
 
+def gerar_codigo_curto(tamanho=6):
+    alfabeto = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alfabeto) for _ in range(tamanho))
+
+
 def encurtar_link(url):
-    """Deixa o link curto e bonito (is.gd). Se algo falhar, devolve o original."""
+    """Encurtador proprio: guarda o link longo e devolve um /c/<codigo> curto que
+    redireciona pra ele. Nao depende de servico externo. Se falhar, devolve o original."""
     try:
-        api = "https://is.gd/create.php?" + urlencode({"format": "simple", "url": url})
-        with urlopen(api, timeout=5) as resposta:
-            curto = resposta.read().decode().strip()
-        if curto.startswith("http"):
-            return curto
+        codigo = gerar_codigo_curto()
+        supabase.table("short_links").insert({"code": codigo, "url": url}).execute()
+        base = request.url_root.rstrip("/")
+        return f"{base}/c/{codigo}"
     except Exception:
-        pass
-    return url
+        traceback.print_exc()
+        return url
 
 
 def aplicar_convite_pendente(wa_id):
@@ -612,6 +617,19 @@ def _processar_webhook():
     if "saber" in texto or "mais" in texto:
         return resposta_whatsapp(t.SABER_MAIS)
     return resposta_whatsapp(t.PRECISA_CONSENTIR)
+
+
+@app.route("/c/<codigo>", methods=["GET"])
+def redirecionar_link(codigo):
+    """Encurtador proprio: /c/<codigo> -> redireciona pro link longo guardado."""
+    try:
+        achado = (supabase.table("short_links").select("url")
+                  .eq("code", codigo).limit(1).execute().data)
+        if achado:
+            return Response(status=302, headers={"Location": achado[0]["url"]})
+    except Exception:
+        traceback.print_exc()
+    return Response("Link nao encontrado.", status=404)
 
 
 @app.route("/", methods=["GET"])
