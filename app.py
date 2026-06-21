@@ -447,6 +447,7 @@ def texto_meus_dados(membro, voc):
 # ===========================================================================
 
 def resposta_whatsapp(texto):
+    print(f"[RESP] {texto[:80]!r}")
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Message>{escape(texto)}</Message>
