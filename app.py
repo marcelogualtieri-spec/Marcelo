@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import string
+import traceback
 from datetime import datetime, timezone
 from html import escape
 from urllib.parse import quote
@@ -343,6 +344,16 @@ def webhook():
         print("[SEGURANCA] mensagem rejeitada: assinatura invalida.")
         return Response("Assinatura invalida", status=403)
 
+    # Rede de seguranca: se algo inesperado falhar, respondemos uma mensagem
+    # amigavel (em vez de silencio) e registramos o erro nos Logs.
+    try:
+        return _processar_webhook()
+    except Exception:
+        traceback.print_exc()
+        return resposta_whatsapp(t.ERRO_GENERICO)
+
+
+def _processar_webhook():
     texto_recebido = request.form.get("Body", "").strip()
     remetente = request.form.get("From", "")
     nome_perfil = request.form.get("ProfileName", "")

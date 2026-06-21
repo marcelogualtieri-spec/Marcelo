@@ -178,3 +178,10 @@ ADEUS = (
     "Pronto, apaguei tudo certinho 💛 Foi um prazer te ajudar!\n"
     "Se um dia quiser voltar, e so me mandar um oi que a gente recomeca. 👋"
 )
+
+# --- Rede de seguranca (qualquer erro inesperado) ------------------------
+ERRO_GENERICO = (
+    "Opa, deu um probleminha aqui do meu lado 😅\n"
+    "Tenta de novo daqui a pouquinho, por favor? Se continuar, e so mandar "
+    "*menu* que a gente recomeca. 💛"
+)
