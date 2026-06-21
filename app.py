@@ -175,6 +175,21 @@ def membro_por_codigo(codigo):
 
 
 # ===========================================================================
+# MEUS DADOS + EXCLUSAO (Camada 8 / tela 7.7 / item 8 - LGPD)
+# ===========================================================================
+
+def contar(tabela, member_id):
+    """Conta quantas linhas daquela tabela pertencem ao membro."""
+    return len(supabase.table(tabela).select("id").eq("member_id", member_id).execute().data)
+
+
+def excluir_membro(membro):
+    """Apaga o membro. As tabelas edges e recommendations somem junto, por causa
+    do ON DELETE CASCADE configurado no banco (Camada 1)."""
+    supabase.table("members").delete().eq("id", membro["id"]).execute()
+
+
+# ===========================================================================
 # REGRAS VERDE / AMARELO / VERMELHO (item 6 do briefing)
 # ===========================================================================
 
@@ -344,6 +359,37 @@ def texto_convite(link):
             "Quando a pessoa entra por ele, voces ja ficam conectados aqui - e as "
             "indicacoes de voces passam a aparecer um pro outro. 🤝")
 
+
+TEXTO_MENU = (
+    "O que voce quer fazer? 🙂\n"
+    "- *Pedir um servico*: ex. \"encanador em Perdizes\"\n"
+    "- *Recomendar* alguem (digite *recomendar*)\n"
+    "- *Convidar* alguem (digite *convidar*)\n"
+    "- *Meus dados* / sair (digite *meus dados*)"
+)
+
+TEXTO_ADEUS = (
+    "Pronto, apaguei todos os seus dados. 👋\n"
+    "Se mudar de ideia, e so me mandar uma mensagem que comecamos de novo."
+)
+
+
+def texto_meus_dados(membro):
+    n_contatos = contar("edges", membro["id"])
+    n_indicacoes = contar("recommendations", membro["id"])
+    nome = membro.get("nome_perfil") or "(sem nome)"
+    consent = "sim" if membro.get("consent") else "nao"
+    return (
+        "📋 *Seus dados na Doroteia:*\n"
+        f"- Nome: {nome}\n"
+        f"- Consentimento: {consent}\n"
+        f"- Contatos no seu grafo (guardados em hash): {n_contatos}\n"
+        f"- Indicacoes que voce fez: {n_indicacoes}\n\n"
+        "Lembrando: nunca guardamos os numeros dos seus contatos, so codigos "
+        "embaralhados. 🔒\n\n"
+        "Quer apagar *tudo*? Digite *EXCLUIR* (ou *cancelar* pra voltar)."
+    )
+
 TEXTO_PEDIR_RECOMENDACAO = (
     "Que otimo! 🙌 Me manda numa mensagem so: o nome do prestador, o telefone "
     "(com DDD), o servico e o bairro.\n"
@@ -390,6 +436,16 @@ def webhook():
                 return resposta_whatsapp("Tudo bem, cancelei. 🙂\n\n" + TEXTO_AJUDA)
             return resposta_whatsapp(tratar_recomendacao(membro, texto_recebido))
 
+        # 2a2) Esta confirmando a exclusao dos dados (Camada 8 / LGPD)?
+        if estado == "confirmando_exclusao":
+            if texto_minusculo in ("excluir", "apagar", "apagar tudo", "confirmar"):
+                excluir_membro(membro)
+                return resposta_whatsapp(TEXTO_ADEUS)
+            if texto_minusculo in ("cancelar", "nao", "não", "voltar"):
+                definir_estado(wa_id, "normal")
+                return resposta_whatsapp("Beleza, nao apaguei nada. 🙂\n\n" + TEXTO_MENU)
+            return resposta_whatsapp("Pra apagar tudo, digite *EXCLUIR*. Pra voltar, digite *cancelar*.")
+
         # 2b) Pediu pra recomendar alguem? Entra no modo recomendacao.
         if texto_minusculo in ("recomendar", "indicar", "recomendar alguem",
                                "recomendar um", "quero recomendar"):
@@ -401,6 +457,16 @@ def webhook():
             codigo = obter_ou_criar_codigo(membro)
             numero_bot = request.form.get("To", "").replace("whatsapp:", "").replace("+", "")
             return resposta_whatsapp(texto_convite(montar_link_convite(numero_bot, codigo)))
+
+        # 2b3) Pediu o menu ou so mandou um "oi"? Mostramos o menu (tela 7.7).
+        if texto_minusculo in ("menu", "ajuda", "oi", "ola", "ola!", "opcoes", "opções"):
+            return resposta_whatsapp(TEXTO_MENU)
+
+        # 2b4) Pediu os dados / sair? Mostramos e oferecemos a exclusao (LGPD).
+        if texto_minusculo in ("meus dados", "meus dados / sair", "sair", "dados",
+                               "excluir", "apagar", "lgpd", "privacidade"):
+            definir_estado(wa_id, "confirmando_exclusao")
+            return resposta_whatsapp(texto_meus_dados(membro))
 
         # 2c) Mandou numeros (sem ser recomendacao)? Tratamos como contatos (Camada 4).
         numeros = extrair_numeros_de_texto(texto_recebido)
