@@ -469,7 +469,10 @@ def _processar_webhook():
             numero_amigo = numeros[0]
             registrar_convite_pendente(membro, numero_amigo)
             codigo = obter_ou_criar_codigo(membro)
-            mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=montar_link_convite(numero_bot, codigo))
+            # Encurta o link que a PESSOA CONVIDADA vai receber (dentro da mensagem)...
+            link_amigo = encurtar_link(montar_link_convite(numero_bot, codigo))
+            mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=link_amigo)
+            # ...e tambem o link que VOCE recebe pra encaminhar.
             link_curto = encurtar_link(montar_link_para_contato(numero_amigo, mensagem))
             definir_estado(wa_id, "normal")
             return resposta_whatsapp(t.CONVITE_PRONTO.format(link=link_curto))
