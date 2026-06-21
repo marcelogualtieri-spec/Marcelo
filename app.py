@@ -4,6 +4,7 @@
 # decide o que fazer e responde. As FALAS ficam todas em textos.py.
 # ---------------------------------------------------------------------------
 
+import base64
 import os
 import re
 import secrets
@@ -12,7 +13,7 @@ import traceback
 from datetime import datetime, timezone
 from html import escape
 from urllib.parse import quote, urlencode
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 
 from flask import Flask, request, Response
 from supabase import create_client
@@ -252,6 +253,63 @@ def montar_link_para_contato(numero_e164, mensagem):
     return f"https://wa.me/{numero}?text={quote(mensagem)}"
 
 
+def extrair_numeros_de_vcard(texto_vcard):
+    """Acha os telefones dentro de um contato compartilhado (formato vCard).
+    O WhatsApp costuma incluir 'waid=<numero>' (o numero ja no formato certo)."""
+    numeros = []
+    for linha in texto_vcard.splitlines():
+        if not linha.upper().startswith("TEL"):
+            continue
+        achado = re.search(r"waid=(\d{6,15})", linha)
+        if achado:
+            bruto = "+" + achado.group(1)
+        else:
+            bruto = linha.split(":", 1)[1] if ":" in linha else ""
+        numero = normalizar_e164(bruto)
+        if numero and numero not in numeros:
+            numeros.append(numero)
+    return numeros
+
+
+def _baixar_media_twilio(url):
+    """Baixa um anexo (ex: vCard) da Twilio, com a autenticacao necessaria."""
+    try:
+        sid = os.environ.get("TWILIO_ACCOUNT_SID")
+        if not sid:
+            m = re.search(r"/Accounts/(AC[0-9a-zA-Z]+)/", url)
+            sid = m.group(1) if m else None
+        req = Request(url)
+        if sid and TWILIO_AUTH_TOKEN:
+            cred = base64.b64encode(f"{sid}:{TWILIO_AUTH_TOKEN}".encode()).decode()
+            req.add_header("Authorization", f"Basic {cred}")
+        with urlopen(req, timeout=8) as resposta:
+            return resposta.read().decode("utf-8", errors="ignore")
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
+def numeros_de_contatos_compartilhados():
+    """Le os contatos (vCard) que a pessoa compartilhou e devolve os numeros.
+    Se nao houver contato compartilhado, devolve lista vazia sem custo de rede."""
+    try:
+        qtd = int(request.form.get("NumMedia", "0"))
+    except (TypeError, ValueError):
+        qtd = 0
+    numeros = []
+    for i in range(qtd):
+        tipo = request.form.get(f"MediaContentType{i}", "")
+        url = request.form.get(f"MediaUrl{i}", "")
+        if "vcard" not in tipo.lower() or not url:
+            continue
+        conteudo = _baixar_media_twilio(url)
+        if conteudo:
+            for numero in extrair_numeros_de_vcard(conteudo):
+                if numero not in numeros:
+                    numeros.append(numero)
+    return numeros
+
+
 def encurtar_link(url):
     """Deixa o link curto e bonito (is.gd). Se algo falhar, devolve o original."""
     try:
@@ -462,20 +520,25 @@ def _processar_webhook():
                 codigo = obter_ou_criar_codigo(membro)
                 link = encurtar_link(montar_link_convite(numero_bot, codigo))
                 return resposta_whatsapp(t.CONVITE.format(link=link) + t.RODAPE)
-            # Mandou um numero? Conectamos e devolvemos o convite pronto.
-            numeros = extrair_numeros_de_texto(texto_recebido)
+            # Compartilhou um contato? Pegamos o numero do vCard.
+            # Senao, tentamos achar um numero no texto digitado.
+            numeros = numeros_de_contatos_compartilhados() or extrair_numeros_de_texto(texto_recebido)
             if not numeros:
                 return resposta_whatsapp(t.CONVIDAR_NUMERO_INVALIDO)
+            # Conecta voce com TODOS os contatos enviados (pra quando eles entrarem)...
+            for numero in numeros:
+                registrar_convite_pendente(membro, numero)
+            # ...e prepara o convite pronto pra encaminhar pro primeiro deles.
             numero_amigo = numeros[0]
-            registrar_convite_pendente(membro, numero_amigo)
             codigo = obter_ou_criar_codigo(membro)
-            # Encurta o link que a PESSOA CONVIDADA vai receber (dentro da mensagem)...
             link_amigo = encurtar_link(montar_link_convite(numero_bot, codigo))
             mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=link_amigo)
-            # ...e tambem o link que VOCE recebe pra encaminhar.
             link_curto = encurtar_link(montar_link_para_contato(numero_amigo, mensagem))
             definir_estado(wa_id, "normal")
-            return resposta_whatsapp(t.CONVITE_PRONTO.format(link=link_curto))
+            resposta = t.CONVITE_PRONTO.format(link=link_curto)
+            if len(numeros) > 1:
+                resposta += t.CONVITE_EXTRAS.format(qtd=len(numeros) - 1)
+            return resposta_whatsapp(resposta)
 
         # 2b) Saudacao ou agradecimento? Respondemos de forma natural.
         if texto_minusculo in SAUDACOES:
@@ -504,8 +567,11 @@ def _processar_webhook():
             definir_estado(wa_id, "confirmando_exclusao")
             return resposta_whatsapp(texto_meus_dados(membro, voc))
 
-        # 2g) Mandou numeros? Tratamos como contatos (Camada 4).
+        # 2g) Mandou numeros (digitados ou contato compartilhado)? Camada 4.
         numeros = extrair_numeros_de_texto(texto_recebido)
+        for numero in numeros_de_contatos_compartilhados():
+            if numero not in numeros:
+                numeros.append(numero)
         if numeros:
             total, ja_membros = processar_contatos(membro, numeros)
             return resposta_whatsapp(texto_contatos_recebidos(total, ja_membros))

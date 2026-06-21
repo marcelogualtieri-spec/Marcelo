@@ -132,16 +132,23 @@ CONVITE = (
 
 # Pediu pra convidar: perguntamos o numero da pessoa.
 CONVIDAR_PEDIR_NUMERO = (
-    "Claro! Me manda o numero (com DDD) de quem voce quer chamar, que eu preparo "
-    "tudo pra voce 🙂\n"
+    "Claro! Voce pode *compartilhar o contato* da pessoa aqui (pelo clipe 📎 do "
+    "WhatsApp) ou simplesmente *digitar o numero* com DDD - que eu preparo tudo 🙂\n"
     "Ex: (11) 99999-8888\n\n"
     "(Prefere um link pra divulgar pra varias pessoas? Digite *link*. "
     "Pra desistir, *cancelar*.)"
 )
 
 CONVIDAR_NUMERO_INVALIDO = (
-    "Hmm, nao reconheci um numero ai 🤔 Me manda com DDD, ex: (11) 99999-8888.\n"
+    "Hmm, nao consegui pegar o numero 🤔 Voce pode compartilhar o contato da "
+    "pessoa (pelo clipe 📎) ou digitar com DDD, ex: (11) 99999-8888.\n"
     "(ou *cancelar* pra desistir)"
+)
+
+# Quando a pessoa compartilha varios contatos de uma vez.
+CONVITE_EXTRAS = (
+    "\n\n(Tambem ja conectei voce com os outros {qtd} contato(s) que voce mandou - "
+    "quando eles entrarem, voces se reconhecem aqui. 💛)"
 )
 
 # A mensagem que VOCE vai enviar pra pessoa (ela recebe isso).
