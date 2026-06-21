@@ -88,6 +88,20 @@ create table if not exists searches (
 
 
 -- ----------------------------------------------------------------------------
+-- TABELA pending_invites  ->  convites por numero, aguardando a pessoa entrar
+-- Guarda so o HASH do numero convidado (nunca o numero cru). Quando a pessoa
+-- entra, ligamos ela ao convidante (invited_by) e apagamos o convite.
+-- ----------------------------------------------------------------------------
+create table if not exists pending_invites (
+    id           uuid primary key default gen_random_uuid(),
+    inviter_id   uuid not null references members(id) on delete cascade,
+    contact_hash text not null,
+    created_at   timestamptz not null default now(),
+    unique (inviter_id, contact_hash)
+);
+
+
+-- ----------------------------------------------------------------------------
 -- SEGURANCA: Row Level Security (RLS)
 -- Tranca todas as tabelas: por padrao, ninguem de FORA le/escreve. O nosso
 -- servidor usa a chave service_role, que passa por cima do RLS - entao o bot
@@ -99,3 +113,4 @@ alter table providers       enable row level security;
 alter table recommendations enable row level security;
 alter table edges           enable row level security;
 alter table searches        enable row level security;
+alter table pending_invites enable row level security;

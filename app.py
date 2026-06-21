@@ -232,6 +232,40 @@ def membro_por_codigo(codigo):
     return resposta.data[0] if resposta.data else None
 
 
+def registrar_convite_pendente(membro, numero_e164):
+    """Guarda (em HASH) que este membro convidou aquele numero. Quando a pessoa
+    entrar, ligamos os dois. O numero cru nunca e gravado."""
+    codigo = calcular_contact_hash(numero_e164)
+    existe = (supabase.table("pending_invites").select("id")
+              .eq("inviter_id", membro["id"]).eq("contact_hash", codigo).limit(1).execute().data)
+    if not existe:
+        supabase.table("pending_invites").insert({
+            "inviter_id": membro["id"],
+            "contact_hash": codigo,
+        }).execute()
+
+
+def montar_link_para_contato(numero_e164, mensagem):
+    """Link que abre a conversa do usuario COM aquela pessoa, com a mensagem pronta."""
+    numero = numero_e164.replace("+", "")
+    return f"https://wa.me/{numero}?text={quote(mensagem)}"
+
+
+def aplicar_convite_pendente(wa_id):
+    """Quando alguem entra: ve se havia um convite pendente pro numero dela e,
+    se houver, devolve o id de quem convidou (e apaga o convite ja usado)."""
+    numero = normalizar_e164(wa_id)
+    if not numero:
+        return None
+    codigo = calcular_contact_hash(numero)
+    achado = (supabase.table("pending_invites").select("id, inviter_id")
+              .eq("contact_hash", codigo).limit(1).execute().data)
+    if not achado:
+        return None
+    supabase.table("pending_invites").delete().eq("id", achado[0]["id"]).execute()
+    return achado[0]["inviter_id"]
+
+
 # ===========================================================================
 # CAMADA 5/6 - REGRAS VERDE / AMARELO / VERMELHO (item 6)
 # ===========================================================================
@@ -374,6 +408,9 @@ def _processar_webhook():
             convidante = membro_por_codigo(codigo)
             if convidante:
                 invited_by = convidante["id"]
+        # Sem codigo no texto? Talvez tenha um convite pendente pro numero dela.
+        if invited_by is None:
+            invited_by = aplicar_convite_pendente(wa_id)
         criar_membro(wa_id, nome_perfil, invited_by)
         return resposta_whatsapp(t.BOAS_VINDAS.format(voc=voc))
 
@@ -399,6 +436,28 @@ def _processar_webhook():
                 return resposta_whatsapp(t.EXCLUSAO_CANCELADA + "\n\n" + t.MENU.format(voc=voc))
             return resposta_whatsapp(t.EXCLUSAO_CONFIRMAR)
 
+        # 2a3) Convidando pelo numero? (Camada 7 - convite direto)
+        if estado == "convidando":
+            if texto_minusculo in ("cancelar", "sair", "parar"):
+                definir_estado(wa_id, "normal")
+                return resposta_whatsapp(t.MENU.format(voc=voc))
+            numero_bot = request.form.get("To", "").replace("whatsapp:", "").replace("+", "")
+            # Pediu o link generico (pra divulgar pra varios)?
+            if texto_minusculo in ("link", "meu link", "linque"):
+                definir_estado(wa_id, "normal")
+                codigo = obter_ou_criar_codigo(membro)
+                return resposta_whatsapp(t.CONVITE.format(link=montar_link_convite(numero_bot, codigo)) + t.RODAPE)
+            # Mandou um numero? Conectamos e devolvemos o convite pronto.
+            numeros = extrair_numeros_de_texto(texto_recebido)
+            if not numeros:
+                return resposta_whatsapp(t.CONVIDAR_NUMERO_INVALIDO)
+            numero_amigo = numeros[0]
+            registrar_convite_pendente(membro, numero_amigo)
+            codigo = obter_ou_criar_codigo(membro)
+            mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=montar_link_convite(numero_bot, codigo))
+            definir_estado(wa_id, "normal")
+            return resposta_whatsapp(t.CONVITE_PRONTO.format(link=montar_link_para_contato(numero_amigo, mensagem)))
+
         # 2b) Saudacao ou agradecimento? Respondemos de forma natural.
         if texto_minusculo in SAUDACOES:
             return resposta_whatsapp(t.SAUDACAO.format(voc=voc))
@@ -411,11 +470,10 @@ def _processar_webhook():
             definir_estado(wa_id, "recomendando")
             return resposta_whatsapp(t.PEDIR_RECOMENDACAO)
 
-        # 2d) Comando: convidar.
+        # 2d) Comando: convidar -> entra no modo convite (pede o numero).
         if texto_minusculo in ("convidar", "convite", "convidar alguem", "quero convidar"):
-            codigo = obter_ou_criar_codigo(membro)
-            numero_bot = request.form.get("To", "").replace("whatsapp:", "").replace("+", "")
-            return resposta_whatsapp(t.CONVITE.format(link=montar_link_convite(numero_bot, codigo)) + t.RODAPE)
+            definir_estado(wa_id, "convidando")
+            return resposta_whatsapp(t.CONVIDAR_PEDIR_NUMERO)
 
         # 2e) Comando: menu.
         if texto_minusculo in ("menu", "ajuda", "opcoes", "opções"):

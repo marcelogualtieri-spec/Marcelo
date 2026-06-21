@@ -130,6 +130,35 @@ CONVITE = (
     "indicacoes de voces passam a aparecer um pro outro. 🤝"
 )
 
+# Pediu pra convidar: perguntamos o numero da pessoa.
+CONVIDAR_PEDIR_NUMERO = (
+    "Claro! Me manda o numero (com DDD) de quem voce quer chamar, que eu preparo "
+    "tudo pra voce 🙂\n"
+    "Ex: (11) 99999-8888\n\n"
+    "(Prefere um link pra divulgar pra varias pessoas? Digite *link*. "
+    "Pra desistir, *cancelar*.)"
+)
+
+CONVIDAR_NUMERO_INVALIDO = (
+    "Hmm, nao reconheci um numero ai 🤔 Me manda com DDD, ex: (11) 99999-8888.\n"
+    "(ou *cancelar* pra desistir)"
+)
+
+# A mensagem que VOCE vai enviar pra pessoa (ela recebe isso).
+CONVITE_MENSAGEM_AMIGO = (
+    "Oi! 💛 Te indico a Doroteia: um cantinho no WhatsApp que recomenda "
+    "prestadores de servico de confianca. Pra entrar (e ja ficar ligado comigo), "
+    "e so abrir aqui: {link}"
+)
+
+# O que a Doroteia te responde, com o link que abre a conversa com a pessoa.
+CONVITE_PRONTO = (
+    "Prontinho! 🙌 Ja deixei voce e essa pessoa conectados - quando ela entrar, "
+    "voces aparecem um pro outro automaticamente.\n\n"
+    "Agora e um toque so: abra o link abaixo (vai abrir a conversa com ela, com o "
+    "convite ja escrito) e toque em *Enviar*. 💛\n{link}"
+)
+
 
 # --- Menu, ajuda, saudacao, agradecimento --------------------------------
 MENU = (
