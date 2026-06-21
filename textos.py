@@ -170,10 +170,16 @@ CONVITE_PRONTO = (
 # --- Menu, ajuda, saudacao, agradecimento --------------------------------
 MENU = (
     "Como posso te ajudar agora{voc}? 😊\n\n"
-    "- *Pedir um servico* - ex.: \"encanador em Perdizes\"\n"
-    "- *Recomendar* alguem - digite *recomendar*\n"
-    "- *Convidar* alguem - digite *convidar*\n"
-    "- *Meus dados* / sair - digite *meus dados*"
+    "*1* - Pedir um servico (ex.: \"encanador em Perdizes\")\n"
+    "*2* - Recomendar alguem\n"
+    "*3* - Convidar alguem\n"
+    "*4* - Meus dados / sair\n\n"
+    "E so responder com o numero - ou ja escrever o que voce precisa. 💛"
+)
+
+PEDIR_SERVICO = (
+    "Claro{voc}! Me conta o que voce precisa e em qual bairro - "
+    "ex.: \"encanador em Perdizes\". 😊"
 )
 
 AJUDA = (

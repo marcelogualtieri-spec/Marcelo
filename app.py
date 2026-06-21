@@ -568,6 +568,15 @@ def _processar_webhook():
         if texto_minusculo in AGRADECIMENTOS:
             return resposta_whatsapp(t.AGRADECIMENTO.format(voc=voc))
 
+        # 2b2) Atalhos numericos do menu (1,2,3,4). So valem no estado normal,
+        # por isso ficam depois dos blocos de estado la em cima.
+        atalhos_menu = {"1": "servico", "2": "recomendar", "3": "convidar", "4": "meus dados"}
+        if texto_minusculo in atalhos_menu:
+            escolha = atalhos_menu[texto_minusculo]
+            if escolha == "servico":
+                return resposta_whatsapp(t.PEDIR_SERVICO.format(voc=voc))
+            texto_minusculo = escolha   # vira o comando equivalente e cai nos blocos abaixo
+
         # 2c) Comando: recomendar.
         if texto_minusculo in ("recomendar", "indicar", "recomendar alguem",
                                "recomendar um", "quero recomendar"):
