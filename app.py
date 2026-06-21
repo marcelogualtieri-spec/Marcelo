@@ -1,72 +1,109 @@
 # app.py
 # ---------------------------------------------------------------------------
-# DOROTEIA - Camada 2/3: reconhecer a pessoa + boas-vindas + consentimento (7.1)
+# DOROTEIA - Camada 4: receber contatos, virar HASH e montar o grafo (item 5)
 #
-# O que este programa faz quando chega uma mensagem do WhatsApp:
-#   1. Descobre QUEM mandou (pelo número do WhatsApp).
-#   2. Se for alguem novo: cria o cadastro na tabela "members" e manda a
-#      tela de boas-vindas pedindo o consentimento.
-#   3. Se a pessoa responder SIM: grava o consentimento no banco.
-#   4. Se responder SABER MAIS: explica melhor e repete a pergunta.
+# Fluxo de vida de uma pessoa nesta etapa:
+#   1. Manda a 1a mensagem        -> e cadastrada + recebe as boas-vindas (7.1)
+#   2. Responde SIM               -> consentimento gravado + pedido de contatos (7.2)
+#   3. Manda numeros de contatos  -> viram HASH em "edges" e os crus sao descartados (7.3)
+#
+# A parte sensivel (normalizar + hashear) fica no arquivo privacidade.py.
 # ---------------------------------------------------------------------------
 
-import os                                    # pra ler as "gavetas de segredos" (variaveis de ambiente)
-from datetime import datetime, timezone      # pra registrar data/hora do consentimento
-from html import escape                      # pra montar a resposta com seguranca (escapa caracteres especiais)
+import os
+from datetime import datetime, timezone
+from html import escape
 
-from flask import Flask, request, Response    # Flask = a ferramenta que cria o servidor
-from supabase import create_client            # a "peca" que conversa com o banco no Supabase
+from flask import Flask, request, Response
+from supabase import create_client
+
+# Funcoes do nucleo de privacidade (ver privacidade.py e docs/privacidade-hash.md)
+from privacidade import calcular_contact_hash, extrair_numeros_de_texto
 
 
 # ---------------------------------------------------------------------------
-# CONEXAO COM O BANCO (Supabase)
-# Lemos a URL e a chave das variaveis de ambiente (que voce cadastrou no Render).
-# Elas NUNCA ficam escritas aqui no codigo - so os NOMES das gavetas aparecem.
+# CONEXAO COM O BANCO (Supabase) - credenciais vem das variaveis de ambiente.
 # ---------------------------------------------------------------------------
-SUPABASE_URL = os.environ["SUPABASE_URL"]     # endereco do banco
-SUPABASE_KEY = os.environ["SUPABASE_KEY"]     # chave secreta de acesso (fica so no Render)
-
-# Cria o "cliente" do banco: o objeto pelo qual a gente le e escreve nas tabelas.
+SUPABASE_URL = os.environ["SUPABASE_URL"]
+SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Cria a aplicacao web (o servidor).
 app = Flask(__name__)
 
 
 # ===========================================================================
-# FUNCOES AUXILIARES (pequenas tarefas que o codigo reusa)
+# FUNCOES AUXILIARES DE BANCO
 # ===========================================================================
 
 def buscar_membro(wa_id):
-    """Procura na tabela members a pessoa com aquele numero de WhatsApp.
-    Devolve os dados dela, ou None se ainda nao existir."""
+    """Procura a pessoa com aquele numero de WhatsApp. Devolve os dados ou None."""
     resposta = supabase.table("members").select("*").eq("wa_id", wa_id).execute()
-    if resposta.data:                 # se a lista veio com algo dentro...
-        return resposta.data[0]       # ...devolve o primeiro (e unico) resultado
-    return None                       # senao, a pessoa ainda nao esta cadastrada
+    if resposta.data:
+        return resposta.data[0]
+    return None
 
 
 def criar_membro(wa_id, nome_perfil):
-    """Cria um cadastro novo na tabela members (ainda SEM consentimento)."""
+    """Cria um cadastro novo (ainda sem consentimento)."""
     supabase.table("members").insert({
         "wa_id": wa_id,
         "nome_perfil": nome_perfil,
-        "consent": False,             # comeca como "ainda nao deu o ok"
+        "consent": False,
     }).execute()
 
 
 def registrar_consentimento(wa_id):
     """Marca que a pessoa deu o 'ok' de privacidade, com a data/hora de agora."""
-    agora = datetime.now(timezone.utc).isoformat()   # data/hora atual em formato padrao
+    agora = datetime.now(timezone.utc).isoformat()
     supabase.table("members").update({
         "consent": True,
         "consent_at": agora,
     }).eq("wa_id", wa_id).execute()
 
 
+def processar_contatos(membro, numeros_e164):
+    """Coracao da Camada 4: recebe numeros JA em E.164, guarda os HASHES na
+    tabela edges e DESCARTA os numeros crus (eles nunca vao para o banco).
+
+    Devolve (total_recebido, quantos_ja_sao_membros) so para a mensagem de volta.
+    """
+    member_id = membro["id"]
+
+    # Hashes que esse membro ja tem guardados, pra nao duplicar.
+    existentes = supabase.table("edges").select("contact_hash").eq("member_id", member_id).execute()
+    hashes_existentes = {linha["contact_hash"] for linha in existentes.data}
+
+    registros_novos = []
+    ja_membros = 0
+
+    for numero in numeros_e164:
+        # Esse contato ja e um membro? Consultamos pelo numero, que existe aqui
+        # apenas de forma transitoria (na memoria) - nao guardamos numero de nao-membro.
+        if buscar_membro(numero) is not None:
+            ja_membros += 1
+
+        # Transforma o numero no codigo irreversivel.
+        codigo = calcular_contact_hash(numero)
+
+        # So agenda pra gravar se ainda nao existir (a tabela tem UNIQUE de qualquer jeito).
+        if codigo not in hashes_existentes:
+            registros_novos.append({"member_id": member_id, "contact_hash": codigo})
+            hashes_existentes.add(codigo)
+
+    # Grava de uma vez so os hashes novos. Os numeros crus "somem" aqui:
+    # nao escrevemos nenhum numero de nao-membro em lugar nenhum.
+    if registros_novos:
+        supabase.table("edges").insert(registros_novos).execute()
+
+    return len(numeros_e164), ja_membros
+
+
+# ===========================================================================
+# MONTAGEM DAS RESPOSTAS
+# ===========================================================================
+
 def resposta_whatsapp(texto):
-    """Embrulha um texto no formato (TwiML) que a Twilio entende e devolve.
-    O 'escape' troca caracteres especiais (como & < >) por versoes seguras."""
+    """Embrulha um texto no formato (TwiML) que a Twilio entende e devolve."""
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Message>{escape(texto)}</Message>
@@ -74,9 +111,23 @@ def resposta_whatsapp(texto):
     return Response(twiml, mimetype="application/xml")
 
 
+def texto_contatos_recebidos(total, ja_membros):
+    """Monta a fala da tela 7.3 com base em quantos contatos chegaram."""
+    restantes = total - ja_membros
+    msg = f"Recebi {total} contato(s), valeu! 🙌\n\n"
+    if ja_membros > 0:
+        msg += (f"Desses, {ja_membros} ja usam a Doroteia - entao as indicacoes "
+                "deles ja podem aparecer pra voce com nome.\n")
+    else:
+        msg += ("Nenhum deles entrou ainda - mas relaxa: assim que entrarem, "
+                "as indicacoes aparecem sozinhas.\n")
+    if restantes > 0:
+        msg += f"\nOs outros {restantes} ainda nao entraram. Em breve vou te dar um link pra convidar. 😉"
+    return msg
+
+
 # ===========================================================================
-# TEXTOS QUE A DOROTEIA FALA (roteiro 7.1 do briefing, adaptado para texto)
-# Obs: o sandbox da Twilio nao permite botoes, entao usamos SIM / SABER MAIS.
+# TEXTOS FIXOS DA DOROTEIA
 # ===========================================================================
 
 TEXTO_BOAS_VINDAS = (
@@ -102,20 +153,18 @@ TEXTO_SABER_MAIS = (
     "Topa comecar? Responda *SIM*."
 )
 
-TEXTO_CONSENTIMENTO_OK = (
-    "Perfeito, anotei seu ok! ✅\n\n"
-    "Por enquanto ainda estou aprendendo o resto - em breve vou te pedir os "
-    "contatos de confianca e voce ja vai poder pedir servicos. 🙂"
-)
-
 TEXTO_PRECISA_CONSENTIR = (
     "Pra gente comecar, eu preciso do seu ok 🙂\n"
     "Responda *SIM* pra topar, ou *SABER MAIS* pra eu explicar."
 )
 
-TEXTO_JA_CADASTRADO = (
-    "Oi de novo! Voce ja esta cadastrado(a) por aqui. 🙂\n"
-    "Em breve vou poder te ajudar a pedir e recomendar servicos."
+TEXTO_PEDIR_CONTATOS = (
+    "Show! Agora vamos te deixar bem servido. 🙌\n\n"
+    "Me manda os numeros das pessoas em quem voce confia. Por enquanto (fase "
+    "de testes) mande em texto mesmo - um por linha ou separados por virgula.\n"
+    "Ex: (11) 99999-8888, (11) 98888-7777\n\n"
+    "Quanto mais voce adicionar, melhor: quando voce pedir um servico, eu "
+    "consigo te dizer quais delas ja indicaram alguem bom."
 )
 
 
@@ -124,18 +173,13 @@ TEXTO_JA_CADASTRADO = (
 # ===========================================================================
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # Dados que a Twilio envia sobre a mensagem recebida:
-    texto_recebido = request.form.get("Body", "").strip()        # o que a pessoa escreveu
-    remetente = request.form.get("From", "")                     # vem como "whatsapp:+5511999999999"
-    nome_perfil = request.form.get("ProfileName", "")            # nome do perfil no WhatsApp
-
-    # "wa_id": tiramos o prefixo "whatsapp:" pra guardar so o numero limpo.
+    texto_recebido = request.form.get("Body", "").strip()
+    remetente = request.form.get("From", "")
+    nome_perfil = request.form.get("ProfileName", "")
     wa_id = remetente.replace("whatsapp:", "")
 
-    # Anota no log (sem expor nada sensivel alem do necessario pro beta).
     print(f"Mensagem de {wa_id} ({nome_perfil}): {texto_recebido}")
 
-    # Procura a pessoa no banco.
     membro = buscar_membro(wa_id)
 
     # CASO 1 - pessoa nova: cadastra e manda as boas-vindas.
@@ -143,32 +187,30 @@ def webhook():
         criar_membro(wa_id, nome_perfil)
         return resposta_whatsapp(TEXTO_BOAS_VINDAS)
 
-    # CASO 2 - ja cadastrada e JA deu o consentimento: cumprimenta.
+    # CASO 2 - ja consentiu: o caminho agora e receber contatos.
     if membro["consent"]:
-        return resposta_whatsapp(TEXTO_JA_CADASTRADO)
+        numeros = extrair_numeros_de_texto(texto_recebido)
+        if numeros:
+            total, ja_membros = processar_contatos(membro, numeros)
+            return resposta_whatsapp(texto_contatos_recebidos(total, ja_membros))
+        # Consentiu mas nao mandou numeros: pede os contatos.
+        return resposta_whatsapp(TEXTO_PEDIR_CONTATOS)
 
     # CASO 3 - ja cadastrada mas AINDA NAO consentiu: interpreta a resposta.
     texto = texto_recebido.lower()
-
     if texto in ("sim", "sim, bora", "bora", "s"):
         registrar_consentimento(wa_id)
-        return resposta_whatsapp(TEXTO_CONSENTIMENTO_OK)
-
+        # Tela 7.1 -> segue direto para o pedido de contatos (7.2).
+        return resposta_whatsapp("Perfeito, anotei seu ok! ✅\n\n" + TEXTO_PEDIR_CONTATOS)
     if "saber" in texto or "mais" in texto:
         return resposta_whatsapp(TEXTO_SABER_MAIS)
-
-    # Nao entendeu a resposta: pede o consentimento de novo, com gentileza.
     return resposta_whatsapp(TEXTO_PRECISA_CONSENTIR)
 
 
-# ===========================================================================
-# Rota extra: abrir o endereco principal no navegador confirma "estou no ar".
-# ===========================================================================
 @app.route("/", methods=["GET"])
 def home():
     return "A Doroteia esta viva! 🎉"
 
 
-# So roda quando executado no nosso proprio computador (no Render quem sobe e o gunicorn).
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
