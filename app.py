@@ -14,6 +14,8 @@ from urllib.parse import quote
 
 from flask import Flask, request, Response
 from supabase import create_client
+from twilio.request_validator import RequestValidator
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Nucleo de privacidade (Camada 4) e entendimento de linguagem (Camada 5).
 from privacidade import calcular_contact_hash, extrair_numeros_de_texto, normalizar_e164
@@ -31,6 +33,24 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = Flask(__name__)
+# O Render fica atras de um proxy; isto faz o Flask enxergar a URL publica (https),
+# necessaria pra conferir a assinatura da Twilio corretamente.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Validador da assinatura da Twilio. Se o Auth Token nao estiver configurado,
+# a checagem fica DESLIGADA (o bot funciona, mas sem essa protecao).
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
+_validador_twilio = RequestValidator(TWILIO_AUTH_TOKEN) if TWILIO_AUTH_TOKEN else None
+
+
+def pedido_e_da_twilio():
+    """Confere a assinatura secreta que a Twilio coloca em cada mensagem.
+    Devolve True se a mensagem e legitima (ou se a checagem estiver desligada)."""
+    if _validador_twilio is None:
+        print("[SEGURANCA] TWILIO_AUTH_TOKEN nao configurado - checagem desligada.")
+        return True
+    assinatura = request.headers.get("X-Twilio-Signature", "")
+    return _validador_twilio.validate(request.url, request.form.to_dict(), assinatura)
 
 
 # ===========================================================================
@@ -318,6 +338,11 @@ AGRADECIMENTOS = {"obrigado", "obrigada", "obg", "obgd", "vlw", "valeu",
 # ===========================================================================
 @app.route("/webhook", methods=["POST"])
 def webhook():
+    # Porta-de-entrada: so seguimos se a mensagem veio mesmo da Twilio.
+    if not pedido_e_da_twilio():
+        print("[SEGURANCA] mensagem rejeitada: assinatura invalida.")
+        return Response("Assinatura invalida", status=403)
+
     texto_recebido = request.form.get("Body", "").strip()
     remetente = request.form.get("From", "")
     nome_perfil = request.form.get("ProfileName", "")
