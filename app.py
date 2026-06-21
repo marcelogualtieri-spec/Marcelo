@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from html import escape
 from urllib.parse import quote, urlencode
 from urllib.request import urlopen, Request
+from urllib.error import HTTPError, URLError
 
 from flask import Flask, request, Response
 from supabase import create_client
@@ -258,7 +259,8 @@ def extrair_numeros_de_vcard(texto_vcard):
     O WhatsApp costuma incluir 'waid=<numero>' (o numero ja no formato certo)."""
     numeros = []
     for linha in texto_vcard.splitlines():
-        if not linha.upper().startswith("TEL"):
+        cabecalho = linha.split(":", 1)[0].upper()   # parte antes do ':'
+        if "TEL" not in cabecalho:
             continue
         achado = re.search(r"waid=(\d{6,15})", linha)
         if achado:
@@ -268,25 +270,37 @@ def extrair_numeros_de_vcard(texto_vcard):
         numero = normalizar_e164(bruto)
         if numero and numero not in numeros:
             numeros.append(numero)
+    if not numeros:
+        print(f"[VCARD] nenhum numero extraido. Conteudo:\n{texto_vcard[:400]}")
     return numeros
 
 
 def _baixar_media_twilio(url):
     """Baixa um anexo (ex: vCard) da Twilio, com a autenticacao necessaria."""
+    sid = os.environ.get("TWILIO_ACCOUNT_SID")
+    if not sid:
+        m = re.search(r"/Accounts/(AC[0-9a-zA-Z]+)/", url)
+        sid = m.group(1) if m else None
+    if not sid or not TWILIO_AUTH_TOKEN:
+        print(f"[MEDIA] sem credenciais p/ baixar (sid={'ok' if sid else 'FALTA'}, "
+              f"token={'ok' if TWILIO_AUTH_TOKEN else 'FALTA'}).")
+        return None
     try:
-        sid = os.environ.get("TWILIO_ACCOUNT_SID")
-        if not sid:
-            m = re.search(r"/Accounts/(AC[0-9a-zA-Z]+)/", url)
-            sid = m.group(1) if m else None
         req = Request(url)
-        if sid and TWILIO_AUTH_TOKEN:
-            cred = base64.b64encode(f"{sid}:{TWILIO_AUTH_TOKEN}".encode()).decode()
-            req.add_header("Authorization", f"Basic {cred}")
+        cred = base64.b64encode(f"{sid}:{TWILIO_AUTH_TOKEN}".encode()).decode()
+        req.add_header("Authorization", f"Basic {cred}")
         with urlopen(req, timeout=8) as resposta:
             return resposta.read().decode("utf-8", errors="ignore")
-    except Exception:
-        traceback.print_exc()
-        return None
+    except HTTPError as e:
+        corpo = ""
+        try:
+            corpo = e.read().decode("utf-8", errors="ignore")[:200]
+        except Exception:
+            pass
+        print(f"[MEDIA] HTTP {e.code} ao baixar anexo. Resposta: {corpo}")
+    except (URLError, Exception) as e:
+        print(f"[MEDIA] falha ao baixar anexo: {e!r}")
+    return None
 
 
 def numeros_de_contatos_compartilhados():
@@ -296,6 +310,9 @@ def numeros_de_contatos_compartilhados():
         qtd = int(request.form.get("NumMedia", "0"))
     except (TypeError, ValueError):
         qtd = 0
+    if qtd:
+        tipos = [request.form.get(f"MediaContentType{i}", "") for i in range(qtd)]
+        print(f"[MEDIA] NumMedia={qtd} tipos={tipos}")
     numeros = []
     for i in range(qtd):
         tipo = request.form.get(f"MediaContentType{i}", "")
