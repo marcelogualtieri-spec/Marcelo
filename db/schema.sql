@@ -17,6 +17,7 @@ create table if not exists members (
     consent     boolean not null default false,             -- deu o "ok" de privacidade? (tela 7.1) - começa como "não"
     consent_at  timestamptz,                                -- data/hora em que deu o ok
     invited_by  uuid references members(id) on delete set null, -- qual outro membro convidou essa pessoa
+    estado      text,                                       -- em que ponto da conversa a pessoa esta (ex: "recomendando")
     created_at  timestamptz not null default now()          -- quando essa pessoa entrou
 );
 

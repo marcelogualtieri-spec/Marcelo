@@ -52,3 +52,46 @@ def extrair_servico_bairro(texto):
     except Exception as erro:
         print(f"[NLU] erro ao interpretar a mensagem: {erro}")
         return {"servico": "", "bairro": ""}
+
+
+# ---------------------------------------------------------------------------
+# Extrair os dados de uma RECOMENDACAO (Camada 6): nome, telefone, servico, bairro.
+# ---------------------------------------------------------------------------
+_INSTRUCOES_REC = (
+    "Voce recebe uma mensagem onde a pessoa esta RECOMENDANDO um prestador de "
+    "servico. Extraia quatro campos:\n"
+    "- 'nome': nome do prestador (ex: 'Joao'). Vazio se nao houver.\n"
+    "- 'telefone': o telefone como aparece, com DDD. Vazio se nao houver.\n"
+    "- 'servico': singular e minusculo (ex: 'encanador'). Vazio se nao houver.\n"
+    "- 'bairro': inicial maiuscula (ex: 'Perdizes'). Vazio se nao houver."
+)
+
+_ESQUEMA_REC = {
+    "type": "object",
+    "properties": {
+        "nome": {"type": "string"},
+        "telefone": {"type": "string"},
+        "servico": {"type": "string"},
+        "bairro": {"type": "string"},
+    },
+    "required": ["nome", "telefone", "servico", "bairro"],
+    "additionalProperties": False,
+}
+
+
+def extrair_recomendacao(texto):
+    """Le uma mensagem de recomendacao e devolve {nome, telefone, servico, bairro}.
+    Em caso de erro, devolve tudo vazio (a Doroteia pede pra mandar de novo)."""
+    try:
+        resposta = _cliente.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=300,
+            system=_INSTRUCOES_REC,
+            messages=[{"role": "user", "content": texto}],
+            output_config={"format": {"type": "json_schema", "schema": _ESQUEMA_REC}},
+        )
+        bloco_texto = next(b for b in resposta.content if b.type == "text")
+        return json.loads(bloco_texto.text)
+    except Exception as erro:
+        print(f"[NLU] erro ao interpretar a recomendacao: {erro}")
+        return {"nome": "", "telefone": "", "servico": "", "bairro": ""}

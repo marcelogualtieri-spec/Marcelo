@@ -17,7 +17,7 @@ from supabase import create_client
 
 # Nucleo de privacidade (Camada 4) e entendimento de linguagem (Camada 5).
 from privacidade import calcular_contact_hash, extrair_numeros_de_texto, normalizar_e164
-from nlu import extrair_servico_bairro
+from nlu import extrair_servico_bairro, extrair_recomendacao
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +88,48 @@ def processar_contatos(membro, numeros_e164):
         supabase.table("edges").insert(registros_novos).execute()
 
     return len(numeros_e164), ja_membros
+
+
+def definir_estado(wa_id, estado):
+    """Guarda em que ponto da conversa a pessoa esta (ex: 'recomendando' ou 'normal')."""
+    supabase.table("members").update({"estado": estado}).eq("wa_id", wa_id).execute()
+
+
+def tratar_recomendacao(membro, texto):
+    """Camada 6: le os dados do prestador, valida e grava em providers + recommendations."""
+    dados = extrair_recomendacao(texto)
+    nome = (dados.get("nome") or "").strip() or "Prestador"
+    servico = (dados.get("servico") or "").strip()
+    bairro = (dados.get("bairro") or "").strip()
+    telefone = normalizar_e164((dados.get("telefone") or "").strip())
+
+    # Se faltou algo essencial, pedimos de novo (sem sair do modo recomendacao).
+    if not telefone or not servico or not bairro:
+        return ("Faltou alguma informacao 😅. Me manda tudo numa mensagem so: "
+                "nome, telefone (com DDD), servico e bairro.\n"
+                "Ex: Joao, (11) 98888-7777, encanador, Perdizes.\n"
+                "(ou mande *cancelar* pra desistir)")
+
+    # Cria o prestador e a indicacao ligada a este membro.
+    prestador = supabase.table("providers").insert({
+        "nome": nome,
+        "telefone": telefone,            # telefone do prestador, em E.164 (e o dado que se entrega)
+        "servico": servico.lower(),
+        "bairro": bairro,
+    }).execute().data[0]
+
+    supabase.table("recommendations").insert({
+        "member_id": membro["id"],
+        "provider_id": prestador["id"],
+        "servico": servico.lower(),
+        "bairro": bairro,
+    }).execute()
+
+    # Conversa volta ao normal.
+    definir_estado(membro["wa_id"], "normal")
+    return (f"Anotado: {nome} como {servico} em {bairro}! ✅\n\n"
+            "Quando alguem da sua rede pedir isso, sua indicacao aparece "
+            "(com seu nome, so pra eles). Valeu por ajudar! 🙏")
 
 
 # ===========================================================================
@@ -246,9 +288,17 @@ TEXTO_PEDIR_CONTATOS = (
 )
 
 TEXTO_AJUDA = (
-    "Posso te ajudar de dois jeitos 🙂:\n"
+    "Posso te ajudar assim 🙂:\n"
     "- *Pedir um servico*: ex. \"preciso de um encanador em Perdizes\".\n"
+    "- *Recomendar alguem*: digite *recomendar*.\n"
     "- *Adicionar contatos*: me manda os numeros das pessoas de confianca."
+)
+
+TEXTO_PEDIR_RECOMENDACAO = (
+    "Que otimo! 🙌 Me manda numa mensagem so: o nome do prestador, o telefone "
+    "(com DDD), o servico e o bairro.\n"
+    "Ex: Joao, (11) 98888-7777, encanador, Perdizes.\n\n"
+    "(Se quiser desistir, e so mandar *cancelar*.)"
 )
 
 
@@ -273,13 +323,29 @@ def webhook():
 
     # CASO 2 - ja consentiu
     if membro["consent"]:
-        # 2a) Mandou numeros? Tratamos como contatos (Camada 4).
+        texto_minusculo = texto_recebido.lower()
+        estado = membro.get("estado") or "normal"
+
+        # 2a) Esta no meio de uma recomendacao (Camada 6)?
+        if estado == "recomendando":
+            if texto_minusculo in ("cancelar", "sair", "parar"):
+                definir_estado(wa_id, "normal")
+                return resposta_whatsapp("Tudo bem, cancelei. 🙂\n\n" + TEXTO_AJUDA)
+            return resposta_whatsapp(tratar_recomendacao(membro, texto_recebido))
+
+        # 2b) Pediu pra recomendar alguem? Entra no modo recomendacao.
+        if texto_minusculo in ("recomendar", "indicar", "recomendar alguem",
+                               "recomendar um", "quero recomendar"):
+            definir_estado(wa_id, "recomendando")
+            return resposta_whatsapp(TEXTO_PEDIR_RECOMENDACAO)
+
+        # 2c) Mandou numeros (sem ser recomendacao)? Tratamos como contatos (Camada 4).
         numeros = extrair_numeros_de_texto(texto_recebido)
         if numeros:
             total, ja_membros = processar_contatos(membro, numeros)
             return resposta_whatsapp(texto_contatos_recebidos(total, ja_membros))
 
-        # 2b) Mandou uma frase? Tentamos entender como um pedido de servico.
+        # 2d) Mandou uma frase? Tentamos entender como um pedido de servico.
         dados = extrair_servico_bairro(texto_recebido)
         servico = dados.get("servico", "").strip()
         bairro = dados.get("bairro", "").strip()
