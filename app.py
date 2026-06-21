@@ -512,6 +512,7 @@ def _processar_webhook():
     if membro["consent"]:
         texto_minusculo = texto_recebido.lower()
         estado = membro.get("estado") or "normal"
+        print(f"[ESTADO] {wa_id} estado={estado} texto={texto_recebido!r}")
 
         # 2a) No meio de uma recomendacao (Camada 6)?
         if estado == "recomendando":
