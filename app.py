@@ -11,7 +11,8 @@ import string
 import traceback
 from datetime import datetime, timezone
 from html import escape
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
+from urllib.request import urlopen
 
 from flask import Flask, request, Response
 from supabase import create_client
@@ -251,6 +252,19 @@ def montar_link_para_contato(numero_e164, mensagem):
     return f"https://wa.me/{numero}?text={quote(mensagem)}"
 
 
+def encurtar_link(url):
+    """Deixa o link curto e bonito (is.gd). Se algo falhar, devolve o original."""
+    try:
+        api = "https://is.gd/create.php?" + urlencode({"format": "simple", "url": url})
+        with urlopen(api, timeout=5) as resposta:
+            curto = resposta.read().decode().strip()
+        if curto.startswith("http"):
+            return curto
+    except Exception:
+        pass
+    return url
+
+
 def aplicar_convite_pendente(wa_id):
     """Quando alguem entra: ve se havia um convite pendente pro numero dela e,
     se houver, devolve o id de quem convidou (e apaga o convite ja usado)."""
@@ -446,7 +460,8 @@ def _processar_webhook():
             if texto_minusculo in ("link", "meu link", "linque"):
                 definir_estado(wa_id, "normal")
                 codigo = obter_ou_criar_codigo(membro)
-                return resposta_whatsapp(t.CONVITE.format(link=montar_link_convite(numero_bot, codigo)) + t.RODAPE)
+                link = encurtar_link(montar_link_convite(numero_bot, codigo))
+                return resposta_whatsapp(t.CONVITE.format(link=link) + t.RODAPE)
             # Mandou um numero? Conectamos e devolvemos o convite pronto.
             numeros = extrair_numeros_de_texto(texto_recebido)
             if not numeros:
@@ -455,8 +470,9 @@ def _processar_webhook():
             registrar_convite_pendente(membro, numero_amigo)
             codigo = obter_ou_criar_codigo(membro)
             mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=montar_link_convite(numero_bot, codigo))
+            link_curto = encurtar_link(montar_link_para_contato(numero_amigo, mensagem))
             definir_estado(wa_id, "normal")
-            return resposta_whatsapp(t.CONVITE_PRONTO.format(link=montar_link_para_contato(numero_amigo, mensagem)))
+            return resposta_whatsapp(t.CONVITE_PRONTO.format(link=link_curto))
 
         # 2b) Saudacao ou agradecimento? Respondemos de forma natural.
         if texto_minusculo in SAUDACOES:
