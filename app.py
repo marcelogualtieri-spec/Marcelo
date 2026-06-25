@@ -1,24 +1,24 @@
 # app.py
 # ---------------------------------------------------------------------------
-# DOROTEIA - cerebro do bot. Recebe a mensagem do WhatsApp (via Twilio),
-# decide o que fazer e responde. As FALAS ficam todas em textos.py.
+# DOROTEIA - cerebro do bot. Recebe a mensagem do WhatsApp (via WhatsApp Cloud
+# API da Meta), decide o que fazer e responde. As FALAS ficam todas em textos.py.
 # ---------------------------------------------------------------------------
 
-import base64
+import hashlib
+import hmac
+import json
 import os
 import re
 import secrets
 import string
 import traceback
 from datetime import datetime, timezone
-from html import escape
 from urllib.parse import quote
 from urllib.request import urlopen, Request
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 
-from flask import Flask, request, Response
+from flask import Flask, request, Response, g
 from supabase import create_client
-from twilio.request_validator import RequestValidator
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Nucleo de privacidade (Camada 4) e entendimento de linguagem (Camada 5).
@@ -38,23 +38,105 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = Flask(__name__)
 # O Render fica atras de um proxy; isto faz o Flask enxergar a URL publica (https),
-# necessaria pra conferir a assinatura da Twilio corretamente.
+# necessaria pra montar os links curtos (/c/...) corretamente.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Validador da assinatura da Twilio. Se o Auth Token nao estiver configurado,
-# a checagem fica DESLIGADA (o bot funciona, mas sem essa protecao).
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-_validador_twilio = RequestValidator(TWILIO_AUTH_TOKEN) if TWILIO_AUTH_TOKEN else None
+
+# ---------------------------------------------------------------------------
+# CONFIG DA WHATSAPP CLOUD API (Meta)
+# ---------------------------------------------------------------------------
+GRAPH_API = "https://graph.facebook.com/v21.0"
+# Token de acesso (Bearer) pra ENVIAR mensagens. Pegue no painel da Meta.
+WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")
+# Palavra-chave que a Meta usa pra verificar o webhook (voce escolhe e repete la).
+WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "doroteia")
+# Segredo do app (opcional): liga a checagem de assinatura das mensagens recebidas.
+WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET")
 
 
-def pedido_e_da_twilio():
-    """Confere a assinatura secreta que a Twilio coloca em cada mensagem.
-    Devolve True se a mensagem e legitima (ou se a checagem estiver desligada)."""
-    if _validador_twilio is None:
-        print("[SEGURANCA] TWILIO_AUTH_TOKEN nao configurado - checagem desligada.")
+def assinatura_meta_valida():
+    """Confere a assinatura (X-Hub-Signature-256) que a Meta poe em cada mensagem.
+    Devolve True se for legitima (ou se a checagem estiver desligada)."""
+    if not WHATSAPP_APP_SECRET:
+        print("[SEGURANCA] WHATSAPP_APP_SECRET nao configurado - checagem desligada.")
         return True
-    assinatura = request.headers.get("X-Twilio-Signature", "")
-    return _validador_twilio.validate(request.url, request.form.to_dict(), assinatura)
+    assinatura = request.headers.get("X-Hub-Signature-256", "")
+    if not assinatura.startswith("sha256="):
+        return False
+    esperado = "sha256=" + hmac.new(
+        WHATSAPP_APP_SECRET.encode(), request.get_data(), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(esperado, assinatura)
+
+
+def enviar_mensagem_meta(to, texto, phone_number_id):
+    """Envia uma mensagem de texto pela WhatsApp Cloud API (chamada HTTP a Meta)."""
+    if not (WHATSAPP_TOKEN and phone_number_id and to):
+        print(f"[META] envio ignorado (token={'ok' if WHATSAPP_TOKEN else 'FALTA'}, "
+              f"phone_id={'ok' if phone_number_id else 'FALTA'}, to={'ok' if to else 'FALTA'}).")
+        return
+    url = f"{GRAPH_API}/{phone_number_id}/messages"
+    corpo = json.dumps({
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": texto, "preview_url": True},
+    }).encode("utf-8")
+    req = Request(url, data=corpo, method="POST")
+    req.add_header("Authorization", f"Bearer {WHATSAPP_TOKEN}")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urlopen(req, timeout=10) as resposta:
+            resposta.read()
+    except HTTPError as e:
+        corpo_erro = ""
+        try:
+            corpo_erro = e.read().decode("utf-8", errors="ignore")[:300]
+        except Exception:
+            pass
+        print(f"[META] HTTP {e.code} ao enviar: {corpo_erro}")
+    except Exception as e:
+        print(f"[META] falha ao enviar: {e!r}")
+
+
+def resposta_whatsapp(texto):
+    """Responde a pessoa: envia o texto pela Cloud API usando o contexto da
+    mensagem atual (guardado em g). Mantida com este nome pra todo o cerebro
+    continuar chamando 'return resposta_whatsapp(...)' sem mudancas."""
+    print(f"[RESP] {texto[:80]!r}")
+    enviar_mensagem_meta(g.get("to"), texto, g.get("phone_number_id"))
+
+
+def _e164(bruto):
+    """Normaliza um numero pro formato +55... (E.164). A Meta manda numeros sem
+    o '+', entao garantimos ele antes."""
+    bruto = (bruto or "").strip()
+    if not bruto.startswith("+"):
+        bruto = "+" + re.sub(r"\D", "", bruto)
+    return normalizar_e164(bruto) or bruto
+
+
+def conteudo_da_mensagem(msg):
+    """Extrai (texto, numeros_compartilhados) de uma mensagem da Cloud API.
+    Na Meta, contato compartilhado ja vem estruturado - sem baixar/parsear vCard."""
+    tipo = msg.get("type")
+    if tipo == "text":
+        return (msg.get("text") or {}).get("body", "").strip(), []
+    if tipo == "interactive":   # botoes/listas (futuro)
+        inter = msg.get("interactive") or {}
+        sub = inter.get(inter.get("type", ""), {}) or {}
+        return (sub.get("title") or "").strip(), []
+    if tipo == "button":        # botao de template (futuro)
+        return ((msg.get("button") or {}).get("text") or "").strip(), []
+    if tipo == "contacts":      # compartilhou um ou mais contatos
+        numeros = []
+        for c in msg.get("contacts", []):
+            for tel in c.get("phones", []):
+                numero = _e164(tel.get("wa_id") or tel.get("phone") or "")
+                if numero and numero not in numeros:
+                    numeros.append(numero)
+        return "", numeros
+    return "", []   # imagem, audio, etc.: sem texto pra Doroteia
 
 
 # ===========================================================================
@@ -254,79 +336,6 @@ def montar_link_para_contato(numero_e164, mensagem):
     return f"https://wa.me/{numero}?text={quote(mensagem)}"
 
 
-def extrair_numeros_de_vcard(texto_vcard):
-    """Acha os telefones dentro de um contato compartilhado (formato vCard).
-    O WhatsApp costuma incluir 'waid=<numero>' (o numero ja no formato certo)."""
-    numeros = []
-    for linha in texto_vcard.splitlines():
-        cabecalho = linha.split(":", 1)[0].upper()   # parte antes do ':'
-        if "TEL" not in cabecalho:
-            continue
-        achado = re.search(r"waid=(\d{6,15})", linha)
-        if achado:
-            bruto = "+" + achado.group(1)
-        else:
-            bruto = linha.split(":", 1)[1] if ":" in linha else ""
-        numero = normalizar_e164(bruto)
-        if numero and numero not in numeros:
-            numeros.append(numero)
-    if not numeros:
-        print(f"[VCARD] nenhum numero extraido. Conteudo:\n{texto_vcard[:400]}")
-    return numeros
-
-
-def _baixar_media_twilio(url):
-    """Baixa um anexo (ex: vCard) da Twilio, com a autenticacao necessaria."""
-    sid = os.environ.get("TWILIO_ACCOUNT_SID")
-    if not sid:
-        m = re.search(r"/Accounts/(AC[0-9a-zA-Z]+)/", url)
-        sid = m.group(1) if m else None
-    if not sid or not TWILIO_AUTH_TOKEN:
-        print(f"[MEDIA] sem credenciais p/ baixar (sid={'ok' if sid else 'FALTA'}, "
-              f"token={'ok' if TWILIO_AUTH_TOKEN else 'FALTA'}).")
-        return None
-    try:
-        req = Request(url)
-        cred = base64.b64encode(f"{sid}:{TWILIO_AUTH_TOKEN}".encode()).decode()
-        req.add_header("Authorization", f"Basic {cred}")
-        with urlopen(req, timeout=8) as resposta:
-            return resposta.read().decode("utf-8", errors="ignore")
-    except HTTPError as e:
-        corpo = ""
-        try:
-            corpo = e.read().decode("utf-8", errors="ignore")[:200]
-        except Exception:
-            pass
-        print(f"[MEDIA] HTTP {e.code} ao baixar anexo. Resposta: {corpo}")
-    except (URLError, Exception) as e:
-        print(f"[MEDIA] falha ao baixar anexo: {e!r}")
-    return None
-
-
-def numeros_de_contatos_compartilhados():
-    """Le os contatos (vCard) que a pessoa compartilhou e devolve os numeros.
-    Se nao houver contato compartilhado, devolve lista vazia sem custo de rede."""
-    try:
-        qtd = int(request.form.get("NumMedia", "0"))
-    except (TypeError, ValueError):
-        qtd = 0
-    if qtd:
-        tipos = [request.form.get(f"MediaContentType{i}", "") for i in range(qtd)]
-        print(f"[MEDIA] NumMedia={qtd} tipos={tipos}")
-    numeros = []
-    for i in range(qtd):
-        tipo = request.form.get(f"MediaContentType{i}", "")
-        url = request.form.get(f"MediaUrl{i}", "")
-        if "vcard" not in tipo.lower() or not url:
-            continue
-        conteudo = _baixar_media_twilio(url)
-        if conteudo:
-            for numero in extrair_numeros_de_vcard(conteudo):
-                if numero not in numeros:
-                    numeros.append(numero)
-    return numeros
-
-
 def gerar_codigo_curto(tamanho=6):
     alfabeto = string.ascii_letters + string.digits
     return "".join(secrets.choice(alfabeto) for _ in range(tamanho))
@@ -442,19 +451,6 @@ def texto_meus_dados(membro, voc):
     )
 
 
-# ===========================================================================
-# RESPOSTA NO FORMATO DA TWILIO
-# ===========================================================================
-
-def resposta_whatsapp(texto):
-    print(f"[RESP] {texto[:80]!r}")
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Message>{escape(texto)}</Message>
-</Response>"""
-    return Response(twiml, mimetype="application/xml")
-
-
 # Conjuntos de palavras que reconhecemos como saudacao ou agradecimento.
 SAUDACOES = {"oi", "ola", "olá", "oi!", "ola!", "opa", "oie", "eai", "e ai",
              "eaí", "hey", "bom dia", "boa tarde", "boa noite"}
@@ -464,34 +460,65 @@ AGRADECIMENTOS = {"obrigado", "obrigada", "obg", "obgd", "vlw", "valeu",
 
 
 # ===========================================================================
-# A PORTA PRINCIPAL
+# A PORTA PRINCIPAL (WhatsApp Cloud API)
 # ===========================================================================
+
+@app.route("/webhook", methods=["GET"])
+def verificar_webhook():
+    """A Meta chama isto uma vez pra confirmar que o webhook e nosso."""
+    if (request.args.get("hub.mode") == "subscribe"
+            and request.args.get("hub.verify_token") == WHATSAPP_VERIFY_TOKEN):
+        return Response(request.args.get("hub.challenge", ""), mimetype="text/plain")
+    return Response("Token de verificacao invalido", status=403)
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # Porta-de-entrada: so seguimos se a mensagem veio mesmo da Twilio.
-    if not pedido_e_da_twilio():
+    # So seguimos se a mensagem veio mesmo da Meta.
+    if not assinatura_meta_valida():
         print("[SEGURANCA] mensagem rejeitada: assinatura invalida.")
         return Response("Assinatura invalida", status=403)
-
-    # Rede de seguranca: se algo inesperado falhar, respondemos uma mensagem
-    # amigavel (em vez de silencio) e registramos o erro nos Logs.
-    try:
-        return _processar_webhook()
-    except Exception:
-        traceback.print_exc()
-        return resposta_whatsapp(t.ERRO_GENERICO)
+    dados = request.get_json(silent=True) or {}
+    processar_eventos(dados)
+    # A Meta espera sempre um 200 rapido (senao reenvia o evento).
+    return Response("OK", status=200)
 
 
-def _processar_webhook():
-    texto_recebido = request.form.get("Body", "").strip()
-    remetente = request.form.get("From", "")
-    nome_perfil = request.form.get("ProfileName", "")
-    wa_id = remetente.replace("whatsapp:", "")
+def processar_eventos(dados):
+    """Percorre o pacote da Meta e trata cada mensagem recebida."""
+    for entry in dados.get("entry", []):
+        for change in entry.get("changes", []):
+            value = change.get("value") or {}
+            metadata = value.get("metadata") or {}
+            phone_number_id = metadata.get("phone_number_id")
+            display = re.sub(r"\D", "", metadata.get("display_phone_number", ""))
 
+            nomes = {}
+            for c in value.get("contacts", []):
+                nomes[c.get("wa_id")] = (c.get("profile") or {}).get("name", "")
+
+            for msg in value.get("messages", []):
+                origem = msg.get("from", "")
+                nome_perfil = nomes.get(origem, "")
+                texto, numeros = conteudo_da_mensagem(msg)
+
+                # Contexto da resposta (resposta_whatsapp usa isto pra ENVIAR).
+                g.to = origem
+                g.phone_number_id = phone_number_id
+                g.display_phone_number = display
+
+                wa_id = _e164(origem)
+                print(f"Mensagem de {wa_id} ({nome_perfil}): {texto!r}")
+                try:
+                    _processar_mensagem(wa_id, texto, nome_perfil, numeros)
+                except Exception:
+                    traceback.print_exc()
+                    resposta_whatsapp(t.ERRO_GENERICO)
+
+
+def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhados):
     nome = primeiro_nome(nome_perfil)
     voc = vocativo(nome)
-
-    print(f"Mensagem de {wa_id} ({nome_perfil}): {texto_recebido}")
 
     membro = buscar_membro(wa_id)
 
@@ -537,16 +564,15 @@ def _processar_webhook():
             if texto_minusculo in ("cancelar", "sair", "parar"):
                 definir_estado(wa_id, "normal")
                 return resposta_whatsapp(t.MENU.format(voc=voc))
-            numero_bot = request.form.get("To", "").replace("whatsapp:", "").replace("+", "")
+            numero_bot = g.get("display_phone_number") or ""
             # Pediu o link generico (pra divulgar pra varios)?
             if texto_minusculo in ("link", "meu link", "linque"):
                 definir_estado(wa_id, "normal")
                 codigo = obter_ou_criar_codigo(membro)
                 link = encurtar_link(montar_link_convite(numero_bot, codigo))
                 return resposta_whatsapp(t.CONVITE.format(link=link) + t.RODAPE)
-            # Compartilhou um contato? Pegamos o numero do vCard.
-            # Senao, tentamos achar um numero no texto digitado.
-            numeros = numeros_de_contatos_compartilhados() or extrair_numeros_de_texto(texto_recebido)
+            # Compartilhou um contato (ja vem no JSON)? Senao, procura no texto.
+            numeros = numeros_compartilhados or extrair_numeros_de_texto(texto_recebido)
             if not numeros:
                 return resposta_whatsapp(t.CONVIDAR_NUMERO_INVALIDO)
             # Conecta voce com TODOS os contatos enviados (pra quando eles entrarem)...
@@ -602,7 +628,7 @@ def _processar_webhook():
 
         # 2g) Mandou numeros (digitados ou contato compartilhado)? Camada 4.
         numeros = extrair_numeros_de_texto(texto_recebido)
-        for numero in numeros_de_contatos_compartilhados():
+        for numero in numeros_compartilhados:
             if numero not in numeros:
                 numeros.append(numero)
         if numeros:
