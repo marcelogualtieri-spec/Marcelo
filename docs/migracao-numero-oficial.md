@@ -46,7 +46,7 @@ Sem isso, o Twilio não deixa registrar um número oficial.
 Quando o número estiver ativo:
 1. No Twilio, no **WhatsApp Sender** (ou no **Messaging Service** ligado a ele),
    ache **"Endpoint / Webhook" → "When a message comes in"**.
-2. Cole a URL do nosso servidor no Render:  `https://SEU-APP.onrender.com/webhook`
+2. Cole a URL do nosso servidor no Render:  `https://doroteia-ia.onrender.com/webhook`
    - Método: **HTTP POST**.
 3. Salve. (É o mesmo endpoint que o sandbox usa hoje — só passa a valer pro número
    oficial.) 🤖 Eu te ajudo a confirmar a URL certa.
