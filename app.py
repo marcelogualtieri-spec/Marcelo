@@ -48,6 +48,11 @@ WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "doroteia")
 WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET")
 
+# URL publica do servico, usada pra montar os links curtos /c/<code>. Vem de env
+# (configuravel se um dia mudar o dominio); cai num padrao conhecido; e so em
+# ultimo caso usa a URL da requisicao (que pode vir errada atras de proxy).
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrender.com").rstrip("/")
+
 
 def assinatura_meta_valida():
     """Confere a assinatura (X-Hub-Signature-256) que a Meta poe em cada mensagem."""
@@ -456,15 +461,35 @@ def montar_link_para_contato(numero_e164, mensagem):
 
 
 def gerar_codigo_curto(tamanho=6):
-    alfabeto = string.ascii_letters + string.digits
+    # So minusculas + digitos: evita qualquer problema de maiusc/minusc na URL.
+    alfabeto = string.ascii_lowercase + string.digits
     return "".join(secrets.choice(alfabeto) for _ in range(tamanho))
 
 
+def _base_publica():
+    """Base pra montar os links curtos. Prioriza a env/padrao conhecido; so usa
+    a URL da requisicao se nao houver outra (atras de proxy ela pode vir errada)."""
+    if PUBLIC_BASE_URL:
+        return PUBLIC_BASE_URL
+    try:
+        return request.url_root.rstrip("/")
+    except Exception:
+        return ""
+
+
 def encurtar_link(url):
+    """Gera um link curto /c/<code> que redireciona pra `url`. Se a gravacao falhar
+    ou nao tiver base valida, devolve a propria `url` (que ja funciona) — nunca
+    um link quebrado que daria 404."""
     try:
         codigo = gerar_codigo_curto()
-        supabase.table("short_links").insert({"code": codigo, "url": url}).execute()
-        base = request.url_root.rstrip("/")
+        res = supabase.table("short_links").insert({"code": codigo, "url": url}).execute()
+        if not getattr(res, "data", None):
+            print(f"[ENCURTAR] insert nao retornou linha (code={codigo}); usando url crua.")
+            return url
+        base = _base_publica()
+        if not base:
+            return url
         return f"{base}/c/{codigo}"
     except Exception:
         traceback.print_exc()
@@ -929,8 +954,13 @@ def redirecionar_link(codigo):
     try:
         achado = (supabase.table("short_links").select("url")
                   .eq("code", codigo).limit(1).execute().data)
+        if not achado:
+            # Rede de seguranca: tenta ignorando maiusc/minusc (codigos antigos).
+            achado = (supabase.table("short_links").select("url")
+                      .ilike("code", codigo).limit(1).execute().data)
         if achado:
             return Response(status=302, headers={"Location": achado[0]["url"]})
+        print(f"[REDIRECT] code nao encontrado: {codigo!r}")
     except Exception:
         traceback.print_exc()
     return Response("Link nao encontrado.", status=404)
