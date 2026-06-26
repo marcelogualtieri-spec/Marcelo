@@ -639,24 +639,50 @@ def _ferr_adicionar_contatos(membro, numeros):
             "que, quando os outros entrarem, as indicacoes passam a aparecer entre eles.")
 
 
+# Quantos links "um toque pra enviar" listamos no maximo (acima disso, melhor a
+# mensagem unica pra encaminhar — uma lista enorme de links fica ruim no WhatsApp).
+MAX_LINKS_INDIVIDUAIS = 10
+
+
 def _ferr_convidar(membro, numeros):
     if not numeros:
-        return ("Nenhum contato veio nesta mensagem pra convidar. Peca pra compartilhar o "
-                "contato pelo clipe 📎 ou digitar o numero com DDD.")
+        return ("Nenhum contato veio nesta mensagem pra convidar. Peca pra compartilhar os "
+                "contatos pelo clipe 📎 (pode mandar varios!) ou digitar os numeros com DDD.")
     numero_bot = g.get("display_phone_number") or ""
+
+    # 1) Atrela TODOS os contatos ao convite (conexao pelo telefone, sem codigo).
     for numero in numeros:
         registrar_convite_pendente(membro, numero)
-    # Convite a contato especifico: a conexao se faz pelo numero (convite pendente),
-    # entao o link vai LIMPO, sem codigo visivel pra quem recebe.
-    link_amigo = encurtar_link(montar_link_convite(numero_bot))
-    mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=link_amigo)
-    link_pronto = encurtar_link(montar_link_para_contato(numeros[0], mensagem))
-    extra = ""
-    if len(numeros) > 1:
-        extra = (f" Tambem ja conectei a pessoa com os outros {len(numeros) - 1} contato(s); "
-                 "quando entrarem, se reconhecem.")
-    return (f"Convite pronto. Entregue este link EXATO pra ela abrir e enviar pro contato "
-            f"(ja conectei os dois): {link_pronto}.{extra}")
+
+    # 2) Mensagem unica pra encaminhar (link limpo da Doroteia, sem codigo visivel).
+    link_geral = encurtar_link(montar_link_convite(numero_bot))
+    msg_amigo = t.CONVITE_MENSAGEM_AMIGO.format(link=link_geral)
+
+    # 3) Link "um toque pra enviar" por contato (abre a conversa com cada um, ja
+    #    escrito). Encurtado pra IA NUNCA ver o numero real — so a ficha.
+    individuais = numeros[:MAX_LINKS_INDIVIDUAIS]
+    linhas = []
+    for i, numero in enumerate(individuais, start=1):
+        link_pronto = encurtar_link(montar_link_para_contato(numero, msg_amigo))
+        linhas.append(f"[CONTATO_{i}] -> {link_pronto}")
+
+    aviso_extra = ""
+    if len(numeros) > MAX_LINKS_INDIVIDUAIS:
+        sobra = len(numeros) - MAX_LINKS_INDIVIDUAIS
+        aviso_extra = (f"\n\n(Os outros {sobra} contato(s) tambem JA estao atrelados ao convite; "
+                       "pra esses, o melhor e a mensagem unica de encaminhar abaixo.)")
+
+    return (
+        f"Convites prontos pra {len(numeros)} pessoa(s) — TODAS ja atreladas ao convite dela "
+        "(quando entrarem, ficam conectadas a ela automaticamente, sem ela precisar de codigo).\n\n"
+        "OPCAO 1 - um toque pra enviar cada: entregue um link por pessoa, TROCANDO a ficha "
+        "[CONTATO_n] pelo NOME da pessoa (voce sabe quem e cada ficha). Cada link abre a conversa "
+        "com aquela pessoa ja com o convite escrito; ela so toca em Enviar. Links (copie EXATOS):\n"
+        + "\n".join(linhas) + aviso_extra +
+        "\n\nOPCAO 2 - uma mensagem pra varios: ela tambem pode encaminhar esta mensagem unica "
+        f"pra quantos quiser de uma vez (forward do WhatsApp):\n{msg_amigo}\n\n"
+        "Apresente as DUAS opcoes de forma simples e calorosa, e deixe ela escolher qual usar."
+    )
 
 
 def _ferr_link_generico(membro):
