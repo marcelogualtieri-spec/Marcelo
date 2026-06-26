@@ -235,9 +235,9 @@ FERRAMENTAS = [
         "name": "convidar_pessoa",
         "description": "Prepara convites prontos para TODOS os contatos que ela mandou nesta "
                        "mensagem (um ou varios — pelo clipe ou digitados). Atrela todos ao "
-                       "convite dela (conexao pelo telefone, sem codigo) e devolve, pra cada um, "
-                       "um link 'um toque pra enviar', ALEM de uma mensagem unica pra encaminhar "
-                       "pra varios de uma vez. Use quando ela quiser convidar contatos especificos.",
+                       "convite dela (conexao pelo telefone, sem codigo) e devolve um link "
+                       "'um toque pra enviar' por pessoa. Use quando ela quiser convidar "
+                       "contatos especificos.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {

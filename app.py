@@ -750,16 +750,15 @@ def _ferr_convidar(membro, numeros):
                 "contatos pelo clipe 📎 (pode mandar varios!) ou digitar os numeros com DDD.")
     numero_bot = g.get("display_phone_number") or ""
 
-    # 1) Atrela TODOS os contatos ao convite (conexao pelo telefone, sem codigo).
+    # Atrela TODOS os contatos ao convite (conexao pelo telefone, sem codigo).
     for numero in numeros:
         registrar_convite_pendente(membro, numero)
 
-    # 2) Mensagem unica pra encaminhar (link limpo da Doroteia, sem codigo visivel).
+    # Monta a mensagem que vai pre-escrita na conversa com o convidado.
     link_geral = encurtar_link(montar_link_convite(numero_bot))
     msg_amigo = t.CONVITE_MENSAGEM_AMIGO.format(link=link_geral)
 
-    # 3) Link "um toque pra enviar" por contato (abre a conversa com cada um, ja
-    #    escrito). Encurtado pra IA NUNCA ver o numero real — so a ficha.
+    # Link "um toque pra enviar" por contato — encurtado pra IA nao ver o numero real.
     individuais = numeros[:MAX_LINKS_INDIVIDUAIS]
     linhas = []
     for i, numero in enumerate(individuais, start=1):
@@ -769,19 +768,16 @@ def _ferr_convidar(membro, numeros):
     aviso_extra = ""
     if len(numeros) > MAX_LINKS_INDIVIDUAIS:
         sobra = len(numeros) - MAX_LINKS_INDIVIDUAIS
-        aviso_extra = (f"\n\n(Os outros {sobra} contato(s) tambem JA estao atrelados ao convite; "
-                       "pra esses, o melhor e a mensagem unica de encaminhar abaixo.)")
+        aviso_extra = (f"\n\n(Os outros {sobra} contato(s) tambem ja estao atrelados ao convite — "
+                       "pra gerar os links deles, e so mandar esses contatos de novo.)")
 
     return (
-        f"Convites prontos pra {len(numeros)} pessoa(s) — TODAS ja atreladas ao convite dela "
-        "(quando entrarem, ficam conectadas a ela automaticamente, sem ela precisar de codigo).\n\n"
-        "OPCAO 1 - um toque pra enviar cada: entregue um link por pessoa, TROCANDO a ficha "
-        "[CONTATO_n] pelo NOME da pessoa (voce sabe quem e cada ficha). Cada link abre a conversa "
-        "com aquela pessoa ja com o convite escrito; ela so toca em Enviar. Links (copie EXATOS):\n"
-        + "\n".join(linhas) + aviso_extra +
-        "\n\nOPCAO 2 - uma mensagem pra varios: ela tambem pode encaminhar esta mensagem unica "
-        f"pra quantos quiser de uma vez (forward do WhatsApp):\n{msg_amigo}\n\n"
-        "Apresente as DUAS opcoes de forma simples e calorosa, e deixe ela escolher qual usar."
+        f"Convites prontos pra {len(numeros)} pessoa(s) — todas ja atreladas ao convite dela "
+        "(quando entrarem, ficam conectadas automaticamente, sem precisar de codigo).\n\n"
+        "Entregue o link de cada uma, TROCANDO a ficha [CONTATO_n] pelo NOME da pessoa "
+        "(voce sabe quem e cada ficha). Cada link abre a conversa com aquela pessoa ja com "
+        "o convite escrito; ela so toca em Enviar. Links (copie EXATOS):\n"
+        + "\n".join(linhas) + aviso_extra
     )
 
 
