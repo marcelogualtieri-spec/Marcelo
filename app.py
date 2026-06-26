@@ -398,8 +398,17 @@ def obter_ou_criar_codigo(membro):
     return codigo
 
 
-def montar_link_convite(numero_bot, codigo):
-    mensagem = f"Oi! Quero entrar na Doroteia 🙂 (convite: {codigo})"
+def montar_link_convite(numero_bot, codigo=None):
+    """Link wa.me que abre a conversa com a Doroteia ja com uma saudacao escrita.
+
+    O codigo do convite e detalhe TECNICO e nao precisa aparecer pra quem recebe.
+    - Convite a um contato especifico: a conexao ja acontece pelo numero (convite
+      pendente registrado), entao a mensagem fica LIMPA, sem codigo (codigo=None).
+    - Link generico de divulgacao: nao ha numero pra casar, entao ai sim o codigo
+      vai junto (e o unico jeito de saber quem convidou)."""
+    mensagem = "Oi! Quero entrar na Doroteia 🙂"
+    if codigo:
+        mensagem += f" (convite: {codigo})"
     return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
 
 
@@ -637,8 +646,9 @@ def _ferr_convidar(membro, numeros):
     numero_bot = g.get("display_phone_number") or ""
     for numero in numeros:
         registrar_convite_pendente(membro, numero)
-    codigo = obter_ou_criar_codigo(membro)
-    link_amigo = encurtar_link(montar_link_convite(numero_bot, codigo))
+    # Convite a contato especifico: a conexao se faz pelo numero (convite pendente),
+    # entao o link vai LIMPO, sem codigo visivel pra quem recebe.
+    link_amigo = encurtar_link(montar_link_convite(numero_bot))
     mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=link_amigo)
     link_pronto = encurtar_link(montar_link_para_contato(numeros[0], mensagem))
     extra = ""
