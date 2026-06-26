@@ -1020,17 +1020,10 @@ def construir_executor(membro, interativa_enviada):
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
             return (
-                "Consentimento registrado. Conduza o onboarding NUMA UNICA mensagem calorosa:\n"
-                "1) Boas-vindas de verdade — se souber quem a convidou (veja DADOS DESTA "
-                "PESSOA), cite pelo primeiro nome com carinho.\n"
-                "2) Em 2 frases curtas explique o que voce faz: encontrar indicacoes de "
-                "confianca da rede dela — medico, escola, encanador, advogado, o que precisar.\n"
-                "3) Convide-a JA a compartilhar alguns contatos de confianca pelo clipe 📎 "
-                "(pode mandar varios de uma vez!) e explique que isso faz as indicacoes "
-                "aparecerem com o nome de quem indicou — muito mais confiavel do que lista "
-                "generica.\n"
-                "4) Pergunte tambem se ela ja precisa de alguma indicacao AGORA — assim ela "
-                "experimenta o valor da Doroteia de cara."
+                "Consentimento registrado. Responda em NO MAXIMO 3 linhas: "
+                "uma frase de boas-vindas calorosa (cite quem convidou se souber), "
+                "convite para compartilhar contatos pelo clipe 📎, "
+                "e pergunte se ja precisa de alguma indicacao agora. Nada mais."
             )
         if nome == "buscar_servico":
             return _ferr_buscar(membro, entrada)
