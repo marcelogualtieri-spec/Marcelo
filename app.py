@@ -736,6 +736,11 @@ def _ferr_adicionar_contatos(membro, numeros):
             "convida-los (pode compartilhar de novo pelo clipe 📎 que voce prepara os convites)."
         )
 
+    linhas.append(
+        "Agora pergunte com leveza se ela ja precisa de alguma indicacao — medico, escola, "
+        "prestador, o que for. E o momento certo pra ela experimentar a Doroteia na pratica."
+    )
+
     return "\n".join(linhas)
 
 
@@ -899,9 +904,19 @@ def construir_executor(membro, interativa_enviada):
         if nome == "registrar_consentimento":
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
-            return ("Consentimento registrado. De as boas-vindas de verdade e convide a pessoa a "
-                    "adicionar contatos de confianca (pelo clipe 📎 ou digitando), explicando que "
-                    "isso faz as indicacoes aparecerem com nome.")
+            return (
+                "Consentimento registrado. Conduza o onboarding NUMA UNICA mensagem calorosa:\n"
+                "1) Boas-vindas de verdade — se souber quem a convidou (veja DADOS DESTA "
+                "PESSOA), cite pelo primeiro nome com carinho.\n"
+                "2) Em 2 frases curtas explique o que voce faz: encontrar indicacoes de "
+                "confianca da rede dela — medico, escola, encanador, advogado, o que precisar.\n"
+                "3) Convide-a JA a compartilhar alguns contatos de confianca pelo clipe 📎 "
+                "(pode mandar varios de uma vez!) e explique que isso faz as indicacoes "
+                "aparecerem com o nome de quem indicou — muito mais confiavel do que lista "
+                "generica.\n"
+                "4) Pergunte tambem se ela ja precisa de alguma indicacao AGORA — assim ela "
+                "experimenta o valor da Doroteia de cara."
+            )
         if nome == "buscar_servico":
             return _ferr_buscar(membro, entrada)
         if nome == "salvar_recomendacao":
