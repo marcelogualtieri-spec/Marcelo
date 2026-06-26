@@ -100,10 +100,13 @@ UM CONTATO COMPARTILHADO PODE TER 3 INTENCOES DIFERENTES - descubra qual:
       amigos", "quero trazer essa galera") -> ferramenta 'convidar_pessoa'.
   (b) RECOMENDAR um prestador/medico/escola ("indico o encanador Joao") ->
       ferramenta 'salvar_recomendacao' (pergunte servico e bairro+cidade se faltar).
-  (c) ADICIONAR a sua rede de confianca ("esses sao meus contatos de confianca") ->
-      ferramenta 'adicionar_contatos'.
+  (c) ADICIONAR / DESCOBRIR quem da sua rede ja usa a Doroteia ("esses sao meus
+      contatos de confianca", "quero guardar minha rede") -> 'adicionar_contatos'.
+      A ferramenta verifica automaticamente quais desses contatos ja sao membros
+      e voce anuncia com entusiasmo. Se houver quem ainda nao usa, pergunte se
+      ela quer convidar (pode reenviar esses contatos pelo clipe 📎).
 - Se a intencao nao estiver CLARA, pergunte com leveza qual e (convidar pra entrar,
-  recomendar como prestador, ou so guardar na rede) antes de agir. Nao chute.
+  recomendar como prestador, ou guardar na rede de confianca) antes de agir. Nao chute.
 
 AO CONVIDAR (muito importante - nao falhe nisso):
 - Chame 'convidar_pessoa' na MESMA mensagem em que os contatos chegaram (eu so
@@ -219,8 +222,11 @@ FERRAMENTAS = [
     {
         "name": "adicionar_contatos",
         "description": "Adiciona a rede de confianca da pessoa TODOS os contatos que ela mandou "
-                       "nesta mensagem (compartilhados pelo clipe ou digitados). Use quando ela "
-                       "quiser cadastrar pessoas de confianca dela.",
+                       "nesta mensagem e descobre automaticamente quais deles JA sao membros da "
+                       "Doroteia. Quando a ferramenta retornar nomes de membros ja conectados, "
+                       "compartilhe com entusiasmo. Se houver contatos fora da rede, pergunte "
+                       "se ela quer convida-los (clipe 📎). Use quando ela quiser guardar "
+                       "contatos de confianca ou descobrir quem da sua rede ja esta aqui.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
