@@ -550,15 +550,22 @@ def existe_vinculo(pedidor, recomendador):
 
 def executar_busca(pedidor, servico, bairro, cidade):
     """Roda a busca real e devolve (com_nome, sem_nome).
-    com_nome: [(prestador, nome_de_quem_indicou)]  -> rede direta (verde)
-    sem_nome: [prestador]                          -> fora da rede (amarelo)"""
+
+    com_nome: [(prestador, [nomes_de_quem_indicou])]  -> rede direta (verde)
+              Um mesmo prestador pode ter sido indicado por varias pessoas da
+              rede; todos os nomes sao agregados pra mostrar prova social real.
+    sem_nome: [prestador]                             -> fora da rede (amarelo)
+    """
     query = (supabase.table("recommendations").select("*")
              .ilike("servico", servico).ilike("bairro", bairro))
     if cidade:
         query = query.ilike("cidade", cidade)
     recs = query.execute().data
 
-    com_nome, sem_nome = [], []
+    # Agrupa por prestador para consolidar todos os indicadores da rede.
+    por_provider_rede = {}  # provider_id -> {"prestador": ..., "quem_indicou": [nomes]}
+    por_provider_fora = {}  # provider_id -> prestador (fora da rede, sem nome)
+
     for rec in recs:
         recomendador = buscar_membro_por_id(rec["member_id"])
         if recomendador is None or not recomendador.get("consent"):
@@ -566,15 +573,36 @@ def executar_busca(pedidor, servico, bairro, cidade):
         prestador = buscar_provider(rec["provider_id"])
         if prestador is None:
             continue
-        if existe_vinculo(pedidor, recomendador):
-            com_nome.append((prestador, recomendador.get("nome_perfil") or "alguem que voce conhece"))
-        else:
-            sem_nome.append(prestador)
 
-    # Os mais bem avaliados aparecem primeiro (relevancia ganha com as notas).
+        pid = prestador["id"]
+        if existe_vinculo(pedidor, recomendador):
+            nome_rec = (recomendador.get("nome_perfil") or "").strip() or "alguem que voce conhece"
+            if pid not in por_provider_rede:
+                por_provider_rede[pid] = {"prestador": prestador, "quem_indicou": []}
+            if nome_rec not in por_provider_rede[pid]["quem_indicou"]:
+                por_provider_rede[pid]["quem_indicou"].append(nome_rec)
+        else:
+            if pid not in por_provider_fora:
+                por_provider_fora[pid] = prestador
+
+    # Prestadores da rede nao entram no amarelo, mesmo que tenham indicacoes externas.
+    com_nome = [(d["prestador"], d["quem_indicou"]) for d in por_provider_rede.values()]
+    sem_nome = [p for pid, p in por_provider_fora.items() if pid not in por_provider_rede]
+
     com_nome.sort(key=lambda par: _relevancia(par[0]), reverse=True)
     sem_nome.sort(key=_relevancia, reverse=True)
     return com_nome, sem_nome
+
+
+def _formatar_indicadores(nomes):
+    """'Joao', 'Joao e Maria', 'Joao, Maria e mais 1'"""
+    if not nomes:
+        return "alguem da sua rede"
+    if len(nomes) == 1:
+        return nomes[0]
+    if len(nomes) == 2:
+        return f"{nomes[0]} e {nomes[1]}"
+    return f"{nomes[0]}, {nomes[1]} e mais {len(nomes) - 2}"
 
 
 # ===========================================================================
@@ -614,12 +642,19 @@ def _ferr_buscar(membro, entrada):
         registrar_busca(servico, bairro, cidade, "verde")
         for p, _ in com_nome:
             registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
-        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | "
-                  f"indicado por: {quem}{_selo(p)}" for p, quem in com_nome]
+        linhas = []
+        for p, quem_lista in com_nome:
+            endosso = _formatar_indicadores(quem_lista)
+            prova = f" | {len(quem_lista)} pessoas da sua rede indicaram" if len(quem_lista) > 1 else ""
+            linhas.append(
+                f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | "
+                f"indicado por: {endosso}{prova}{_selo(p)}"
+            )
         return ("RESULTADO=verde - indicacoes de pessoas da rede de confianca dela, em "
                 f"{local}, JA ORDENADAS pelas mais bem avaliadas. Apresente com alegria, "
-                "mantendo nome e telefone EXATOS, citando quem indicou e, quando houver, "
-                "destacando a avaliacao:\n" + "\n".join(linhas))
+                "citando quem indicou (quando mais de uma pessoa indicou o mesmo, destaque "
+                "isso — e prova social forte). Mantenha nome e telefone EXATOS:\n"
+                + "\n".join(linhas))
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo")
         for p in sem_nome:
