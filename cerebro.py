@@ -23,6 +23,18 @@ _cliente = Anthropic()
 # Motor leve e rapido pra conversa do dia a dia.
 MODELO = "claude-haiku-4-5"
 
+
+def _limpar_markdown(texto):
+    """Remove formatacao incompativel com WhatsApp antes de enviar.
+    - Links com ** ao redor: remove os asteriscos (nao quebra o link).
+    - ** restantes: converte pra * (bold do WhatsApp).
+    """
+    # 1) Remove * que envolvem URLs (qualquer quantidade).
+    texto = re.sub(r'\*+(https?://[^\s*]+)\*+', r'\1', texto)
+    # 2) Converte ** residuais para * (bold do WhatsApp).
+    texto = re.sub(r'\*{2,}', '*', texto)
+    return texto
+
 # Quantas trocas de mensagem guardamos de memoria (ida + volta = 2).
 MAX_HISTORICO = 12
 
@@ -73,6 +85,12 @@ BOTOES CLICAVEIS:
   recomendacao, compartilhar contato) — nessas horas use so texto.
 - Quando chamar 'enviar_botoes', sua resposta de texto final deve ser VAZIA
   (o texto ja foi enviado junto com os botoes).
+
+FORMATACAO DO WHATSAPP (importante):
+- Use *texto* (um asterisco) para negrito e _texto_ para italico.
+- NUNCA use ** (dois asteriscos) — o WhatsApp nao renderiza, aparecem como caracteres.
+- Links e telefones NUNCA devem ter formatacao ao redor (nem asteriscos, nem underlines).
+  O link deve ficar sozinho na linha, ex.: "Aqui esta o link:\nhttps://..."
 
 REGRA DE OURO DAS FERRAMENTAS:
 - Para QUALQUER acao real (buscar, recomendar, adicionar contatos, convidar, ver
@@ -329,7 +347,7 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
     if not texto_final:
         texto_final = "Pode repetir, por favor? Acho que me perdi aqui 😅"
 
-    enviar_texto(texto_final)
+    enviar_texto(_limpar_markdown(texto_final))
 
     # Guarda a memoria (so texto, sem o vai-e-vem das ferramentas), enxuta.
     novo_historico = historico + [
