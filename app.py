@@ -182,15 +182,21 @@ def conteudo_da_mensagem(msg):
         return ((msg.get("button") or {}).get("text") or "").strip(), []
     if tipo == "contacts":
         # Retorna lista de (e164, nome) — o nome do card vai pra IA, o numero fica como ficha.
+        # Se o numero nao chegar valido, inclui ("", nome) pra IA saber que o card veio
+        # e poder pedir o telefone pelo nome, em vez de ignorar o contato.
         contatos = []
         vistos = set()
         for c in msg.get("contacts", []):
             nome_card = (c.get("name") or {}).get("formatted_name", "").strip()
+            teve_numero = False
             for tel in c.get("phones", []):
                 numero = _e164(tel.get("wa_id") or tel.get("phone") or "")
                 if numero and numero not in vistos:
                     contatos.append((numero, nome_card))
                     vistos.add(numero)
+                    teve_numero = True
+            if not teve_numero and nome_card:
+                contatos.append(("", nome_card))
         return "", contatos
     return "", []
 

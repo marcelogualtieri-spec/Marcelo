@@ -97,6 +97,10 @@ CONTATOS:
 - Para recomendacoes via card: o nome do card e o nome do indicado (prestador,
   medico, professor...). Ainda assim pergunte o tipo de indicacao e o bairro+cidade
   se faltar.
+- Se o card chegar como [sem-numero] (nome: X), significa que o numero nao veio no
+  card (salvo sem DDD ou formato desconhecido). Peca o telefone de X com naturalidade:
+  ex.: "Recebi o contato do [nome], mas o numero nao veio. Pode mandar o telefone
+  com DDD?" NAO diga que "o contato nao chegou" — o card chegou, so o numero que faltou.
 
 BOTOES CLICAVEIS:
 - Voce tem a ferramenta 'enviar_botoes' para momentos de escolha clara e binaria:
@@ -306,13 +310,18 @@ def _tokenizar_numeros(texto, contatos_compartilhados):
         texto_ia = re.sub(r"\+?\d[\d\s().\-]{6,}\d", _troca, texto_ia)
 
     # 2) contatos compartilhados pelo clipe: (e164, nome_card).
-    # O nome vai pra IA; o numero vira ficha.
+    # O nome vai pra IA; o numero vira ficha. Se e164="" o numero nao veio —
+    # ainda assim avisa a IA pra ela poder pedir o telefone pelo nome.
     extras = []
     for e164, nome_card in contatos_compartilhados or []:
-        if e164 not in numeros:
-            numeros.append(e164)
-        ficha = f"[CONTATO_{numeros.index(e164) + 1}]"
-        descricao = f"{ficha} (nome: {nome_card})" if nome_card else ficha
+        if e164:
+            if e164 not in numeros:
+                numeros.append(e164)
+            ficha = f"[CONTATO_{numeros.index(e164) + 1}]"
+            descricao = f"{ficha} (nome: {nome_card})" if nome_card else ficha
+        else:
+            # Numero nao chegou valido: passa so o nome pra IA saber que o card veio.
+            descricao = f"[sem-numero] (nome: {nome_card})" if nome_card else "[sem-numero]"
         extras.append(descricao)
 
     nota = ""
