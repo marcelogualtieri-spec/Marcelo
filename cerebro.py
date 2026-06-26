@@ -134,8 +134,13 @@ SISTEMA_SEM_CONSENT = """
 ATENCAO - ESTA PESSOA AINDA NAO DEU CONSENTIMENTO:
 - Antes de qualquer coisa, de as boas-vindas, explique em poucas linhas o que voce
   faz e peca o "pode ser" dela (consentimento de privacidade).
+- Se ela chegou por convite (veja os DADOS DESTA PESSOA), comece JA citando quem a
+  convidou e deixe claro que elas ja estao conectadas aqui — assim a entrada e
+  natural, sem fricao, e ela nao sente que esta comecando do zero.
+- Ofereca o "pode ser" preferencialmente com botoes (ferramenta enviar_botoes), ex.:
+  "Pode ser! 💛" e "Quero saber mais" — pra ser um toque so.
 - So chame 'registrar_consentimento' quando ela concordar claramente (ex.: "sim",
-  "pode ser", "bora", "topo").
+  "pode ser", "bora", "topo", ou tocar no botao "Pode ser").
 - Enquanto ela nao consentir, NAO use nenhuma outra ferramenta (nao busque, nao
   salve nada). So converse e explique."""
 
@@ -344,6 +349,16 @@ def _contexto_pessoa(membro):
         f"- Primeiro nome: {primeiro or '(desconhecido)'}",
         f"- Ja consentiu: {'sim' if consentiu else 'nao'}",
     ]
+
+    convidante = (membro.get("convidado_por_nome") or "").strip()
+    if convidante and not consentiu:
+        primeiro_conv = convidante.split()[0]
+        linhas.append(
+            f"- CHEGOU AGORA POR CONVITE de {primeiro_conv}. Voces JA estao conectados aqui "
+            f"(a indicacao de um aparece pro outro, automaticamente). De um oi caloroso que JA "
+            f"cita que {primeiro_conv} a convidou, explique em 1-2 linhas o que voce faz e peca "
+            "o 'pode ser' (consentimento) de forma leve. Nao a faca se sentir comecando do zero."
+        )
 
     pend = membro.get("avaliacao_pendente")
     if pend:

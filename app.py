@@ -413,6 +413,23 @@ def membro_por_codigo(codigo):
     return resposta.data[0] if resposta.data else None
 
 
+def nome_do_convidante(invited_by_id):
+    """Nome de perfil de quem convidou — pra Doroteia dar boas-vindas calorosas
+    citando a pessoa e deixar a conexao transparente."""
+    if not invited_by_id:
+        return ""
+    quem = buscar_membro_por_id(invited_by_id)
+    return (quem.get("nome_perfil") or "").strip() if quem else ""
+
+
+def limpar_texto_convite(texto):
+    """Tira o trecho tecnico '(convite: ABC123)' do primeiro contato, pra IA nao
+    repetir o codigo na conversa. O resto da mensagem fica intacto."""
+    if not texto:
+        return texto
+    return re.sub(r"\(?\s*convite:\s*[A-Za-z0-9]{6}\s*\)?", "", texto).strip()
+
+
 def registrar_convite_pendente(membro, numero_e164):
     codigo = calcular_contact_hash(numero_e164)
     existe = (supabase.table("pending_invites").select("id")
@@ -844,6 +861,15 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
             invited_by = aplicar_convite_pendente(wa_id)
         criar_membro(wa_id, nome_perfil, invited_by)
         membro = buscar_membro(wa_id)
+
+    # Convite: enquanto a pessoa nao consentiu, a Doroteia da as boas-vindas
+    # citando quem a convidou (a conexao ja esta feita via invited_by). Isso vale
+    # mesmo se ela voltar depois sem ter consentido na primeira vez.
+    if not membro.get("consent") and membro.get("invited_by"):
+        membro["convidado_por_nome"] = nome_do_convidante(membro["invited_by"])
+
+    # Limpa o codigo tecnico do convite do texto antes de mandar pra IA.
+    texto_recebido = limpar_texto_convite(texto_recebido)
 
     # Se houver uma indicacao antiga ainda sem nota, a Doroteia pode puxar o
     # follow-up ("usou? como foi?") com naturalidade nesta conversa.
