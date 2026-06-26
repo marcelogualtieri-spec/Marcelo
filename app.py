@@ -236,6 +236,100 @@ def excluir_membro(membro):
 
 
 # ===========================================================================
+# AVALIACAO DAS INDICACOES (qualifica depois do uso -> relevancia na rede)
+# ===========================================================================
+
+# So puxamos o follow-up ("usou? como foi?") se a indicacao tiver pelo menos
+# este tempo de vida - pra nao perguntar no mesmo instante em que mostramos.
+MIN_HORAS_PARA_AVALIAR = 1
+
+
+def registrar_indicacao_recebida(member_id, provider, servico, bairro, cidade):
+    """Marca que este prestador foi MOSTRADO a esta pessoa (base do follow-up).
+    Nao duplica nem reabre uma indicacao que ja foi avaliada."""
+    try:
+        existe = (supabase.table("indicacoes_recebidas").select("id,status")
+                  .eq("member_id", member_id).eq("provider_id", provider["id"])
+                  .limit(1).execute().data)
+        if existe:
+            # Ja existe: se ja foi avaliada, deixa quieto. Senao, refresca pra pendente.
+            if existe[0]["status"] != "avaliada":
+                supabase.table("indicacoes_recebidas").update({
+                    "status": "pendente",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", existe[0]["id"]).execute()
+            return
+        supabase.table("indicacoes_recebidas").insert({
+            "member_id": member_id, "provider_id": provider["id"],
+            "servico": servico, "bairro": bairro, "cidade": cidade,
+            "status": "pendente",
+        }).execute()
+    except Exception as erro:
+        print(f"[AVALIACAO] nao consegui registrar indicacao recebida: {erro}")
+
+
+def _parse_ts(valor):
+    """Le um timestamp ISO do Supabase como datetime aware (UTC)."""
+    try:
+        return datetime.fromisoformat((valor or "").replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def buscar_avaliacao_pendente(membro):
+    """Devolve a indicacao pendente mais recente (com idade minima) pra Doroteia
+    perguntar 'usou? como foi?'. Retorna dict {nome, servico, bairro, cidade} ou None."""
+    try:
+        pend = (supabase.table("indicacoes_recebidas").select("*")
+                .eq("member_id", membro["id"]).eq("status", "pendente")
+                .order("created_at", desc=True).limit(5).execute().data)
+    except Exception as erro:
+        print(f"[AVALIACAO] nao consegui buscar pendentes: {erro}")
+        return None
+
+    agora = datetime.now(timezone.utc)
+    for ind in pend:
+        criada = _parse_ts(ind.get("created_at"))
+        if criada is None:
+            continue
+        horas = (agora - criada).total_seconds() / 3600
+        if horas < MIN_HORAS_PARA_AVALIAR:
+            continue
+        prestador = buscar_provider(ind["provider_id"])
+        if prestador is None:
+            continue
+        return {
+            "nome": prestador["nome"],
+            "servico": ind.get("servico") or prestador.get("servico"),
+            "bairro": ind.get("bairro") or prestador.get("bairro"),
+            "cidade": ind.get("cidade") or "",
+        }
+    return None
+
+
+def _recalcular_nota_provider(provider_id):
+    """Recalcula media e quantidade de avaliacoes de um prestador e grava."""
+    try:
+        notas = [a["nota"] for a in (supabase.table("avaliacoes").select("nota")
+                 .eq("provider_id", provider_id).execute().data)]
+        qtd = len(notas)
+        media = round(sum(notas) / qtd, 2) if qtd else 0
+        supabase.table("providers").update({
+            "nota_media": media, "qtd_avaliacoes": qtd,
+        }).eq("id", provider_id).execute()
+    except Exception as erro:
+        print(f"[AVALIACAO] nao consegui recalcular nota: {erro}")
+
+
+def _relevancia(provider):
+    """Chave de ordenacao: bem avaliados primeiro; sem avaliacao fica neutro (3.0)."""
+    qtd = provider.get("qtd_avaliacoes") or 0
+    if qtd > 0:
+        return (float(provider.get("nota_media") or 0), qtd)
+    return (3.0, 0)
+
+
+# ===========================================================================
 # CONTATOS -> HASH -> GRAFO
 # ===========================================================================
 
@@ -386,6 +480,10 @@ def executar_busca(pedidor, servico, bairro, cidade):
             com_nome.append((prestador, recomendador.get("nome_perfil") or "alguem que voce conhece"))
         else:
             sem_nome.append(prestador)
+
+    # Os mais bem avaliados aparecem primeiro (relevancia ganha com as notas).
+    com_nome.sort(key=lambda par: _relevancia(par[0]), reverse=True)
+    sem_nome.sort(key=_relevancia, reverse=True)
     return com_nome, sem_nome
 
 
@@ -415,19 +513,33 @@ def _ferr_buscar(membro, entrada):
     com_nome, sem_nome = executar_busca(membro, servico, bairro, cidade)
     local = f"{bairro}, {cidade}"
 
+    def _selo(p):
+        # Mostra a reputacao pra IA poder destacar os bem avaliados.
+        qtd = p.get("qtd_avaliacoes") or 0
+        if qtd:
+            return f" | avaliacao: {p.get('nota_media')}/5 ({qtd} avaliacao(oes))"
+        return " | avaliacao: ainda sem notas"
+
     if com_nome:
         registrar_busca(servico, bairro, cidade, "verde")
-        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | indicado por: {quem}"
-                  for p, quem in com_nome]
+        for p, _ in com_nome:
+            registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | "
+                  f"indicado por: {quem}{_selo(p)}" for p, quem in com_nome]
         return ("RESULTADO=verde - indicacoes de pessoas da rede de confianca dela, em "
-                f"{local}. Apresente com alegria, mantendo nome e telefone EXATOS e citando "
-                "quem indicou:\n" + "\n".join(linhas))
+                f"{local}, JA ORDENADAS pelas mais bem avaliadas. Apresente com alegria, "
+                "mantendo nome e telefone EXATOS, citando quem indicou e, quando houver, "
+                "destacando a avaliacao:\n" + "\n".join(linhas))
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo")
-        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']}" for p in sem_nome]
+        for p in sem_nome:
+            registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']}{_selo(p)}"
+                  for p in sem_nome]
         return ("RESULTADO=amarelo - ha indicacoes boas em "
-                f"{local}, mas de FORA da rede dela (NAO revele quem indicou). Apresente "
-                "mantendo o telefone EXATO e comente que, se ela trouxer mais gente de "
+                f"{local}, mas de FORA da rede dela (NAO revele quem indicou), JA ORDENADAS "
+                "pelas mais bem avaliadas. Apresente mantendo o telefone EXATO, destacando a "
+                "avaliacao quando houver, e comente que, se ela trouxer mais gente de "
                 "confianca, essas indicacoes passam a aparecer com nome:\n" + "\n".join(linhas))
 
     registrar_busca(servico, bairro, cidade, "vermelho")
@@ -522,6 +634,76 @@ def _ferr_excluir(membro, entrada):
             "TUDO (e irreversivel). So chame esta ferramenta de novo com confirmado=true depois do sim.")
 
 
+def _ferr_avaliar(membro, entrada):
+    """Registra a avaliacao de uma indicacao que a pessoa recebeu. So vale pra
+    prestadores que JA foram mostrados a ela (integridade da rede de confianca)."""
+    nome = (entrada.get("nome") or "").strip()
+    usou = entrada.get("usou")
+    if not nome:
+        return "Faltou o nome do prestador que ela esta avaliando. Pergunte qual foi."
+
+    # Acha a indicacao recebida que casa com esse nome (pendente tem prioridade).
+    recebidas = (supabase.table("indicacoes_recebidas").select("*")
+                 .eq("member_id", membro["id"]).execute().data)
+    candidatos = []
+    for ind in recebidas:
+        prestador = buscar_provider(ind["provider_id"])
+        if prestador and nome.lower() in (prestador["nome"] or "").lower():
+            candidatos.append((ind, prestador))
+    if not candidatos:
+        return (f"Nao encontrei '{nome}' entre as indicacoes que voce ja mostrou a ela. "
+                "Pergunte com gentileza qual foi a indicacao (nome do prestador) que ela usou.")
+    # Prioriza pendente; se houver mais de um, pega o mais recente.
+    candidatos.sort(key=lambda c: (c[0]["status"] == "pendente", c[0].get("created_at") or ""),
+                    reverse=True)
+    ind, prestador = candidatos[0]
+
+    # Pessoa nao chegou a usar: marca dispensada pra Doroteia parar de perguntar.
+    if usou is False:
+        supabase.table("indicacoes_recebidas").update({
+            "status": "dispensada",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", ind["id"]).execute()
+        return (f"Ok, ela ainda nao usou {prestador['nome']}. Nao registre nota. Diga sem "
+                "problema que e so avisar quando usar, que voce quer saber como foi.")
+
+    # Usou: precisa de nota de 1 a 5.
+    nota = entrada.get("nota")
+    try:
+        nota = int(nota)
+    except (TypeError, ValueError):
+        nota = None
+    if nota is None or not (1 <= nota <= 5):
+        return ("Pra registrar, preciso de uma nota de 1 a 5 estrelas. Pergunte de forma leve "
+                f"que nota (1 a 5) ela da pra {prestador['nome']}.")
+
+    comentario = (entrada.get("comentario") or "").strip() or None
+    agora = datetime.now(timezone.utc).isoformat()
+
+    # Upsert: uma avaliacao por pessoa por prestador (reavaliar atualiza).
+    ja = (supabase.table("avaliacoes").select("id")
+          .eq("member_id", membro["id"]).eq("provider_id", prestador["id"])
+          .limit(1).execute().data)
+    if ja:
+        supabase.table("avaliacoes").update({
+            "nota": nota, "comentario": comentario, "updated_at": agora,
+        }).eq("id", ja[0]["id"]).execute()
+    else:
+        supabase.table("avaliacoes").insert({
+            "member_id": membro["id"], "provider_id": prestador["id"],
+            "nota": nota, "comentario": comentario,
+        }).execute()
+
+    supabase.table("indicacoes_recebidas").update({
+        "status": "avaliada", "updated_at": agora,
+    }).eq("id", ind["id"]).execute()
+    _recalcular_nota_provider(prestador["id"])
+
+    return (f"Avaliacao registrada: {nota}/5 para {prestador['nome']}. Agradeca de coracao e "
+            "explique que a nota dela ajuda essa indicacao a ganhar relevancia e chegar com "
+            "mais forca pra quem da rede precisar do mesmo servico.")
+
+
 def _ferr_enviar_botoes(entrada, interativa_enviada):
     texto = (entrada.get("texto") or "").strip()
     botoes = entrada.get("botoes") or []
@@ -558,6 +740,8 @@ def construir_executor(membro, interativa_enviada):
             return _ferr_ver_dados(membro)
         if nome == "excluir_meus_dados":
             return _ferr_excluir(membro, entrada)
+        if nome == "avaliar_indicacao":
+            return _ferr_avaliar(membro, entrada)
         if nome == "enviar_botoes":
             return _ferr_enviar_botoes(entrada, interativa_enviada)
         return "Ferramenta desconhecida."
@@ -633,6 +817,10 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
             invited_by = aplicar_convite_pendente(wa_id)
         criar_membro(wa_id, nome_perfil, invited_by)
         membro = buscar_membro(wa_id)
+
+    # Se houver uma indicacao antiga ainda sem nota, a Doroteia pode puxar o
+    # follow-up ("usou? como foi?") com naturalidade nesta conversa.
+    membro["avaliacao_pendente"] = buscar_avaliacao_pendente(membro)
 
     # Flag: se a IA mandar botoes via ferramenta, nao envia texto duplicado.
     interativa_enviada = [False]

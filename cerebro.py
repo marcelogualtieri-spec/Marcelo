@@ -78,6 +78,17 @@ LOCALIZACAO:
   registrar uma indicacao, garanta que tem o BAIRRO e a CIDADE. Se faltar a cidade,
   pergunte com naturalidade. O estado (UF) ajuda quando houver cidades de mesmo nome.
 
+QUALIDADE / AVALIACAO (importante pra rede ganhar forca):
+- Depois que a pessoa usa uma indicacao, a opiniao dela vale ouro. Quando ela
+  contar como foi um prestador (ex.: "o Joao foi otimo", "nao gostei", "nota 4"),
+  registre com a ferramenta 'avaliar_indicacao' (nota de 1 a 5).
+- Se o sistema avisar que ha uma indicacao ainda sem nota (veja os DADOS DESTA
+  PESSOA), puxe o assunto com leveza no momento certo: pergunte se ela chegou a
+  usar e, se sim, que nota de 1 a 5 ela da. Nunca insista mais de uma vez.
+- Se ela disser que ainda nao usou, chame 'avaliar_indicacao' com usou=false pra
+  eu nao perguntar de novo a toa.
+- Nas buscas, os mais bem avaliados ja vem primeiro; destaque isso com naturalidade.
+
 CONTATOS:
 - A forma mais facil de a pessoa adicionar contatos ou convidar alguem e
   compartilhar o contato pelo clipe 📎 do WhatsApp. Incentive isso.
@@ -215,6 +226,26 @@ FERRAMENTAS = [
         },
     },
     {
+        "name": "avaliar_indicacao",
+        "description": "Registra a avaliacao (1 a 5 estrelas) de uma indicacao que a pessoa "
+                       "RECEBEU e usou. Use quando ela disser como foi o prestador (ex.: 'o "
+                       "encanador Joao foi otimo', 'gostei', 'nota 5'). Se ela disser que ainda "
+                       "NAO usou, chame com usou=false (sem nota). A nota faz a indicacao ganhar "
+                       "relevancia na rede.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string", "description": "nome do prestador que ela esta avaliando"},
+                "usou": {"type": "boolean",
+                         "description": "true se ela usou o servico; false se ainda nao usou"},
+                "nota": {"type": "integer",
+                         "description": "de 1 a 5 estrelas (obrigatorio quando usou=true)"},
+                "comentario": {"type": "string", "description": "comentario livre dela (opcional)"},
+            },
+            "required": ["nome", "usou"],
+        },
+    },
+    {
         "name": "enviar_botoes",
         "description": "Envia a PROPRIA resposta como mensagem com botoes clicaveis (max 3). "
                        "Use em momentos de escolha clara e binaria: consentir, confirmar exclusao, "
@@ -304,6 +335,18 @@ def _contexto_pessoa(membro):
         f"- Primeiro nome: {primeiro or '(desconhecido)'}",
         f"- Ja consentiu: {'sim' if consentiu else 'nao'}",
     ]
+
+    pend = membro.get("avaliacao_pendente")
+    if pend:
+        local = pend.get("bairro") or ""
+        if pend.get("cidade"):
+            local = f"{local}, {pend['cidade']}" if local else pend["cidade"]
+        linhas.append(
+            f"- Indicacao ainda sem nota: voce ja mostrou '{pend['nome']}' "
+            f"({pend.get('servico') or 'servico'}{' em ' + local if local else ''}) pra essa "
+            "pessoa. Se a conversa permitir, pergunte com leveza se ela chegou a usar e que "
+            "nota de 1 a 5 ela daria. Nao insista se ela desconversar."
+        )
     return "\n".join(linhas)
 
 
