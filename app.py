@@ -21,11 +21,9 @@ from flask import Flask, request, Response, g
 from supabase import create_client
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-# Nucleo de privacidade (Camada 4) e entendimento de linguagem (Camada 5).
 from privacidade import calcular_contact_hash, extrair_numeros_de_texto, normalizar_e164
 from nlu import extrair_servico_bairro, extrair_recomendacao
 
-# Todas as falas da Doroteia (voce pode editar em textos.py).
 import textos as t
 
 
@@ -37,8 +35,6 @@ SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = Flask(__name__)
-# O Render fica atras de um proxy; isto faz o Flask enxergar a URL publica (https),
-# necessaria pra montar os links curtos (/c/...) corretamente.
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
@@ -46,17 +42,13 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 # CONFIG DA WHATSAPP CLOUD API (Meta)
 # ---------------------------------------------------------------------------
 GRAPH_API = "https://graph.facebook.com/v21.0"
-# Token de acesso (Bearer) pra ENVIAR mensagens. Pegue no painel da Meta.
 WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN")
-# Palavra-chave que a Meta usa pra verificar o webhook (voce escolhe e repete la).
 WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "doroteia")
-# Segredo do app (opcional): liga a checagem de assinatura das mensagens recebidas.
 WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET")
 
 
 def assinatura_meta_valida():
-    """Confere a assinatura (X-Hub-Signature-256) que a Meta poe em cada mensagem.
-    Devolve True se for legitima (ou se a checagem estiver desligada)."""
+    """Confere a assinatura (X-Hub-Signature-256) que a Meta poe em cada mensagem."""
     if not WHATSAPP_APP_SECRET:
         print("[SEGURANCA] WHATSAPP_APP_SECRET nao configurado - checagem desligada.")
         return True
@@ -69,47 +61,113 @@ def assinatura_meta_valida():
     return hmac.compare_digest(esperado, assinatura)
 
 
-def enviar_mensagem_meta(to, texto, phone_number_id):
-    """Envia uma mensagem de texto pela WhatsApp Cloud API (chamada HTTP a Meta)."""
-    if not (WHATSAPP_TOKEN and phone_number_id and to):
-        print(f"[META] envio ignorado (token={'ok' if WHATSAPP_TOKEN else 'FALTA'}, "
-              f"phone_id={'ok' if phone_number_id else 'FALTA'}, to={'ok' if to else 'FALTA'}).")
+def _post_meta(phone_number_id, corpo_json):
+    """Faz o POST para a Graph API (texto ou interativo). Interno."""
+    if not (WHATSAPP_TOKEN and phone_number_id):
+        print("[META] envio ignorado: token ou phone_id ausente.")
         return
     url = f"{GRAPH_API}/{phone_number_id}/messages"
-    corpo = json.dumps({
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "text",
-        "text": {"body": texto, "preview_url": True},
-    }).encode("utf-8")
-    req = Request(url, data=corpo, method="POST")
+    req = Request(url, data=json.dumps(corpo_json).encode("utf-8"), method="POST")
     req.add_header("Authorization", f"Bearer {WHATSAPP_TOKEN}")
     req.add_header("Content-Type", "application/json")
     try:
-        with urlopen(req, timeout=10) as resposta:
-            resposta.read()
+        with urlopen(req, timeout=10) as r:
+            r.read()
     except HTTPError as e:
         corpo_erro = ""
         try:
             corpo_erro = e.read().decode("utf-8", errors="ignore")[:300]
         except Exception:
             pass
-        print(f"[META] HTTP {e.code} ao enviar: {corpo_erro}")
+        print(f"[META] HTTP {e.code}: {corpo_erro}")
     except Exception as e:
         print(f"[META] falha ao enviar: {e!r}")
 
 
+def enviar_mensagem_meta(to, texto, phone_number_id):
+    """Envia mensagem de texto simples."""
+    if not to:
+        return
+    _post_meta(phone_number_id, {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": texto, "preview_url": True},
+    })
+
+
+def _enviar_interativa(corpo_interativo):
+    """Envia mensagem interativa (botoes ou lista) usando o contexto g."""
+    to = g.get("to")
+    phone_number_id = g.get("phone_number_id")
+    if not to:
+        return
+    print(f"[RESP-BTN] {str(corpo_interativo)[:80]!r}")
+    _post_meta(phone_number_id, {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": corpo_interativo,
+    })
+
+
 def resposta_whatsapp(texto):
-    """Responde a pessoa: envia o texto pela Cloud API usando o contexto da
-    mensagem atual (guardado em g). Mantida com este nome pra todo o cerebro
-    continuar chamando 'return resposta_whatsapp(...)' sem mudancas."""
+    """Envia texto simples usando o contexto da mensagem atual (g)."""
     print(f"[RESP] {texto[:80]!r}")
     enviar_mensagem_meta(g.get("to"), texto, g.get("phone_number_id"))
 
 
+def resposta_botoes(texto, botoes):
+    """Envia mensagem com até 3 botões de resposta rápida.
+    botoes: lista de (id, label) — id vira o 'texto' retornado quando clicado."""
+    _enviar_interativa({
+        "type": "button",
+        "body": {"text": texto},
+        "action": {
+            "buttons": [
+                {"type": "reply", "reply": {"id": bid, "title": label}}
+                for bid, label in botoes[:3]
+            ]
+        },
+    })
+
+
+def resposta_lista(texto_corpo, texto_botao, secoes):
+    """Envia mensagem com lista de opções (até 10 itens no total).
+    secoes: [{"title": str, "rows": [{"id": str, "title": str, "description": str}]}]"""
+    _enviar_interativa({
+        "type": "list",
+        "body": {"text": texto_corpo},
+        "action": {
+            "button": texto_botao,
+            "sections": secoes,
+        },
+    })
+
+
+def enviar_menu(voc):
+    """Envia o menu principal como lista interativa."""
+    resposta_lista(
+        t.MENU.format(voc=voc),
+        "Ver opcoes",
+        [{
+            "title": "O que voce precisa?",
+            "rows": [
+                {"id": "1", "title": "Pedir um servico",
+                 "description": "ex.: encanador em Perdizes, SP"},
+                {"id": "2", "title": "Recomendar alguem",
+                 "description": "indicar um bom prestador"},
+                {"id": "3", "title": "Convidar alguem",
+                 "description": "trazer um amigo para a Doroteia"},
+                {"id": "4", "title": "Meus dados / sair",
+                 "description": "ver ou apagar seus dados"},
+            ]
+        }]
+    )
+
+
 def _e164(bruto):
-    """Normaliza um numero pro formato +55... (E.164). A Meta manda numeros sem
-    o '+', entao garantimos ele antes."""
+    """Normaliza um numero pro formato +55... (E.164)."""
     bruto = (bruto or "").strip()
     if not bruto.startswith("+"):
         bruto = "+" + re.sub(r"\D", "", bruto)
@@ -118,17 +176,19 @@ def _e164(bruto):
 
 def conteudo_da_mensagem(msg):
     """Extrai (texto, numeros_compartilhados) de uma mensagem da Cloud API.
-    Na Meta, contato compartilhado ja vem estruturado - sem baixar/parsear vCard."""
+    Para botoes/lista clicados, retorna o ID do botao (que mapeamos a comandos internos)."""
     tipo = msg.get("type")
     if tipo == "text":
         return (msg.get("text") or {}).get("body", "").strip(), []
-    if tipo == "interactive":   # botoes/listas (futuro)
+    if tipo == "interactive":
         inter = msg.get("interactive") or {}
-        sub = inter.get(inter.get("type", ""), {}) or {}
-        return (sub.get("title") or "").strip(), []
-    if tipo == "button":        # botao de template (futuro)
+        sub_tipo = inter.get("type", "")
+        sub = inter.get(sub_tipo) or {}
+        # Retorna o id (nome interno do botao), com title como fallback
+        return (sub.get("id") or sub.get("title") or "").strip(), []
+    if tipo == "button":
         return ((msg.get("button") or {}).get("text") or "").strip(), []
-    if tipo == "contacts":      # compartilhou um ou mais contatos
+    if tipo == "contacts":
         numeros = []
         for c in msg.get("contacts", []):
             for tel in c.get("phones", []):
@@ -136,23 +196,20 @@ def conteudo_da_mensagem(msg):
                 if numero and numero not in numeros:
                     numeros.append(numero)
         return "", numeros
-    return "", []   # imagem, audio, etc.: sem texto pra Doroteia
+    return "", []
 
 
 # ===========================================================================
-# AJUDINHAS DE PERSONALIZACAO (chamar a pessoa pelo nome)
+# AJUDINHAS DE PERSONALIZACAO
 # ===========================================================================
 
 def primeiro_nome(nome_perfil):
-    """Pega so o primeiro nome do perfil do WhatsApp (ou vazio se nao tiver)."""
     if nome_perfil and nome_perfil.strip():
         return nome_perfil.strip().split()[0]
     return ""
 
 
 def vocativo(nome):
-    """Vira ', Marcelo' quando sabemos o nome, ou '' quando nao sabemos.
-    E o encaixe {voc} usado nos textos."""
     return f", {nome}" if nome else ""
 
 
@@ -180,7 +237,7 @@ def criar_membro(wa_id, nome_perfil, invited_by=None):
         "wa_id": wa_id,
         "nome_perfil": nome_perfil,
         "consent": False,
-        "invited_by": invited_by,   # quem convidou (None se chegou sozinho)
+        "invited_by": invited_by,
     }).execute()
 
 
@@ -193,7 +250,6 @@ def registrar_consentimento(wa_id):
 
 
 def definir_estado(wa_id, estado):
-    """Guarda em que ponto da conversa a pessoa esta (ex: 'recomendando')."""
     supabase.table("members").update({"estado": estado}).eq("wa_id", wa_id).execute()
 
 
@@ -201,21 +257,22 @@ def contar(tabela, member_id):
     return len(supabase.table(tabela).select("id").eq("member_id", member_id).execute().data)
 
 
-def registrar_busca(servico, bairro, resultado):
-    """Metrica (sem dado pessoal): anota o que foi procurado e a cor da resposta.
-    Se falhar, apenas avisa no log - nunca atrapalha a resposta ao usuario."""
+def registrar_busca(servico, bairro, cidade, resultado):
+    """Metrica (sem dado pessoal): anota o que foi procurado e a cor da resposta."""
     try:
-        supabase.table("searches").insert({
+        row = {
             "servico": servico.lower(),
             "bairro": bairro,
             "resultado": resultado,
-        }).execute()
+        }
+        if cidade:
+            row["cidade"] = cidade
+        supabase.table("searches").insert(row).execute()
     except Exception as erro:
         print(f"[METRICA] nao consegui registrar a busca: {erro}")
 
 
 def excluir_membro(membro):
-    """Apaga o membro. edges e recommendations somem junto (ON DELETE CASCADE)."""
     supabase.table("members").delete().eq("id", membro["id"]).execute()
 
 
@@ -259,30 +316,36 @@ def texto_contatos_recebidos(total, ja_membros):
 
 def tratar_recomendacao(membro, texto, voc):
     dados = extrair_recomendacao(texto)
-    nome = (dados.get("nome") or "").strip() or "Prestador"
-    servico = (dados.get("servico") or "").strip()
-    bairro = (dados.get("bairro") or "").strip()
+    nome     = (dados.get("nome")     or "").strip() or "Prestador"
+    servico  = (dados.get("servico")  or "").strip()
+    bairro   = (dados.get("bairro")   or "").strip()
+    cidade   = (dados.get("cidade")   or "").strip()
+    estado   = (dados.get("estado")   or "").strip()
     telefone = normalizar_e164((dados.get("telefone") or "").strip())
 
     if not telefone or not servico or not bairro:
         return t.REC_INCOMPLETA
 
     prestador = supabase.table("providers").insert({
-        "nome": nome,
-        "telefone": telefone,           # telefone do prestador (E.164) - e o dado que se entrega
-        "servico": servico.lower(),
-        "bairro": bairro,
+        "nome":     nome,
+        "telefone": telefone,
+        "servico":  servico.lower(),
+        "bairro":   bairro,
+        "cidade":   cidade,
+        "estado":   estado,
     }).execute().data[0]
 
     supabase.table("recommendations").insert({
-        "member_id": membro["id"],
+        "member_id":   membro["id"],
         "provider_id": prestador["id"],
-        "servico": servico.lower(),
-        "bairro": bairro,
+        "servico":     servico.lower(),
+        "bairro":      bairro,
+        "cidade":      cidade,
     }).execute()
 
     definir_estado(membro["wa_id"], "normal")
-    return t.REC_OK.format(nome=nome, servico=servico, bairro=bairro, voc=voc) + t.RODAPE
+    bairro_display = f"{bairro}, {cidade}" if (bairro and cidade) else bairro
+    return t.REC_OK.format(nome=nome, servico=servico, bairro=bairro_display, voc=voc) + t.RODAPE
 
 
 # ===========================================================================
@@ -318,8 +381,7 @@ def membro_por_codigo(codigo):
 
 
 def registrar_convite_pendente(membro, numero_e164):
-    """Guarda (em HASH) que este membro convidou aquele numero. Quando a pessoa
-    entrar, ligamos os dois. O numero cru nunca e gravado."""
+    """Guarda (em HASH) que este membro convidou aquele numero."""
     codigo = calcular_contact_hash(numero_e164)
     existe = (supabase.table("pending_invites").select("id")
               .eq("inviter_id", membro["id"]).eq("contact_hash", codigo).limit(1).execute().data)
@@ -331,7 +393,6 @@ def registrar_convite_pendente(membro, numero_e164):
 
 
 def montar_link_para_contato(numero_e164, mensagem):
-    """Link que abre a conversa do usuario COM aquela pessoa, com a mensagem pronta."""
     numero = numero_e164.replace("+", "")
     return f"https://wa.me/{numero}?text={quote(mensagem)}"
 
@@ -342,8 +403,7 @@ def gerar_codigo_curto(tamanho=6):
 
 
 def encurtar_link(url):
-    """Encurtador proprio: guarda o link longo e devolve um /c/<codigo> curto que
-    redireciona pra ele. Nao depende de servico externo. Se falhar, devolve o original."""
+    """Encurtador proprio: /c/<codigo> redireciona pro link longo."""
     try:
         codigo = gerar_codigo_curto()
         supabase.table("short_links").insert({"code": codigo, "url": url}).execute()
@@ -355,8 +415,6 @@ def encurtar_link(url):
 
 
 def aplicar_convite_pendente(wa_id):
-    """Quando alguem entra: ve se havia um convite pendente pro numero dela e,
-    se houver, devolve o id de quem convidou (e apaga o convite ja usado)."""
     numero = normalizar_e164(wa_id)
     if not numero:
         return None
@@ -370,7 +428,7 @@ def aplicar_convite_pendente(wa_id):
 
 
 # ===========================================================================
-# CAMADA 5/6 - REGRAS VERDE / AMARELO / VERMELHO (item 6)
+# CAMADA 5/6 - REGRAS VERDE / AMARELO / VERMELHO
 # ===========================================================================
 
 def hash_de_membro(membro):
@@ -379,8 +437,6 @@ def hash_de_membro(membro):
 
 
 def existe_vinculo(pedidor, recomendador):
-    """Ha vinculo conhecido entre quem pede (P) e quem indicou (R)?
-    Por convite (qualquer direcao) ou por contato compartilhado (edge por HASH)."""
     if pedidor.get("invited_by") and pedidor["invited_by"] == recomendador["id"]:
         return True
     if recomendador.get("invited_by") and recomendador["invited_by"] == pedidor["id"]:
@@ -398,12 +454,18 @@ def existe_vinculo(pedidor, recomendador):
     return False
 
 
-def tratar_pedido_servico(pedidor, servico, bairro, voc):
-    recs = (supabase.table("recommendations").select("*")
-            .ilike("servico", servico).ilike("bairro", bairro).execute().data)
+def tratar_pedido_servico(pedidor, servico, bairro, cidade, voc):
+    bairro_display = f"{bairro}, {cidade}" if (bairro and cidade) else bairro
 
-    com_nome = []   # VERDE: (prestador, nome de quem indicou)
-    sem_nome = []   # AMARELO: prestador, sem revelar quem indicou
+    query = (supabase.table("recommendations").select("*")
+             .ilike("servico", servico)
+             .ilike("bairro", bairro))
+    if cidade:
+        query = query.ilike("cidade", cidade)
+    recs = query.execute().data
+
+    com_nome = []
+    sem_nome = []
 
     for rec in recs:
         recomendador = buscar_membro_por_id(rec["member_id"])
@@ -418,24 +480,24 @@ def tratar_pedido_servico(pedidor, servico, bairro, voc):
             sem_nome.append(prestador)
 
     if com_nome:
-        registrar_busca(servico, bairro, "verde")
-        return texto_verde(servico, bairro, com_nome, voc)
+        registrar_busca(servico, bairro, cidade, "verde")
+        return texto_verde(servico, bairro_display, com_nome, voc)
     if sem_nome:
-        registrar_busca(servico, bairro, "amarelo")
-        return texto_amarelo(servico, bairro, sem_nome)
-    registrar_busca(servico, bairro, "vermelho")
-    return t.VERMELHO.format(servico=servico, bairro=bairro) + t.RODAPE
+        registrar_busca(servico, bairro, cidade, "amarelo")
+        return texto_amarelo(servico, bairro_display, sem_nome)
+    registrar_busca(servico, bairro, cidade, "vermelho")
+    return t.VERMELHO.format(servico=servico, bairro=bairro_display) + t.RODAPE
 
 
-def texto_verde(servico, bairro, lista, voc):
-    partes = [t.VERDE_CABECALHO.format(voc=voc, servico=servico.capitalize(), bairro=bairro)]
+def texto_verde(servico, bairro_display, lista, voc):
+    partes = [t.VERDE_CABECALHO.format(voc=voc, servico=servico.capitalize(), bairro=bairro_display)]
     for prestador, quem in lista:
         partes.append(t.VERDE_LINHA.format(nome=prestador["nome"], quem=quem, telefone=prestador["telefone"]))
     return "\n".join(partes) + t.VERDE_RODAPE + t.RODAPE
 
 
-def texto_amarelo(servico, bairro, prestadores):
-    partes = [t.AMARELO_CABECALHO.format(servico=servico, bairro=bairro, n=len(prestadores))]
+def texto_amarelo(servico, bairro_display, prestadores):
+    partes = [t.AMARELO_CABECALHO.format(servico=servico, bairro=bairro_display, n=len(prestadores))]
     for prestador in prestadores:
         partes.append(t.AMARELO_LINHA.format(nome=prestador["nome"], telefone=prestador["telefone"]))
     return "\n".join(partes) + t.AMARELO_RODAPE + t.RODAPE
@@ -451,7 +513,6 @@ def texto_meus_dados(membro, voc):
     )
 
 
-# Conjuntos de palavras que reconhecemos como saudacao ou agradecimento.
 SAUDACOES = {"oi", "ola", "olá", "oi!", "ola!", "opa", "oie", "eai", "e ai",
              "eaí", "hey", "bom dia", "boa tarde", "boa noite"}
 AGRADECIMENTOS = {"obrigado", "obrigada", "obg", "obgd", "vlw", "valeu",
@@ -465,7 +526,6 @@ AGRADECIMENTOS = {"obrigado", "obrigada", "obg", "obgd", "vlw", "valeu",
 
 @app.route("/webhook", methods=["GET"])
 def verificar_webhook():
-    """A Meta chama isto uma vez pra confirmar que o webhook e nosso."""
     if (request.args.get("hub.mode") == "subscribe"
             and request.args.get("hub.verify_token") == WHATSAPP_VERIFY_TOKEN):
         return Response(request.args.get("hub.challenge", ""), mimetype="text/plain")
@@ -474,18 +534,15 @@ def verificar_webhook():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # So seguimos se a mensagem veio mesmo da Meta.
     if not assinatura_meta_valida():
         print("[SEGURANCA] mensagem rejeitada: assinatura invalida.")
         return Response("Assinatura invalida", status=403)
     dados = request.get_json(silent=True) or {}
     processar_eventos(dados)
-    # A Meta espera sempre um 200 rapido (senao reenvia o evento).
     return Response("OK", status=200)
 
 
 def processar_eventos(dados):
-    """Percorre o pacote da Meta e trata cada mensagem recebida."""
     for entry in dados.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value") or {}
@@ -502,7 +559,6 @@ def processar_eventos(dados):
                 nome_perfil = nomes.get(origem, "")
                 texto, numeros = conteudo_da_mensagem(msg)
 
-                # Contexto da resposta (resposta_whatsapp usa isto pra ENVIAR).
                 g.to = origem
                 g.phone_number_id = phone_number_id
                 g.display_phone_number = display
@@ -530,11 +586,13 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhad
             convidante = membro_por_codigo(codigo)
             if convidante:
                 invited_by = convidante["id"]
-        # Sem codigo no texto? Talvez tenha um convite pendente pro numero dela.
         if invited_by is None:
             invited_by = aplicar_convite_pendente(wa_id)
         criar_membro(wa_id, nome_perfil, invited_by)
-        return resposta_whatsapp(t.BOAS_VINDAS.format(voc=voc))
+        return resposta_botoes(
+            t.BOAS_VINDAS.format(voc=voc),
+            [("sim", "Pode ser! ✅"), ("saber_mais", "Saber mais")]
+        )
 
     # CASO 2 - ja consentiu
     if membro["consent"]:
@@ -542,43 +600,47 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhad
         estado = membro.get("estado") or "normal"
         print(f"[ESTADO] {wa_id} estado={estado} texto={texto_recebido!r}")
 
-        # 2a) No meio de uma recomendacao (Camada 6)?
+        # 2a) No meio de uma recomendacao?
         if estado == "recomendando":
             if texto_minusculo in ("cancelar", "sair", "parar"):
                 definir_estado(wa_id, "normal")
-                return resposta_whatsapp(t.REC_CANCELADA + "\n\n" + t.MENU.format(voc=voc))
+                resposta_whatsapp(t.REC_CANCELADA)
+                return enviar_menu(voc)
             return resposta_whatsapp(tratar_recomendacao(membro, texto_recebido, voc))
 
-        # 2a2) Confirmando a exclusao dos dados (Camada 8 / LGPD)?
+        # 2a2) Confirmando exclusao dos dados?
         if estado == "confirmando_exclusao":
             if texto_minusculo in ("excluir", "apagar", "apagar tudo", "confirmar"):
                 excluir_membro(membro)
                 return resposta_whatsapp(t.ADEUS)
             if texto_minusculo in ("cancelar", "nao", "não", "voltar"):
                 definir_estado(wa_id, "normal")
-                return resposta_whatsapp(t.EXCLUSAO_CANCELADA + "\n\n" + t.MENU.format(voc=voc))
-            return resposta_whatsapp(t.EXCLUSAO_CONFIRMAR)
+                resposta_whatsapp(t.EXCLUSAO_CANCELADA)
+                return enviar_menu(voc)
+            return resposta_botoes(
+                t.EXCLUSAO_CONFIRMAR,
+                [("excluir", "Apagar tudo ❌"), ("cancelar", "Cancelar")]
+            )
 
-        # 2a3) Convidando pelo numero? (Camada 7 - convite direto)
+        # 2a3) Convidando pelo numero?
         if estado == "convidando":
             if texto_minusculo in ("cancelar", "sair", "parar"):
                 definir_estado(wa_id, "normal")
-                return resposta_whatsapp(t.MENU.format(voc=voc))
+                return enviar_menu(voc)
             numero_bot = g.get("display_phone_number") or ""
-            # Pediu o link generico (pra divulgar pra varios)?
             if texto_minusculo in ("link", "meu link", "linque"):
                 definir_estado(wa_id, "normal")
                 codigo = obter_ou_criar_codigo(membro)
                 link = encurtar_link(montar_link_convite(numero_bot, codigo))
                 return resposta_whatsapp(t.CONVITE.format(link=link) + t.RODAPE)
-            # Compartilhou um contato (ja vem no JSON)? Senao, procura no texto.
             numeros = numeros_compartilhados or extrair_numeros_de_texto(texto_recebido)
             if not numeros:
-                return resposta_whatsapp(t.CONVIDAR_NUMERO_INVALIDO)
-            # Conecta voce com TODOS os contatos enviados (pra quando eles entrarem)...
+                return resposta_botoes(
+                    t.CONVIDAR_NUMERO_INVALIDO,
+                    [("link", "Meu link geral"), ("cancelar", "Cancelar")]
+                )
             for numero in numeros:
                 registrar_convite_pendente(membro, numero)
-            # ...e prepara o convite pronto pra encaminhar pro primeiro deles.
             numero_amigo = numeros[0]
             codigo = obter_ou_criar_codigo(membro)
             link_amigo = encurtar_link(montar_link_convite(numero_bot, codigo))
@@ -590,43 +652,48 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhad
                 resposta += t.CONVITE_EXTRAS.format(qtd=len(numeros) - 1)
             return resposta_whatsapp(resposta)
 
-        # 2b) Saudacao ou agradecimento? Respondemos de forma natural.
+        # 2b) Saudacao ou agradecimento?
         if texto_minusculo in SAUDACOES:
             return resposta_whatsapp(t.SAUDACAO.format(voc=voc))
         if texto_minusculo in AGRADECIMENTOS:
             return resposta_whatsapp(t.AGRADECIMENTO.format(voc=voc))
 
-        # 2b2) Atalhos numericos do menu (1,2,3,4). So valem no estado normal,
-        # por isso ficam depois dos blocos de estado la em cima.
+        # 2b2) Atalhos do menu: numeros 1-4 (texto digitado) ou IDs de botao da lista
         atalhos_menu = {"1": "servico", "2": "recomendar", "3": "convidar", "4": "meus dados"}
         if texto_minusculo in atalhos_menu:
             escolha = atalhos_menu[texto_minusculo]
             if escolha == "servico":
                 return resposta_whatsapp(t.PEDIR_SERVICO.format(voc=voc))
-            texto_minusculo = escolha   # vira o comando equivalente e cai nos blocos abaixo
+            texto_minusculo = escolha
 
-        # 2c) Comando: recomendar.
+        # 2c) Recomendar
         if texto_minusculo in ("recomendar", "indicar", "recomendar alguem",
                                "recomendar um", "quero recomendar"):
             definir_estado(wa_id, "recomendando")
             return resposta_whatsapp(t.PEDIR_RECOMENDACAO)
 
-        # 2d) Comando: convidar -> entra no modo convite (pede o numero).
+        # 2d) Convidar
         if texto_minusculo in ("convidar", "convite", "convidar alguem", "quero convidar"):
             definir_estado(wa_id, "convidando")
-            return resposta_whatsapp(t.CONVIDAR_PEDIR_NUMERO)
+            return resposta_botoes(
+                t.CONVIDAR_PEDIR_NUMERO,
+                [("link", "Meu link geral"), ("cancelar", "Cancelar")]
+            )
 
-        # 2e) Comando: menu.
+        # 2e) Menu
         if texto_minusculo in ("menu", "ajuda", "opcoes", "opções"):
-            return resposta_whatsapp(t.MENU.format(voc=voc))
+            return enviar_menu(voc)
 
-        # 2f) Comando: meus dados / sair (oferece exclusao - LGPD).
+        # 2f) Meus dados / sair
         if texto_minusculo in ("meus dados", "meus dados / sair", "sair", "dados",
                                "excluir", "apagar", "lgpd", "privacidade"):
             definir_estado(wa_id, "confirmando_exclusao")
-            return resposta_whatsapp(texto_meus_dados(membro, voc))
+            return resposta_botoes(
+                texto_meus_dados(membro, voc),
+                [("excluir", "Apagar tudo ❌"), ("cancelar", "Voltar")]
+            )
 
-        # 2g) Mandou numeros (digitados ou contato compartilhado)? Camada 4.
+        # 2g) Contatos compartilhados ou digitados
         numeros = extrair_numeros_de_texto(texto_recebido)
         for numero in numeros_compartilhados:
             if numero not in numeros:
@@ -635,16 +702,17 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhad
             total, ja_membros = processar_contatos(membro, numeros)
             return resposta_whatsapp(texto_contatos_recebidos(total, ja_membros))
 
-        # 2h) Uma frase? Tentamos entender como pedido de servico (Camada 5).
+        # 2h) Pedido de servico (NLU)
         dados = extrair_servico_bairro(texto_recebido)
         servico = dados.get("servico", "").strip()
-        bairro = dados.get("bairro", "").strip()
+        bairro  = dados.get("bairro",  "").strip()
+        cidade  = dados.get("cidade",  "").strip()
 
         if servico and bairro:
-            return resposta_whatsapp(tratar_pedido_servico(membro, servico, bairro, voc))
+            return resposta_whatsapp(tratar_pedido_servico(membro, servico, bairro, cidade, voc))
         if servico and not bairro:
             return resposta_whatsapp(t.PEDIR_BAIRRO.format(servico=servico))
-        return resposta_whatsapp(t.AJUDA)
+        return enviar_menu(voc)
 
     # CASO 3 - ainda nao consentiu
     texto = texto_recebido.lower()
@@ -652,13 +720,15 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhad
         registrar_consentimento(wa_id)
         return resposta_whatsapp(t.CONSENTIMENTO_OK.format(voc=voc) + t.PEDIR_CONTATOS)
     if "saber" in texto or "mais" in texto:
-        return resposta_whatsapp(t.SABER_MAIS)
-    return resposta_whatsapp(t.PRECISA_CONSENTIR)
+        return resposta_botoes(t.SABER_MAIS, [("sim", "Pode ser! ✅")])
+    return resposta_botoes(
+        t.PRECISA_CONSENTIR,
+        [("sim", "Pode ser! ✅"), ("saber_mais", "Saber mais")]
+    )
 
 
 @app.route("/c/<codigo>", methods=["GET"])
 def redirecionar_link(codigo):
-    """Encurtador proprio: /c/<codigo> -> redireciona pro link longo guardado."""
     try:
         achado = (supabase.table("short_links").select("url")
                   .eq("code", codigo).limit(1).execute().data)

@@ -14,22 +14,29 @@ _cliente = Anthropic()
 
 # Instrucoes que dizem a Claude exatamente o que fazer.
 _INSTRUCOES = (
-    "Voce recebe uma mensagem de WhatsApp em portugues do Brasil e extrai duas "
-    "informacoes: qual SERVICO a pessoa procura e em qual BAIRRO.\n"
+    "Voce recebe uma mensagem de WhatsApp em portugues do Brasil e extrai quatro "
+    "informacoes: qual SERVICO a pessoa procura, em qual BAIRRO, em qual CIDADE e "
+    "em qual ESTADO.\n"
     "- 'servico': no singular e em minusculas (ex: 'encanador', 'eletricista', "
     "'diarista'). Se a mensagem NAO for um pedido de servico, devolva string vazia.\n"
-    "- 'bairro': com a inicial maiuscula (ex: 'Perdizes'). Se nenhum bairro for "
-    "citado, devolva string vazia."
+    "- 'bairro': com a inicial maiuscula (ex: 'Perdizes', 'Savassi'). Vazio se "
+    "nao for mencionado.\n"
+    "- 'cidade': com a inicial maiuscula (ex: 'Sao Paulo', 'Belo Horizonte', "
+    "'Rio de Janeiro'). Vazio se nao for mencionada - nao infira a partir do bairro.\n"
+    "- 'estado': sigla em maiusculas (ex: 'SP', 'MG', 'RJ'). Vazio se nao "
+    "for mencionado. Pode inferir a partir da cidade quando inequivoco "
+    "(ex: cidade='Sao Paulo' -> estado='SP', cidade='Salvador' -> estado='BA')."
 )
 
-# O "molde" da resposta: obrigamos a Claude a responder neste formato exato (JSON).
 _ESQUEMA = {
     "type": "object",
     "properties": {
         "servico": {"type": "string"},
-        "bairro": {"type": "string"},
+        "bairro":  {"type": "string"},
+        "cidade":  {"type": "string"},
+        "estado":  {"type": "string"},
     },
-    "required": ["servico", "bairro"],
+    "required": ["servico", "bairro", "cidade", "estado"],
     "additionalProperties": False,
 }
 
@@ -51,7 +58,7 @@ def extrair_servico_bairro(texto):
         return json.loads(bloco_texto.text)
     except Exception as erro:
         print(f"[NLU] erro ao interpretar a mensagem: {erro}")
-        return {"servico": "", "bairro": ""}
+        return {"servico": "", "bairro": "", "cidade": "", "estado": ""}
 
 
 # ---------------------------------------------------------------------------
@@ -59,22 +66,27 @@ def extrair_servico_bairro(texto):
 # ---------------------------------------------------------------------------
 _INSTRUCOES_REC = (
     "Voce recebe uma mensagem onde a pessoa esta RECOMENDANDO um prestador de "
-    "servico. Extraia quatro campos:\n"
+    "servico. Extraia seis campos:\n"
     "- 'nome': nome do prestador (ex: 'Joao'). Vazio se nao houver.\n"
     "- 'telefone': o telefone como aparece, com DDD. Vazio se nao houver.\n"
     "- 'servico': singular e minusculo (ex: 'encanador'). Vazio se nao houver.\n"
-    "- 'bairro': inicial maiuscula (ex: 'Perdizes'). Vazio se nao houver."
+    "- 'bairro': inicial maiuscula (ex: 'Perdizes'). Vazio se nao houver.\n"
+    "- 'cidade': inicial maiuscula (ex: 'Sao Paulo'). Vazio se nao houver.\n"
+    "- 'estado': sigla maiuscula (ex: 'SP'). Vazio se nao houver. Pode inferir "
+    "a partir da cidade quando inequivoco."
 )
 
 _ESQUEMA_REC = {
     "type": "object",
     "properties": {
-        "nome": {"type": "string"},
+        "nome":     {"type": "string"},
         "telefone": {"type": "string"},
-        "servico": {"type": "string"},
-        "bairro": {"type": "string"},
+        "servico":  {"type": "string"},
+        "bairro":   {"type": "string"},
+        "cidade":   {"type": "string"},
+        "estado":   {"type": "string"},
     },
-    "required": ["nome", "telefone", "servico", "bairro"],
+    "required": ["nome", "telefone", "servico", "bairro", "cidade", "estado"],
     "additionalProperties": False,
 }
 
@@ -94,4 +106,4 @@ def extrair_recomendacao(texto):
         return json.loads(bloco_texto.text)
     except Exception as erro:
         print(f"[NLU] erro ao interpretar a recomendacao: {erro}")
-        return {"nome": "", "telefone": "", "servico": "", "bairro": ""}
+        return {"nome": "", "telefone": "", "servico": "", "bairro": "", "cidade": "", "estado": ""}

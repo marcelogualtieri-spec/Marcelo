@@ -55,12 +55,12 @@ CONSENTIMENTO_OK = "Que bom ter voce comigo{voc}! 💛 Anotei seu ok.\n\n"
 # --- Contatos (telas 7.2 / 7.3) ------------------------------------------
 PEDIR_CONTATOS = (
     "Agora vamos te deixar bem servido(a) 🙌\n\n"
-    "Me manda os numeros das pessoas em quem voce confia - pode ser um por "
-    "linha ou separados por virgula. (Por enquanto, na fase de testes, manda "
-    "em texto mesmo.)\n"
+    "Me manda os contatos das pessoas em quem voce confia - "
+    "a forma mais facil e pelo clipe 📎 do WhatsApp (\"Contato\"). "
+    "Pode mandar varios de uma vez!\n\n"
+    "Prefere digitar? Manda os numeros com DDD, um por linha ou separados por virgula:\n"
     "Ex: (11) 99999-8888, (11) 98888-7777\n\n"
-    "Quanto mais gente da sua confianca, melhor: assim, quando voce pedir um "
-    "servico, eu ja sei em quem me apoiar. 💛"
+    "Quanto mais gente da sua confianca, melhor. 💛"
 )
 
 CONTATOS_CABECALHO = "Recebi {total} contato(s), obrigada por confiar! 🙌\n\n"
@@ -74,8 +74,8 @@ CONTATOS_RESTANTES = ("\nOs outros {rest} ainda nao chegaram. Daqui a pouco te "
 
 # --- Pedido de servico (tela 7.5) ----------------------------------------
 PEDIR_BAIRRO = (
-    "Pra eu acertar em cheio, me diz tambem o bairro 🙂\n"
-    "Manda assim: \"{servico} em [bairro]\" (ex.: \"{servico} em Perdizes\")."
+    "Pra eu acertar em cheio, me diz o bairro e a cidade 🙂\n"
+    "Ex.: \"{servico} em Perdizes, Sao Paulo\" ou \"{servico} em Savassi, BH\"."
 )
 
 VERDE_CABECALHO = "Achei pra voce{voc}! 💛 {servico} em {bairro}:\n"
@@ -132,11 +132,11 @@ CONVITE = (
 
 # Pediu pra convidar: perguntamos o numero da pessoa.
 CONVIDAR_PEDIR_NUMERO = (
-    "Claro! Voce pode *compartilhar o contato* da pessoa aqui (pelo clipe 📎 do "
-    "WhatsApp) ou simplesmente *digitar o numero* com DDD - que eu preparo tudo 🙂\n"
+    "Claro! Compartilhe o contato pelo clipe 📎 do WhatsApp "
+    "ou escreva o numero com DDD:\n"
     "Ex: (11) 99999-8888\n\n"
-    "(Prefere um link pra divulgar pra varias pessoas? Digite *link*. "
-    "Pra desistir, *cancelar*.)"
+    "(Prefere um link pra divulgar pra varias pessoas? "
+    "Escolha *Meu link geral* abaixo.)"
 )
 
 CONVIDAR_NUMERO_INVALIDO = (
@@ -169,12 +169,8 @@ CONVITE_PRONTO = (
 
 # --- Menu, ajuda, saudacao, agradecimento --------------------------------
 MENU = (
-    "Como posso te ajudar agora{voc}? 😊\n\n"
-    "*1* - Pedir um servico (ex.: \"encanador em Perdizes\")\n"
-    "*2* - Recomendar alguem\n"
-    "*3* - Convidar alguem\n"
-    "*4* - Meus dados / sair\n\n"
-    "E so responder com o numero - ou ja escrever o que voce precisa. 💛"
+    "Como posso te ajudar agora{voc}? 😊\n"
+    "Escolha uma opcao abaixo ou ja escreva o que voce precisa. 💛"
 )
 
 PEDIR_SERVICO = (
@@ -210,8 +206,7 @@ MEUS_DADOS = (
     "- Indicacoes que voce fez: {n_indicacoes}\n\n"
     "Pode ficar tranquilo(a): eu nunca guardo o numero dos seus contatos, so um "
     "codigo embaralhado. 🔒\n\n"
-    "Quer que eu apague *tudo*? Digite *EXCLUIR*. Se preferir voltar, e so mandar "
-    "*cancelar*."
+    "Quer apagar tudo? Escolha nos botoes abaixo. 👇"
 )
 
 EXCLUSAO_CONFIRMAR = "Pra apagar tudo, digite *EXCLUIR*. Pra voltar, e so mandar *cancelar*. 🙂"
