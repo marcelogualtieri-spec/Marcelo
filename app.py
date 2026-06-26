@@ -141,11 +141,32 @@ def enviar_botoes_meta(texto, botoes):
 
 
 def _e164(bruto):
-    """Normaliza um numero pro formato +55... (E.164)."""
+    """Normaliza um numero pro formato +55... (E.164).
+
+    Aceita os varios jeitos que o telefone chega de um card de contato:
+      - "(11) 99999-8888" / "11999998888"  -> nacional, sem codigo do pais (BR)
+      - "+55 11 99999-8888"                -> ja internacional
+      - "5511999998888" (wa_id da Meta)    -> so digitos, COM codigo do pais, sem '+'
+    Devolve E.164 valido, ou "" quando nao da pra validar (melhor descartar do
+    que cadastrar um numero errado)."""
     bruto = (bruto or "").strip()
-    if not bruto.startswith("+"):
-        bruto = "+" + re.sub(r"\D", "", bruto)
-    return normalizar_e164(bruto) or bruto
+    if not bruto:
+        return ""
+
+    # 1) Tenta como veio. A regiao BR resolve o formato nacional "(11) 99999-8888"
+    #    e tambem o internacional "+55 ...".
+    e164 = normalizar_e164(bruto)
+    if e164:
+        return e164
+
+    # 2) wa_id costuma vir so com digitos e ja COM o codigo do pais (sem '+').
+    so_digitos = re.sub(r"\D", "", bruto)
+    if so_digitos:
+        e164 = normalizar_e164("+" + so_digitos)
+        if e164:
+            return e164
+
+    return ""
 
 
 def conteudo_da_mensagem(msg):
