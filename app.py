@@ -1,7 +1,10 @@
 # app.py
 # ---------------------------------------------------------------------------
 # DOROTEIA - cerebro do bot. Recebe a mensagem do WhatsApp (via WhatsApp Cloud
-# API da Meta), decide o que fazer e responde. As FALAS ficam todas em textos.py.
+# API da Meta) e delega a CONVERSA pra IA (cerebro.py), que responde em
+# linguagem natural. As ACOES sensiveis (buscar, recomendar, contatos, convite,
+# dados, exclusao, consentimento) sao executadas AQUI, de forma determinista,
+# atraves das "ferramentas" que a IA pode chamar.
 # ---------------------------------------------------------------------------
 
 import hashlib
@@ -21,9 +24,8 @@ from flask import Flask, request, Response, g
 from supabase import create_client
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from privacidade import calcular_contact_hash, extrair_numeros_de_texto, normalizar_e164
-from nlu import extrair_servico_bairro, extrair_recomendacao
-
+from privacidade import calcular_contact_hash, normalizar_e164
+import cerebro
 import textos as t
 
 
@@ -61,109 +63,40 @@ def assinatura_meta_valida():
     return hmac.compare_digest(esperado, assinatura)
 
 
-def _post_meta(phone_number_id, corpo_json):
-    """Faz o POST para a Graph API (texto ou interativo). Interno."""
-    if not (WHATSAPP_TOKEN and phone_number_id):
-        print("[META] envio ignorado: token ou phone_id ausente.")
+def enviar_mensagem_meta(to, texto, phone_number_id):
+    """Envia uma mensagem de texto pela WhatsApp Cloud API."""
+    if not (WHATSAPP_TOKEN and phone_number_id and to):
+        print(f"[META] envio ignorado (token={'ok' if WHATSAPP_TOKEN else 'FALTA'}, "
+              f"phone_id={'ok' if phone_number_id else 'FALTA'}, to={'ok' if to else 'FALTA'}).")
         return
     url = f"{GRAPH_API}/{phone_number_id}/messages"
-    req = Request(url, data=json.dumps(corpo_json).encode("utf-8"), method="POST")
+    corpo = json.dumps({
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": texto, "preview_url": True},
+    }).encode("utf-8")
+    req = Request(url, data=corpo, method="POST")
     req.add_header("Authorization", f"Bearer {WHATSAPP_TOKEN}")
     req.add_header("Content-Type", "application/json")
     try:
-        with urlopen(req, timeout=10) as r:
-            r.read()
+        with urlopen(req, timeout=10) as resposta:
+            resposta.read()
     except HTTPError as e:
         corpo_erro = ""
         try:
             corpo_erro = e.read().decode("utf-8", errors="ignore")[:300]
         except Exception:
             pass
-        print(f"[META] HTTP {e.code}: {corpo_erro}")
+        print(f"[META] HTTP {e.code} ao enviar: {corpo_erro}")
     except Exception as e:
         print(f"[META] falha ao enviar: {e!r}")
 
 
-def enviar_mensagem_meta(to, texto, phone_number_id):
-    """Envia mensagem de texto simples."""
-    if not to:
-        return
-    _post_meta(phone_number_id, {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "text",
-        "text": {"body": texto, "preview_url": True},
-    })
-
-
-def _enviar_interativa(corpo_interativo):
-    """Envia mensagem interativa (botoes ou lista) usando o contexto g."""
-    to = g.get("to")
-    phone_number_id = g.get("phone_number_id")
-    if not to:
-        return
-    print(f"[RESP-BTN] {str(corpo_interativo)[:80]!r}")
-    _post_meta(phone_number_id, {
-        "messaging_product": "whatsapp",
-        "to": to,
-        "type": "interactive",
-        "interactive": corpo_interativo,
-    })
-
-
 def resposta_whatsapp(texto):
-    """Envia texto simples usando o contexto da mensagem atual (g)."""
+    """Envia texto pela Cloud API usando o contexto da mensagem atual (g)."""
     print(f"[RESP] {texto[:80]!r}")
     enviar_mensagem_meta(g.get("to"), texto, g.get("phone_number_id"))
-
-
-def resposta_botoes(texto, botoes):
-    """Envia mensagem com até 3 botões de resposta rápida.
-    botoes: lista de (id, label) — id vira o 'texto' retornado quando clicado."""
-    _enviar_interativa({
-        "type": "button",
-        "body": {"text": texto},
-        "action": {
-            "buttons": [
-                {"type": "reply", "reply": {"id": bid, "title": label}}
-                for bid, label in botoes[:3]
-            ]
-        },
-    })
-
-
-def resposta_lista(texto_corpo, texto_botao, secoes):
-    """Envia mensagem com lista de opções (até 10 itens no total).
-    secoes: [{"title": str, "rows": [{"id": str, "title": str, "description": str}]}]"""
-    _enviar_interativa({
-        "type": "list",
-        "body": {"text": texto_corpo},
-        "action": {
-            "button": texto_botao,
-            "sections": secoes,
-        },
-    })
-
-
-def enviar_menu(voc):
-    """Envia o menu principal como lista interativa."""
-    resposta_lista(
-        t.MENU.format(voc=voc),
-        "Ver opcoes",
-        [{
-            "title": "O que voce precisa?",
-            "rows": [
-                {"id": "1", "title": "Pedir um servico",
-                 "description": "ex.: encanador em Perdizes, SP"},
-                {"id": "2", "title": "Recomendar alguem",
-                 "description": "indicar um bom prestador"},
-                {"id": "3", "title": "Convidar alguem",
-                 "description": "trazer um amigo para a Doroteia"},
-                {"id": "4", "title": "Meus dados / sair",
-                 "description": "ver ou apagar seus dados"},
-            ]
-        }]
-    )
 
 
 def _e164(bruto):
@@ -175,17 +108,14 @@ def _e164(bruto):
 
 
 def conteudo_da_mensagem(msg):
-    """Extrai (texto, numeros_compartilhados) de uma mensagem da Cloud API.
-    Para botoes/lista clicados, retorna o ID do botao (que mapeamos a comandos internos)."""
+    """Extrai (texto, numeros_compartilhados) de uma mensagem da Cloud API."""
     tipo = msg.get("type")
     if tipo == "text":
         return (msg.get("text") or {}).get("body", "").strip(), []
     if tipo == "interactive":
         inter = msg.get("interactive") or {}
-        sub_tipo = inter.get("type", "")
-        sub = inter.get(sub_tipo) or {}
-        # Retorna o id (nome interno do botao), com title como fallback
-        return (sub.get("id") or sub.get("title") or "").strip(), []
+        sub = inter.get(inter.get("type", ""), {}) or {}
+        return (sub.get("title") or "").strip(), []
     if tipo == "button":
         return ((msg.get("button") or {}).get("text") or "").strip(), []
     if tipo == "contacts":
@@ -197,20 +127,6 @@ def conteudo_da_mensagem(msg):
                     numeros.append(numero)
         return "", numeros
     return "", []
-
-
-# ===========================================================================
-# AJUDINHAS DE PERSONALIZACAO
-# ===========================================================================
-
-def primeiro_nome(nome_perfil):
-    if nome_perfil and nome_perfil.strip():
-        return nome_perfil.strip().split()[0]
-    return ""
-
-
-def vocativo(nome):
-    return f", {nome}" if nome else ""
 
 
 # ===========================================================================
@@ -249,8 +165,11 @@ def registrar_consentimento(wa_id):
     }).eq("wa_id", wa_id).execute()
 
 
-def definir_estado(wa_id, estado):
-    supabase.table("members").update({"estado": estado}).eq("wa_id", wa_id).execute()
+def salvar_historico(wa_id, historico):
+    try:
+        supabase.table("members").update({"historico": historico}).eq("wa_id", wa_id).execute()
+    except Exception:
+        traceback.print_exc()
 
 
 def contar(tabela, member_id):
@@ -258,13 +177,8 @@ def contar(tabela, member_id):
 
 
 def registrar_busca(servico, bairro, cidade, resultado):
-    """Metrica (sem dado pessoal): anota o que foi procurado e a cor da resposta."""
     try:
-        row = {
-            "servico": servico.lower(),
-            "bairro": bairro,
-            "resultado": resultado,
-        }
+        row = {"servico": servico.lower(), "bairro": bairro, "resultado": resultado}
         if cidade:
             row["cidade"] = cidade
         supabase.table("searches").insert(row).execute()
@@ -277,7 +191,7 @@ def excluir_membro(membro):
 
 
 # ===========================================================================
-# CAMADA 4 - CONTATOS -> HASH -> GRAFO
+# CONTATOS -> HASH -> GRAFO
 # ===========================================================================
 
 def processar_contatos(membro, numeros_e164):
@@ -301,55 +215,8 @@ def processar_contatos(membro, numeros_e164):
     return len(numeros_e164), ja_membros
 
 
-def texto_contatos_recebidos(total, ja_membros):
-    restantes = total - ja_membros
-    msg = t.CONTATOS_CABECALHO.format(total=total)
-    msg += t.CONTATOS_TEM_MEMBROS.format(ja=ja_membros) if ja_membros > 0 else t.CONTATOS_SEM_MEMBROS
-    if restantes > 0:
-        msg += t.CONTATOS_RESTANTES.format(rest=restantes)
-    return msg + t.RODAPE
-
-
 # ===========================================================================
-# CAMADA 6 - RECOMENDAR
-# ===========================================================================
-
-def tratar_recomendacao(membro, texto, voc):
-    dados = extrair_recomendacao(texto)
-    nome     = (dados.get("nome")     or "").strip() or "Prestador"
-    servico  = (dados.get("servico")  or "").strip()
-    bairro   = (dados.get("bairro")   or "").strip()
-    cidade   = (dados.get("cidade")   or "").strip()
-    estado   = (dados.get("estado")   or "").strip()
-    telefone = normalizar_e164((dados.get("telefone") or "").strip())
-
-    if not telefone or not servico or not bairro:
-        return t.REC_INCOMPLETA
-
-    prestador = supabase.table("providers").insert({
-        "nome":     nome,
-        "telefone": telefone,
-        "servico":  servico.lower(),
-        "bairro":   bairro,
-        "cidade":   cidade,
-        "estado":   estado,
-    }).execute().data[0]
-
-    supabase.table("recommendations").insert({
-        "member_id":   membro["id"],
-        "provider_id": prestador["id"],
-        "servico":     servico.lower(),
-        "bairro":      bairro,
-        "cidade":      cidade,
-    }).execute()
-
-    definir_estado(membro["wa_id"], "normal")
-    bairro_display = f"{bairro}, {cidade}" if (bairro and cidade) else bairro
-    return t.REC_OK.format(nome=nome, servico=servico, bairro=bairro_display, voc=voc) + t.RODAPE
-
-
-# ===========================================================================
-# CAMADA 7 - CONVITE
+# CONVITE
 # ===========================================================================
 
 def gerar_codigo_convite():
@@ -381,7 +248,6 @@ def membro_por_codigo(codigo):
 
 
 def registrar_convite_pendente(membro, numero_e164):
-    """Guarda (em HASH) que este membro convidou aquele numero."""
     codigo = calcular_contact_hash(numero_e164)
     existe = (supabase.table("pending_invites").select("id")
               .eq("inviter_id", membro["id"]).eq("contact_hash", codigo).limit(1).execute().data)
@@ -403,7 +269,6 @@ def gerar_codigo_curto(tamanho=6):
 
 
 def encurtar_link(url):
-    """Encurtador proprio: /c/<codigo> redireciona pro link longo."""
     try:
         codigo = gerar_codigo_curto()
         supabase.table("short_links").insert({"code": codigo, "url": url}).execute()
@@ -428,7 +293,7 @@ def aplicar_convite_pendente(wa_id):
 
 
 # ===========================================================================
-# CAMADA 5/6 - REGRAS VERDE / AMARELO / VERMELHO
+# REGRAS DE VINCULO E BUSCA (verde / amarelo / vermelho)
 # ===========================================================================
 
 def hash_de_membro(membro):
@@ -454,19 +319,17 @@ def existe_vinculo(pedidor, recomendador):
     return False
 
 
-def tratar_pedido_servico(pedidor, servico, bairro, cidade, voc):
-    bairro_display = f"{bairro}, {cidade}" if (bairro and cidade) else bairro
-
+def executar_busca(pedidor, servico, bairro, cidade):
+    """Roda a busca real e devolve (com_nome, sem_nome).
+    com_nome: [(prestador, nome_de_quem_indicou)]  -> rede direta (verde)
+    sem_nome: [prestador]                          -> fora da rede (amarelo)"""
     query = (supabase.table("recommendations").select("*")
-             .ilike("servico", servico)
-             .ilike("bairro", bairro))
+             .ilike("servico", servico).ilike("bairro", bairro))
     if cidade:
         query = query.ilike("cidade", cidade)
     recs = query.execute().data
 
-    com_nome = []
-    sem_nome = []
-
+    com_nome, sem_nome = [], []
     for rec in recs:
         recomendador = buscar_membro_por_id(rec["member_id"])
         if recomendador is None or not recomendador.get("consent"):
@@ -478,46 +341,170 @@ def tratar_pedido_servico(pedidor, servico, bairro, cidade, voc):
             com_nome.append((prestador, recomendador.get("nome_perfil") or "alguem que voce conhece"))
         else:
             sem_nome.append(prestador)
+    return com_nome, sem_nome
+
+
+# ===========================================================================
+# AS FERRAMENTAS (executadas quando a IA as chama). Devolvem TEXTO pra IA.
+# ===========================================================================
+
+def _resolver_ficha(valor, numeros):
+    """Converte '[CONTATO_2]' no numero real (numeros[1]). Se vier um numero
+    cru, normaliza. Devolve E.164 ou None."""
+    m = re.search(r"CONTATO_(\d+)", valor or "")
+    if m:
+        i = int(m.group(1)) - 1
+        if 0 <= i < len(numeros):
+            return numeros[i]
+        return None
+    return normalizar_e164(valor or "") or None
+
+
+def _ferr_buscar(membro, entrada):
+    servico = (entrada.get("servico") or "").strip().lower()
+    bairro  = (entrada.get("bairro")  or "").strip()
+    cidade  = (entrada.get("cidade")  or "").strip()
+    if not (servico and bairro and cidade):
+        return "Faltou servico, bairro ou cidade. Pergunte o que faltar com naturalidade."
+
+    com_nome, sem_nome = executar_busca(membro, servico, bairro, cidade)
+    local = f"{bairro}, {cidade}"
 
     if com_nome:
         registrar_busca(servico, bairro, cidade, "verde")
-        return texto_verde(servico, bairro_display, com_nome, voc)
+        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | indicado por: {quem}"
+                  for p, quem in com_nome]
+        return ("RESULTADO=verde - indicacoes de pessoas da rede de confianca dela, em "
+                f"{local}. Apresente com alegria, mantendo nome e telefone EXATOS e citando "
+                "quem indicou:\n" + "\n".join(linhas))
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo")
-        return texto_amarelo(servico, bairro_display, sem_nome)
+        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']}" for p in sem_nome]
+        return ("RESULTADO=amarelo - ha indicacoes boas em "
+                f"{local}, mas de FORA da rede dela (NAO revele quem indicou). Apresente "
+                "mantendo o telefone EXATO e comente que, se ela trouxer mais gente de "
+                "confianca, essas indicacoes passam a aparecer com nome:\n" + "\n".join(linhas))
+
     registrar_busca(servico, bairro, cidade, "vermelho")
-    return t.VERMELHO.format(servico=servico, bairro=bairro_display) + t.RODAPE
+    return (f"RESULTADO=vermelho - ninguem indicou {servico} em {local} ainda. Acolha a "
+            "pessoa e incentive-a a recomendar alguem que conheca ou a convidar amigos pra "
+            "fortalecer a rede.")
 
 
-def texto_verde(servico, bairro_display, lista, voc):
-    partes = [t.VERDE_CABECALHO.format(voc=voc, servico=servico.capitalize(), bairro=bairro_display)]
-    for prestador, quem in lista:
-        partes.append(t.VERDE_LINHA.format(nome=prestador["nome"], quem=quem, telefone=prestador["telefone"]))
-    return "\n".join(partes) + t.VERDE_RODAPE + t.RODAPE
+def _ferr_recomendar(membro, entrada, numeros):
+    nome     = (entrada.get("nome")    or "").strip() or "Prestador"
+    servico  = (entrada.get("servico") or "").strip().lower()
+    bairro   = (entrada.get("bairro")  or "").strip()
+    cidade   = (entrada.get("cidade")  or "").strip()
+    estado   = (entrada.get("estado")  or "").strip()
+    telefone = _resolver_ficha(entrada.get("telefone"), numeros)
+
+    if not telefone:
+        return "Nao recebi um telefone valido do prestador. Peca o numero (com DDD) ou o contato."
+    if not (servico and bairro and cidade):
+        return "Faltou servico, bairro ou cidade do prestador. Pergunte o que faltar."
+
+    prestador = supabase.table("providers").insert({
+        "nome": nome, "telefone": telefone, "servico": servico,
+        "bairro": bairro, "cidade": cidade, "estado": estado,
+    }).execute().data[0]
+    supabase.table("recommendations").insert({
+        "member_id": membro["id"], "provider_id": prestador["id"],
+        "servico": servico, "bairro": bairro, "cidade": cidade,
+    }).execute()
+
+    return (f"Recomendacao de {nome} ({servico} em {bairro}, {cidade}) registrada com sucesso. "
+            "Agradeca a pessoa com carinho e explique que a indicacao dela vai aparecer (com o "
+            "nome dela) pra quem da rede dela precisar desse servico.")
 
 
-def texto_amarelo(servico, bairro_display, prestadores):
-    partes = [t.AMARELO_CABECALHO.format(servico=servico, bairro=bairro_display, n=len(prestadores))]
-    for prestador in prestadores:
-        partes.append(t.AMARELO_LINHA.format(nome=prestador["nome"], telefone=prestador["telefone"]))
-    return "\n".join(partes) + t.AMARELO_RODAPE + t.RODAPE
+def _ferr_adicionar_contatos(membro, numeros):
+    if not numeros:
+        return ("Nenhum contato veio nesta mensagem. Peca pra ela compartilhar pelo clipe 📎 "
+                "do WhatsApp ou digitar os numeros com DDD.")
+    total, ja_membros = processar_contatos(membro, numeros)
+    restantes = total - ja_membros
+    return (f"Adicionei {total} contato(s) a rede de confianca dela (guardados em codigo). "
+            f"{ja_membros} ja usa(m) a Doroteia; {restantes} ainda nao. Agradeca e explique "
+            "que, quando os outros entrarem, as indicacoes passam a aparecer entre eles.")
 
 
-def texto_meus_dados(membro, voc):
-    return t.MEUS_DADOS.format(
-        voc=voc,
-        nome=membro.get("nome_perfil") or "(sem nome)",
-        consent="sim" if membro.get("consent") else "nao",
-        n_contatos=contar("edges", membro["id"]),
-        n_indicacoes=contar("recommendations", membro["id"]),
+def _ferr_convidar(membro, numeros):
+    if not numeros:
+        return ("Nenhum contato veio nesta mensagem pra convidar. Peca pra compartilhar o "
+                "contato pelo clipe 📎 ou digitar o numero com DDD.")
+    numero_bot = g.get("display_phone_number") or ""
+    for numero in numeros:
+        registrar_convite_pendente(membro, numero)
+    codigo = obter_ou_criar_codigo(membro)
+    link_amigo = encurtar_link(montar_link_convite(numero_bot, codigo))
+    mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=link_amigo)
+    link_pronto = encurtar_link(montar_link_para_contato(numeros[0], mensagem))
+    extra = ""
+    if len(numeros) > 1:
+        extra = (f" Tambem ja conectei a pessoa com os outros {len(numeros) - 1} contato(s); "
+                 "quando entrarem, se reconhecem.")
+    return (f"Convite pronto. Entregue este link EXATO pra ela abrir e enviar pro contato "
+            f"(ja conectei os dois): {link_pronto}.{extra}")
+
+
+def _ferr_link_generico(membro):
+    numero_bot = g.get("display_phone_number") or ""
+    codigo = obter_ou_criar_codigo(membro)
+    link = encurtar_link(montar_link_convite(numero_bot, codigo))
+    return (f"Link de convite generico (copie EXATO): {link}. Diga que ela pode mandar esse "
+            "link pra quantas pessoas de confianca quiser; quem entrar por ele ja fica ligado a ela.")
+
+
+def _ferr_ver_dados(membro):
+    return (
+        "Dados guardados sobre a pessoa (apresente de forma clara e tranquila):\n"
+        f"- Nome: {membro.get('nome_perfil') or '(sem nome)'}\n"
+        f"- Consentiu: {'sim' if membro.get('consent') else 'nao'}\n"
+        f"- Contatos na rede dela (em codigo, nunca o numero): {contar('edges', membro['id'])}\n"
+        f"- Indicacoes que ela fez: {contar('recommendations', membro['id'])}\n"
+        "Reforce que os contatos ficam so em codigo embaralhado, e lembre que ela pode pedir "
+        "pra apagar tudo quando quiser."
     )
 
 
-SAUDACOES = {"oi", "ola", "olá", "oi!", "ola!", "opa", "oie", "eai", "e ai",
-             "eaí", "hey", "bom dia", "boa tarde", "boa noite"}
-AGRADECIMENTOS = {"obrigado", "obrigada", "obg", "obgd", "vlw", "valeu",
-                  "valeu!", "brigado", "brigada", "muito obrigado",
-                  "muito obrigada", "obrigado!", "obrigada!"}
+def _ferr_excluir(membro, entrada):
+    if entrada.get("confirmado") is True:
+        excluir_membro(membro)
+        return ("Todos os dados da pessoa foram apagados. Despeca-se com carinho e diga que, se "
+                "um dia quiser voltar, e so mandar um oi.")
+    return ("Ainda NAO foi confirmado. Pergunte com cuidado se ela tem certeza de que quer apagar "
+            "TUDO (e irreversivel). So chame esta ferramenta de novo com confirmado=true depois do sim.")
+
+
+def construir_executor(membro):
+    """Devolve a funcao que a IA usa pra disparar acoes. Mantem o consentimento
+    como porteiro: sem consent, so 'registrar_consentimento' funciona."""
+    def executar(nome, entrada, numeros):
+        if nome != "registrar_consentimento" and not membro.get("consent"):
+            return ("A pessoa ainda nao consentiu. Nao execute acoes; peca o 'pode ser' dela primeiro.")
+        if nome == "registrar_consentimento":
+            registrar_consentimento(membro["wa_id"])
+            membro["consent"] = True
+            return ("Consentimento registrado. De as boas-vindas de verdade e convide a pessoa a "
+                    "adicionar contatos de confianca (pelo clipe 📎 ou digitando), explicando que "
+                    "isso faz as indicacoes aparecerem com nome.")
+        if nome == "buscar_servico":
+            return _ferr_buscar(membro, entrada)
+        if nome == "salvar_recomendacao":
+            return _ferr_recomendar(membro, entrada, numeros)
+        if nome == "adicionar_contatos":
+            return _ferr_adicionar_contatos(membro, numeros)
+        if nome == "convidar_pessoa":
+            return _ferr_convidar(membro, numeros)
+        if nome == "gerar_link_convite":
+            return _ferr_link_generico(membro)
+        if nome == "ver_meus_dados":
+            return _ferr_ver_dados(membro)
+        if nome == "excluir_meus_dados":
+            return _ferr_excluir(membro, entrada)
+        return "Ferramenta desconhecida."
+    return executar
 
 
 # ===========================================================================
@@ -573,12 +560,9 @@ def processar_eventos(dados):
 
 
 def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhados):
-    nome = primeiro_nome(nome_perfil)
-    voc = vocativo(nome)
-
     membro = buscar_membro(wa_id)
 
-    # CASO 1 - pessoa nova
+    # Pessoa nova: cria o cadastro (com vinculo de convite, se houver) e segue.
     if membro is None:
         invited_by = None
         codigo = extrair_codigo_convite(texto_recebido)
@@ -589,141 +573,16 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhad
         if invited_by is None:
             invited_by = aplicar_convite_pendente(wa_id)
         criar_membro(wa_id, nome_perfil, invited_by)
-        return resposta_botoes(
-            t.BOAS_VINDAS.format(voc=voc),
-            [("sim", "Pode ser! ✅"), ("saber_mais", "Saber mais")]
-        )
+        membro = buscar_membro(wa_id)
 
-    # CASO 2 - ja consentiu
-    if membro["consent"]:
-        texto_minusculo = texto_recebido.lower()
-        estado = membro.get("estado") or "normal"
-        print(f"[ESTADO] {wa_id} estado={estado} texto={texto_recebido!r}")
-
-        # 2a) No meio de uma recomendacao?
-        if estado == "recomendando":
-            if texto_minusculo in ("cancelar", "sair", "parar"):
-                definir_estado(wa_id, "normal")
-                resposta_whatsapp(t.REC_CANCELADA)
-                return enviar_menu(voc)
-            return resposta_whatsapp(tratar_recomendacao(membro, texto_recebido, voc))
-
-        # 2a2) Confirmando exclusao dos dados?
-        if estado == "confirmando_exclusao":
-            if texto_minusculo in ("excluir", "apagar", "apagar tudo", "confirmar"):
-                excluir_membro(membro)
-                return resposta_whatsapp(t.ADEUS)
-            if texto_minusculo in ("cancelar", "nao", "não", "voltar"):
-                definir_estado(wa_id, "normal")
-                resposta_whatsapp(t.EXCLUSAO_CANCELADA)
-                return enviar_menu(voc)
-            return resposta_botoes(
-                t.EXCLUSAO_CONFIRMAR,
-                [("excluir", "Apagar tudo ❌"), ("cancelar", "Cancelar")]
-            )
-
-        # 2a3) Convidando pelo numero?
-        if estado == "convidando":
-            if texto_minusculo in ("cancelar", "sair", "parar"):
-                definir_estado(wa_id, "normal")
-                return enviar_menu(voc)
-            numero_bot = g.get("display_phone_number") or ""
-            if texto_minusculo in ("link", "meu link", "linque"):
-                definir_estado(wa_id, "normal")
-                codigo = obter_ou_criar_codigo(membro)
-                link = encurtar_link(montar_link_convite(numero_bot, codigo))
-                return resposta_whatsapp(t.CONVITE.format(link=link) + t.RODAPE)
-            numeros = numeros_compartilhados or extrair_numeros_de_texto(texto_recebido)
-            if not numeros:
-                return resposta_botoes(
-                    t.CONVIDAR_NUMERO_INVALIDO,
-                    [("link", "Meu link geral"), ("cancelar", "Cancelar")]
-                )
-            for numero in numeros:
-                registrar_convite_pendente(membro, numero)
-            numero_amigo = numeros[0]
-            codigo = obter_ou_criar_codigo(membro)
-            link_amigo = encurtar_link(montar_link_convite(numero_bot, codigo))
-            mensagem = t.CONVITE_MENSAGEM_AMIGO.format(link=link_amigo)
-            link_curto = encurtar_link(montar_link_para_contato(numero_amigo, mensagem))
-            definir_estado(wa_id, "normal")
-            resposta = t.CONVITE_PRONTO.format(link=link_curto)
-            if len(numeros) > 1:
-                resposta += t.CONVITE_EXTRAS.format(qtd=len(numeros) - 1)
-            return resposta_whatsapp(resposta)
-
-        # 2b) Saudacao ou agradecimento?
-        if texto_minusculo in SAUDACOES:
-            return resposta_whatsapp(t.SAUDACAO.format(voc=voc))
-        if texto_minusculo in AGRADECIMENTOS:
-            return resposta_whatsapp(t.AGRADECIMENTO.format(voc=voc))
-
-        # 2b2) Atalhos do menu: numeros 1-4 (texto digitado) ou IDs de botao da lista
-        atalhos_menu = {"1": "servico", "2": "recomendar", "3": "convidar", "4": "meus dados"}
-        if texto_minusculo in atalhos_menu:
-            escolha = atalhos_menu[texto_minusculo]
-            if escolha == "servico":
-                return resposta_whatsapp(t.PEDIR_SERVICO.format(voc=voc))
-            texto_minusculo = escolha
-
-        # 2c) Recomendar
-        if texto_minusculo in ("recomendar", "indicar", "recomendar alguem",
-                               "recomendar um", "quero recomendar"):
-            definir_estado(wa_id, "recomendando")
-            return resposta_whatsapp(t.PEDIR_RECOMENDACAO)
-
-        # 2d) Convidar
-        if texto_minusculo in ("convidar", "convite", "convidar alguem", "quero convidar"):
-            definir_estado(wa_id, "convidando")
-            return resposta_botoes(
-                t.CONVIDAR_PEDIR_NUMERO,
-                [("link", "Meu link geral"), ("cancelar", "Cancelar")]
-            )
-
-        # 2e) Menu
-        if texto_minusculo in ("menu", "ajuda", "opcoes", "opções"):
-            return enviar_menu(voc)
-
-        # 2f) Meus dados / sair
-        if texto_minusculo in ("meus dados", "meus dados / sair", "sair", "dados",
-                               "excluir", "apagar", "lgpd", "privacidade"):
-            definir_estado(wa_id, "confirmando_exclusao")
-            return resposta_botoes(
-                texto_meus_dados(membro, voc),
-                [("excluir", "Apagar tudo ❌"), ("cancelar", "Voltar")]
-            )
-
-        # 2g) Contatos compartilhados ou digitados
-        numeros = extrair_numeros_de_texto(texto_recebido)
-        for numero in numeros_compartilhados:
-            if numero not in numeros:
-                numeros.append(numero)
-        if numeros:
-            total, ja_membros = processar_contatos(membro, numeros)
-            return resposta_whatsapp(texto_contatos_recebidos(total, ja_membros))
-
-        # 2h) Pedido de servico (NLU)
-        dados = extrair_servico_bairro(texto_recebido)
-        servico = dados.get("servico", "").strip()
-        bairro  = dados.get("bairro",  "").strip()
-        cidade  = dados.get("cidade",  "").strip()
-
-        if servico and bairro:
-            return resposta_whatsapp(tratar_pedido_servico(membro, servico, bairro, cidade, voc))
-        if servico and not bairro:
-            return resposta_whatsapp(t.PEDIR_BAIRRO.format(servico=servico))
-        return enviar_menu(voc)
-
-    # CASO 3 - ainda nao consentiu
-    texto = texto_recebido.lower()
-    if texto in ("sim", "sim, bora", "bora", "s"):
-        registrar_consentimento(wa_id)
-        return resposta_whatsapp(t.CONSENTIMENTO_OK.format(voc=voc) + t.PEDIR_CONTATOS)
-    if "saber" in texto or "mais" in texto:
-        return resposta_botoes(t.SABER_MAIS, [("sim", "Pode ser! ✅")])
-    return resposta_botoes(
-        t.PRECISA_CONSENTIR,
-        [("sim", "Pode ser! ✅"), ("saber_mais", "Saber mais")]
+    # A partir daqui, a IA conduz a conversa (e dispara as ferramentas acima).
+    cerebro.conversar(
+        membro,
+        texto_recebido,
+        numeros_compartilhados,
+        executar_ferramenta=construir_executor(membro),
+        enviar_texto=resposta_whatsapp,
+        salvar_historico=lambda hist: salvar_historico(wa_id, hist),
     )
 
 
