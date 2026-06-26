@@ -154,8 +154,8 @@ CONVITE_EXTRAS = (
 # A mensagem que VOCE vai enviar pra pessoa (ela recebe isso).
 CONVITE_MENSAGEM_AMIGO = (
     "Oi! 💛 Te indico a Doroteia: um cantinho no WhatsApp que recomenda "
-    "prestadores de servico de confianca. Pra entrar (e ja ficar ligado comigo), "
-    "e so abrir aqui: {link}"
+    "indicacoes de confianca - medico, escola, encanador, o que voce precisar. "
+    "Pra entrar (e ja ficar ligado comigo), e so abrir aqui: {link}"
 )
 
 # O que a Doroteia te responde, com o link que abre a conversa com a pessoa.
