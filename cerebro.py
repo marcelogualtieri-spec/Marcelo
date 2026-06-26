@@ -60,6 +60,19 @@ LOCALIZACAO:
 CONTATOS:
 - A forma mais facil de a pessoa adicionar contatos ou convidar alguem e
   compartilhar o contato pelo clipe 📎 do WhatsApp. Incentive isso.
+- Quando a pessoa compartilha um card de contato, voce ve o nome e a ficha
+  (ex.: [CONTATO_1] (nome: Joao Silva)). Use o nome na conversa naturalmente.
+- Para recomendacoes via card: o nome do card e o nome do prestador. Ainda assim
+  pergunte o servico e o bairro+cidade se faltar.
+
+BOTOES CLICAVEIS:
+- Voce tem a ferramenta 'enviar_botoes' para momentos de escolha clara e binaria:
+  consentir (Pode ser / Saber mais), confirmar exclusao (Apagar / Cancelar), menu
+  rapido quando fizer sentido. Maximo 3 botoes.
+- NAO use botoes para perguntas abertas onde a pessoa precisa digitar (servico,
+  recomendacao, compartilhar contato) — nessas horas use so texto.
+- Quando chamar 'enviar_botoes', sua resposta de texto final deve ser VAZIA
+  (o texto ja foi enviado junto com os botoes).
 
 REGRA DE OURO DAS FERRAMENTAS:
 - Para QUALQUER acao real (buscar, recomendar, adicionar contatos, convidar, ver
@@ -166,16 +179,49 @@ FERRAMENTAS = [
             "required": ["confirmado"],
         },
     },
+    {
+        "name": "enviar_botoes",
+        "description": "Envia a PROPRIA resposta como mensagem com botoes clicaveis (max 3). "
+                       "Use em momentos de escolha clara e binaria: consentir, confirmar exclusao, "
+                       "opcao A vs B. NAO use para perguntas abertas. Quando chamar esta "
+                       "ferramenta, deixe sua resposta de texto final VAZIA.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "texto": {
+                    "type": "string",
+                    "description": "o texto da mensagem que aparece acima dos botoes",
+                },
+                "botoes": {
+                    "type": "array",
+                    "maxItems": 3,
+                    "description": "lista de ate 3 botoes",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id":    {"type": "string",
+                                      "description": "identificador interno, palavras simples em minusculo"},
+                            "label": {"type": "string",
+                                      "description": "texto visivel no botao, max 20 caracteres"},
+                        },
+                        "required": ["id", "label"],
+                    },
+                },
+            },
+            "required": ["texto", "botoes"],
+        },
+    },
 ]
 
 
 # ---------------------------------------------------------------------------
 # FICHAS: troca numeros por [CONTATO_n] antes de mandar pra IA
 # ---------------------------------------------------------------------------
-def _tokenizar_numeros(texto, numeros_compartilhados):
+def _tokenizar_numeros(texto, contatos_compartilhados):
     """Devolve (texto_para_ia, lista_numeros_e164, nota_sistema).
-    Substitui numeros do texto por fichas [CONTATO_n] e adiciona os contatos
-    compartilhados (clipe) como fichas tambem. Os numeros reais ficam so aqui."""
+    contatos_compartilhados: [(e164, nome_card)] ou [] — vem do card do WhatsApp.
+    Substitui numeros do texto por fichas [CONTATO_n]; inclui nomes dos cards
+    na nota pra IA poder usar o nome na conversa. Numeros reais ficam so aqui."""
     numeros = []          # lista de E.164 reais, na ordem das fichas
     texto_ia = texto or ""
 
@@ -185,8 +231,6 @@ def _tokenizar_numeros(texto, numeros_compartilhados):
         if e164 not in numeros:
             numeros.append(e164)
 
-    # Substitui qualquer sequencia "telefonica" do texto pela ficha correspondente.
-    # (a ordem das fichas segue a ordem em que os numeros validos apareceram)
     if achados:
         def _troca(m):
             e164 = normalizar_e164(m.group(0))
@@ -195,17 +239,20 @@ def _tokenizar_numeros(texto, numeros_compartilhados):
             return m.group(0)
         texto_ia = re.sub(r"\+?\d[\d\s().\-]{6,}\d", _troca, texto_ia)
 
-    # 2) contatos compartilhados pelo clipe (vem so como numeros, sem texto).
+    # 2) contatos compartilhados pelo clipe: (e164, nome_card).
+    # O nome vai pra IA; o numero vira ficha.
     extras = []
-    for e164 in numeros_compartilhados or []:
+    for e164, nome_card in contatos_compartilhados or []:
         if e164 not in numeros:
             numeros.append(e164)
-        extras.append(f"[CONTATO_{numeros.index(e164) + 1}]")
+        ficha = f"[CONTATO_{numeros.index(e164) + 1}]"
+        descricao = f"{ficha} (nome: {nome_card})" if nome_card else ficha
+        extras.append(descricao)
 
     nota = ""
     if extras:
-        nota = (f"\n\n[sistema: a pessoa compartilhou o(s) contato(s) "
-                f"{', '.join(extras)} pelo clipe do WhatsApp.]")
+        nota = (f"\n\n[sistema: a pessoa compartilhou o(s) contato(s) pelo clipe: "
+                f"{', '.join(extras)}]")
 
     return texto_ia, numeros, nota
 
@@ -228,7 +275,7 @@ def _contexto_pessoa(membro):
 # ---------------------------------------------------------------------------
 # O LOOP DE CONVERSA (recebe -> pensa -> [usa ferramentas] -> responde)
 # ---------------------------------------------------------------------------
-def conversar(membro, texto_usuario, numeros_compartilhados, *,
+def conversar(membro, texto_usuario, contatos_compartilhados, *,
               executar_ferramenta, enviar_texto, salvar_historico):
     """Conduz uma rodada de conversa.
 
@@ -236,7 +283,7 @@ def conversar(membro, texto_usuario, numeros_compartilhados, *,
     - enviar_texto(str)                                   (manda a resposta no WhatsApp)
     - salvar_historico(lista)                             (persiste a memoria)
     """
-    texto_ia, numeros, nota = _tokenizar_numeros(texto_usuario, numeros_compartilhados)
+    texto_ia, numeros, nota = _tokenizar_numeros(texto_usuario, contatos_compartilhados)
     conteudo_usuario = (texto_ia + nota).strip() or "(a pessoa mandou uma mensagem sem texto)"
 
     historico = list(membro.get("historico") or [])

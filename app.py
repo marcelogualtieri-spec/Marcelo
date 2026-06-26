@@ -99,6 +99,47 @@ def resposta_whatsapp(texto):
     enviar_mensagem_meta(g.get("to"), texto, g.get("phone_number_id"))
 
 
+def _post_interativa(corpo_interativo):
+    """Envia mensagem interativa (botoes) pela Cloud API."""
+    to = g.get("to")
+    phone_number_id = g.get("phone_number_id")
+    if not (WHATSAPP_TOKEN and phone_number_id and to):
+        return
+    url = f"{GRAPH_API}/{phone_number_id}/messages"
+    corpo = json.dumps({
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": corpo_interativo,
+    }).encode("utf-8")
+    req = Request(url, data=corpo, method="POST")
+    req.add_header("Authorization", f"Bearer {WHATSAPP_TOKEN}")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urlopen(req, timeout=10) as r:
+            r.read()
+    except HTTPError as e:
+        print(f"[META] HTTP {e.code} ao enviar interativa")
+    except Exception as e:
+        print(f"[META] falha ao enviar interativa: {e!r}")
+
+
+def enviar_botoes_meta(texto, botoes):
+    """Envia mensagem com até 3 botões clicáveis via Cloud API.
+    botoes: [{"id": str, "label": str}]"""
+    print(f"[RESP-BTN] {texto[:60]!r}")
+    _post_interativa({
+        "type": "button",
+        "body": {"text": texto},
+        "action": {
+            "buttons": [
+                {"type": "reply", "reply": {"id": b["id"], "title": b["label"][:20]}}
+                for b in botoes[:3]
+            ]
+        },
+    })
+
+
 def _e164(bruto):
     """Normaliza um numero pro formato +55... (E.164)."""
     bruto = (bruto or "").strip()
@@ -119,13 +160,17 @@ def conteudo_da_mensagem(msg):
     if tipo == "button":
         return ((msg.get("button") or {}).get("text") or "").strip(), []
     if tipo == "contacts":
-        numeros = []
+        # Retorna lista de (e164, nome) — o nome do card vai pra IA, o numero fica como ficha.
+        contatos = []
+        vistos = set()
         for c in msg.get("contacts", []):
+            nome_card = (c.get("name") or {}).get("formatted_name", "").strip()
             for tel in c.get("phones", []):
                 numero = _e164(tel.get("wa_id") or tel.get("phone") or "")
-                if numero and numero not in numeros:
-                    numeros.append(numero)
-        return "", numeros
+                if numero and numero not in vistos:
+                    contatos.append((numero, nome_card))
+                    vistos.add(numero)
+        return "", contatos
     return "", []
 
 
@@ -477,7 +522,17 @@ def _ferr_excluir(membro, entrada):
             "TUDO (e irreversivel). So chame esta ferramenta de novo com confirmado=true depois do sim.")
 
 
-def construir_executor(membro):
+def _ferr_enviar_botoes(entrada, interativa_enviada):
+    texto = (entrada.get("texto") or "").strip()
+    botoes = entrada.get("botoes") or []
+    if not texto or not botoes:
+        return "Faltou texto ou botoes. Tente de novo."
+    enviar_botoes_meta(texto, botoes)
+    interativa_enviada[0] = True
+    return "ok - mensagem com botoes enviada. Sua resposta de texto final deve ser VAZIA."
+
+
+def construir_executor(membro, interativa_enviada):
     """Devolve a funcao que a IA usa pra disparar acoes. Mantem o consentimento
     como porteiro: sem consent, so 'registrar_consentimento' funciona."""
     def executar(nome, entrada, numeros):
@@ -503,6 +558,8 @@ def construir_executor(membro):
             return _ferr_ver_dados(membro)
         if nome == "excluir_meus_dados":
             return _ferr_excluir(membro, entrada)
+        if nome == "enviar_botoes":
+            return _ferr_enviar_botoes(entrada, interativa_enviada)
         return "Ferramenta desconhecida."
     return executar
 
@@ -544,7 +601,8 @@ def processar_eventos(dados):
             for msg in value.get("messages", []):
                 origem = msg.get("from", "")
                 nome_perfil = nomes.get(origem, "")
-                texto, numeros = conteudo_da_mensagem(msg)
+                texto, contatos = conteudo_da_mensagem(msg)
+                # contatos: [(e164, nome_card)] para tipo=="contacts", [] nos demais casos
 
                 g.to = origem
                 g.phone_number_id = phone_number_id
@@ -553,13 +611,14 @@ def processar_eventos(dados):
                 wa_id = _e164(origem)
                 print(f"Mensagem de {wa_id} ({nome_perfil}): {texto!r}")
                 try:
-                    _processar_mensagem(wa_id, texto, nome_perfil, numeros)
+                    _processar_mensagem(wa_id, texto, nome_perfil, contatos)
                 except Exception:
                     traceback.print_exc()
                     resposta_whatsapp(t.ERRO_GENERICO)
 
 
-def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhados):
+def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilhados):
+    # contatos_compartilhados: [(e164, nome_card)] ou []
     membro = buscar_membro(wa_id)
 
     # Pessoa nova: cria o cadastro (com vinculo de convite, se houver) e segue.
@@ -575,13 +634,15 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, numeros_compartilhad
         criar_membro(wa_id, nome_perfil, invited_by)
         membro = buscar_membro(wa_id)
 
-    # A partir daqui, a IA conduz a conversa (e dispara as ferramentas acima).
+    # Flag: se a IA mandar botoes via ferramenta, nao envia texto duplicado.
+    interativa_enviada = [False]
+
     cerebro.conversar(
         membro,
         texto_recebido,
-        numeros_compartilhados,
-        executar_ferramenta=construir_executor(membro),
-        enviar_texto=resposta_whatsapp,
+        contatos_compartilhados,
+        executar_ferramenta=construir_executor(membro, interativa_enviada),
+        enviar_texto=lambda texto: (None if interativa_enviada[0] else resposta_whatsapp(texto)),
         salvar_historico=lambda hist: salvar_historico(wa_id, hist),
     )
 
