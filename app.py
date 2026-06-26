@@ -15,7 +15,8 @@ import re
 import secrets
 import string
 import traceback
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError
@@ -52,6 +53,12 @@ WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET")
 # (configuravel se um dia mudar o dominio); cai num padrao conhecido; e so em
 # ultimo caso usa a URL da requisicao (que pode vir errada atras de proxy).
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrender.com").rstrip("/")
+
+# Cron de follow-up: chave de protecao do endpoint e id do numero do bot.
+# CRON_SECRET: string aleatoria configurada no Render + GitHub Secrets.
+# WHATSAPP_PHONE_NUMBER_ID: visivel nos eventos do webhook (metadata.phone_number_id).
+CRON_SECRET            = os.environ.get("CRON_SECRET", "")
+WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 
 
 def assinatura_meta_valida():
@@ -937,6 +944,99 @@ def construir_executor(membro, interativa_enviada):
             return _ferr_enviar_botoes(entrada, interativa_enviada)
         return "Ferramenta desconhecida."
     return executar
+
+
+# ===========================================================================
+# FOLLOW-UP PROATIVO DE AVALIACAO (cron diario)
+# ===========================================================================
+
+# Quantos dias apos a indicacao enviamos o follow-up ("usou? como foi?").
+DIAS_PARA_FOLLOW_UP = 7
+# Maximo de mensagens por rodada (evita rajada na API da Meta).
+MAX_FOLLOW_UPS_POR_RODADA = 50
+
+
+def _enviar_follow_ups():
+    """Busca indicacoes pendentes sem follow-up ha >= DIAS_PARA_FOLLOW_UP dias
+    e manda uma mensagem proativa pedindo a avaliacao. Retorna quantas enviou."""
+    limite = (datetime.now(timezone.utc) - timedelta(days=DIAS_PARA_FOLLOW_UP)).isoformat()
+
+    try:
+        # Busca pendentes mais antigas que o limite, ordenadas da mais nova pra
+        # mais antiga (se houver varias por membro, pega a mais recente).
+        candidatas = (supabase.table("indicacoes_recebidas")
+                      .select("*")
+                      .eq("status", "pendente")
+                      .is_("follow_up_at", "null")
+                      .lt("created_at", limite)
+                      .order("created_at", desc=True)
+                      .limit(MAX_FOLLOW_UPS_POR_RODADA * 3)
+                      .execute().data)
+    except Exception:
+        traceback.print_exc()
+        return 0
+
+    # Uma mensagem por membro por rodada (a indicacao mais recente).
+    vistos = set()
+    selecionadas = []
+    for ind in candidatas:
+        mid = ind["member_id"]
+        if mid not in vistos:
+            vistos.add(mid)
+            selecionadas.append(ind)
+        if len(selecionadas) >= MAX_FOLLOW_UPS_POR_RODADA:
+            break
+
+    enviados = 0
+    agora = datetime.now(timezone.utc).isoformat()
+
+    for ind in selecionadas:
+        try:
+            membro = buscar_membro_por_id(ind["member_id"])
+            if not membro or not membro.get("consent"):
+                continue
+            prestador = buscar_provider(ind["provider_id"])
+            if not prestador:
+                continue
+
+            primeiro_nome = ((membro.get("nome_perfil") or "").split() or [""])[0]
+            nome_prest = prestador["nome"]
+            servico = ind.get("servico") or prestador.get("servico") or ""
+            local_parts = [ind.get("bairro") or "", ind.get("cidade") or ""]
+            local = ", ".join(p for p in local_parts if p)
+
+            saudacao = f"Oi, {primeiro_nome}!" if primeiro_nome else "Oi!"
+            detalhe = f"{servico}{' em ' + local if local else ''}"
+            texto = (
+                f"{saudacao} 👋 Há alguns dias te indiquei *{nome_prest}*"
+                f"{' (' + detalhe + ')' if detalhe else ''}. "
+                "Você chegou a usar? Conta pra mim como foi 😊"
+            )
+
+            enviar_mensagem_meta(membro["wa_id"], texto, WHATSAPP_PHONE_NUMBER_ID)
+
+            supabase.table("indicacoes_recebidas").update({
+                "follow_up_at": agora,
+            }).eq("id", ind["id"]).execute()
+
+            enviados += 1
+            time.sleep(0.3)   # respeita o rate-limit da API da Meta
+
+        except Exception:
+            traceback.print_exc()
+
+    print(f"[FOLLOW-UP] {enviados} mensagem(ns) enviada(s).")
+    return enviados
+
+
+@app.route("/cron/follow-up", methods=["POST"])
+def cron_follow_up():
+    """Endpoint chamado pelo cron diario (GitHub Actions).
+    Protegido por X-Cron-Secret para impedir acionamento externo nao autorizado."""
+    if CRON_SECRET and request.headers.get("X-Cron-Secret") != CRON_SECRET:
+        return Response("Nao autorizado.", status=401)
+    enviados = _enviar_follow_ups()
+    return Response(f"OK - {enviados} follow-up(s) enviado(s).", status=200)
 
 
 # ===========================================================================

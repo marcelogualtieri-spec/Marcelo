@@ -1,5 +1,5 @@
 -- ============================================================================
--- MIGRAÇÕES v2 + v3 + v4 JUNTAS — cole TUDO de uma vez no SQL Editor do Supabase
+-- MIGRAÇÕES v2 + v3 + v4 + v5 — cole TUDO de uma vez no SQL Editor do Supabase
 -- ----------------------------------------------------------------------------
 -- Execute ANTES do deploy do código novo. É seguro rodar mais de uma vez
 -- (tudo usa IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
@@ -8,6 +8,7 @@
 --   v2 -> cidade/estado nos prestadores e nas indicações (app nacional)
 --   v3 -> memória de conversa da Doroteia (IA conversacional)
 --   v4 -> avaliação das indicações (1 a 5 estrelas) + relevância na rede
+--   v5 -> follow-up proativo (coluna follow_up_at em indicacoes_recebidas)
 -- ============================================================================
 
 
@@ -75,3 +76,12 @@ create table if not exists indicacoes_recebidas (
 );
 create index if not exists idx_indic_receb_member_status
     on indicacoes_recebidas (member_id, status);
+
+
+-- ============================================================================
+-- v5 — follow-up proativo de avaliação
+-- ============================================================================
+
+-- indicacoes_recebidas: registra quando o follow-up foi enviado (evita duplicatas).
+alter table indicacoes_recebidas
+    add column if not exists follow_up_at timestamptz;

@@ -1,0 +1,22 @@
+name: Follow-up proativo de avaliação
+
+on:
+  schedule:
+    # Todo dia às 13h UTC = 10h BRT (UTC-3)
+    - cron: '0 13 * * *'
+  workflow_dispatch:   # permite rodar manualmente pelo GitHub
+
+jobs:
+  follow-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar follow-up na Doroteia
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            https://doroteia-ia.onrender.com/cron/follow-up)
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Erro: status $STATUS"
+            exit 1
+          fi
