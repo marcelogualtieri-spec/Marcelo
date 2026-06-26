@@ -248,7 +248,30 @@ FERRAMENTAS = [
     },
     {
         "name": "ver_meus_dados",
-        "description": "Mostra um resumo dos dados que a Doroteia guarda sobre a pessoa.",
+        "description": "Mostra um resumo geral dos dados que a Doroteia guarda sobre a pessoa "
+                       "(nome, consentimento, totais). Para listas detalhadas use as ferramentas "
+                       "especificas abaixo.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "ver_minhas_indicacoes",
+        "description": "Lista tudo que a pessoa ja indicou na Doroteia, com servico, local e "
+                       "nota media quando houver. Use quando ela perguntar 'o que ja indiquei?', "
+                       "'quem eu ja recomendei?', 'minhas indicacoes' etc.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "ver_minha_rede",
+        "description": "Mostra quais contatos da rede da pessoa ja sao membros da Doroteia. "
+                       "Use quando ela perguntar 'quem da minha rede esta aqui?', 'quais dos "
+                       "meus contatos usam a Doroteia?' etc.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "ver_minhas_buscas",
+        "description": "Lista as ultimas buscas que a pessoa fez na Doroteia, com o resultado "
+                       "(achou na rede, fora da rede ou sem resultado). Use quando ela perguntar "
+                       "'o que busquei antes?', 'minhas buscas', 'busquei o que?' etc.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {

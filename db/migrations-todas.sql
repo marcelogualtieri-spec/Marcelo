@@ -85,3 +85,14 @@ create index if not exists idx_indic_receb_member_status
 -- indicacoes_recebidas: registra quando o follow-up foi enviado (evita duplicatas).
 alter table indicacoes_recebidas
     add column if not exists follow_up_at timestamptz;
+
+
+-- ============================================================================
+-- v6 — histórico de buscas por membro (painel do usuário)
+-- ============================================================================
+
+alter table searches
+    add column if not exists member_id uuid references members(id) on delete set null;
+
+create index if not exists idx_searches_member
+    on searches (member_id, created_at desc);

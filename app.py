@@ -260,11 +260,13 @@ def contar(tabela, member_id):
     return len(supabase.table(tabela).select("id").eq("member_id", member_id).execute().data)
 
 
-def registrar_busca(servico, bairro, cidade, resultado):
+def registrar_busca(servico, bairro, cidade, resultado, member_id=None):
     try:
         row = {"servico": servico.lower(), "bairro": bairro, "resultado": resultado}
         if cidade:
             row["cidade"] = cidade
+        if member_id:
+            row["member_id"] = member_id
         supabase.table("searches").insert(row).execute()
     except Exception as erro:
         print(f"[METRICA] nao consegui registrar a busca: {erro}")
@@ -646,7 +648,7 @@ def _ferr_buscar(membro, entrada):
         return " | avaliacao: ainda sem notas"
 
     if com_nome:
-        registrar_busca(servico, bairro, cidade, "verde")
+        registrar_busca(servico, bairro, cidade, "verde", membro["id"])
         for p, _ in com_nome:
             registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
         linhas = []
@@ -663,7 +665,7 @@ def _ferr_buscar(membro, entrada):
                 "isso — e prova social forte). Mantenha nome e telefone EXATOS:\n"
                 + "\n".join(linhas))
     if sem_nome:
-        registrar_busca(servico, bairro, cidade, "amarelo")
+        registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
         for p in sem_nome:
             registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
         linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']}{_selo(p)}"
@@ -674,7 +676,7 @@ def _ferr_buscar(membro, entrada):
                 "avaliacao quando houver, e comente que, se ela trouxer mais gente de "
                 "confianca, essas indicacoes passam a aparecer com nome:\n" + "\n".join(linhas))
 
-    registrar_busca(servico, bairro, cidade, "vermelho")
+    registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
     return (f"RESULTADO=vermelho - ninguem indicou {servico} em {local} ainda. Acolha a "
             "pessoa e incentive-a a recomendar alguem que conheca ou a convidar amigos pra "
             "fortalecer a rede.")
@@ -813,6 +815,112 @@ def _ferr_ver_dados(membro):
     )
 
 
+def _ferr_ver_indicacoes(membro):
+    """Lista o que a pessoa ja indicou, com nota media quando houver."""
+    try:
+        recs = (supabase.table("recommendations")
+                .select("servico, bairro, cidade, provider_id")
+                .eq("member_id", membro["id"])
+                .order("created_at", desc=True)
+                .execute().data)
+    except Exception:
+        traceback.print_exc()
+        return "Nao consegui carregar suas indicacoes agora. Tente de novo em instantes."
+
+    if not recs:
+        return ("Ela ainda nao fez nenhuma indicacao. Diga de forma acolhedora que, quando "
+                "quiser indicar alguem, e so compartilhar o contato pelo clipe 📎.")
+
+    linhas = []
+    for r in recs:
+        prestador = buscar_provider(r["provider_id"])
+        if not prestador:
+            continue
+        local_parts = [r.get("bairro") or "", r.get("cidade") or ""]
+        local = ", ".join(p for p in local_parts if p)
+        nota = ""
+        if prestador.get("qtd_avaliacoes"):
+            nota = f" | ⭐ {prestador['nota_media']}/5 ({prestador['qtd_avaliacoes']} aval.)"
+        linhas.append(
+            f"- *{prestador['nome']}* ({r.get('servico') or 'servico'}"
+            f"{', ' + local if local else ''}){nota}"
+        )
+
+    if not linhas:
+        return "Indicacoes registradas, mas nao consegui carregar os detalhes agora."
+
+    return (f"Ela tem {len(linhas)} indicacao(oes) registrada(s). "
+            "Apresente de forma clara e calorosa, destacando as bem avaliadas:\n"
+            + "\n".join(linhas))
+
+
+def _ferr_ver_rede(membro):
+    """Descobre quais contatos do grafo da pessoa ja sao membros com consentimento."""
+    try:
+        edges = (supabase.table("edges").select("contact_hash")
+                 .eq("member_id", membro["id"]).execute().data)
+    except Exception:
+        return "Nao consegui carregar sua rede agora."
+
+    total_contatos = len(edges)
+    if total_contatos == 0:
+        return ("Ela ainda nao tem contatos na rede. Incentive-a a compartilhar "
+                "alguns pelo clipe 📎 para comecar a construir a rede de confianca.")
+
+    hashes_meus = {e["contact_hash"] for e in edges}
+
+    try:
+        todos = (supabase.table("members").select("wa_id, nome_perfil")
+                 .eq("consent", True).neq("id", membro["id"]).execute().data)
+    except Exception:
+        return "Nao consegui verificar os membros agora."
+
+    conectados = []
+    for m in todos:
+        e164 = normalizar_e164(m.get("wa_id") or "")
+        if e164 and calcular_contact_hash(e164) in hashes_meus:
+            nome = (m.get("nome_perfil") or "").strip()
+            conectados.append(nome or "alguem")
+
+    if not conectados:
+        return (f"Ela tem {total_contatos} contato(s) na rede (em codigo), mas nenhum "
+                "usa a Doroteia ainda. Pergunte se ela quer convidar alguns agora.")
+
+    nomes = "\n".join(f"- {n}" for n in conectados)
+    fora = total_contatos - len(conectados)
+    extra = f" ({fora} ainda nao usa(m))" if fora else ""
+    return (f"{len(conectados)} pessoa(s) da rede dela ja usa(m) a Doroteia{extra}. "
+            "Apresente com entusiasmo — essas pessoas ja estao conectadas a ela:\n" + nomes)
+
+
+def _ferr_ver_buscas(membro):
+    """Lista as ultimas buscas que a pessoa fez na Doroteia."""
+    try:
+        buscas = (supabase.table("searches")
+                  .select("servico, bairro, cidade, resultado")
+                  .eq("member_id", membro["id"])
+                  .order("created_at", desc=True)
+                  .limit(10)
+                  .execute().data)
+    except Exception:
+        return "Nao consegui carregar o historico de buscas."
+
+    if not buscas:
+        return ("Ela ainda nao fez nenhuma busca por aqui. "
+                "Pergunte o que ela precisa agora — pode ser medico, escola, prestador, o que for.")
+
+    emoji_res = {"verde": "🟢", "amarelo": "🟡", "vermelho": "🔴"}
+    linhas = []
+    for b in buscas:
+        local_parts = [b.get("bairro") or "", b.get("cidade") or ""]
+        local = ", ".join(p for p in local_parts if p)
+        icone = emoji_res.get(b.get("resultado") or "", "⚪")
+        linhas.append(f"- {icone} {b['servico']}{' em ' + local if local else ''}")
+
+    return (f"Ultimas {len(linhas)} busca(s) dela. 🟢 achou na rede, 🟡 fora da rede, "
+            "🔴 sem resultado. Apresente de forma simples:\n" + "\n".join(linhas))
+
+
 def _ferr_excluir(membro, entrada):
     if entrada.get("confirmado") is True:
         excluir_membro(membro)
@@ -936,6 +1044,12 @@ def construir_executor(membro, interativa_enviada):
             return _ferr_link_generico(membro)
         if nome == "ver_meus_dados":
             return _ferr_ver_dados(membro)
+        if nome == "ver_minhas_indicacoes":
+            return _ferr_ver_indicacoes(membro)
+        if nome == "ver_minha_rede":
+            return _ferr_ver_rede(membro)
+        if nome == "ver_minhas_buscas":
+            return _ferr_ver_buscas(membro)
         if nome == "excluir_meus_dados":
             return _ferr_excluir(membro, entrada)
         if nome == "avaliar_indicacao":
