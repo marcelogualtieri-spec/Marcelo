@@ -375,11 +375,13 @@ def _relevancia(provider):
 # ===========================================================================
 
 def processar_contatos(membro, numeros_e164):
-    """Salva os contatos como hashes no grafo e descobre quais ja sao membros.
+    """Salva os contatos como hashes no grafo e classifica em membros vs nao-membros.
 
-    Retorna (total_processados, nomes_ja_na_rede) onde nomes_ja_na_rede e a
-    lista de nomes de perfil dos contatos que ja usam a Doroteia — base da
-    funcao de descoberta ("Joao e Maria ja estao aqui!")."""
+    Retorna (total, membros_na_rede, nao_membros) onde:
+    - membros_na_rede: lista de nomes de perfil dos contatos ja na Doroteia
+    - nao_membros: lista de (indice_original, e164) dos que ainda nao sao membros
+      (indice_original preserva a ficha [CONTATO_n] que a IA conhece)
+    """
     member_id = membro["id"]
     minha_e164 = normalizar_e164(membro.get("wa_id") or "")
 
@@ -388,14 +390,17 @@ def processar_contatos(membro, numeros_e164):
 
     registros_novos = []
     membros_na_rede = []
-    for numero in numeros_e164:
-        # Exclui o proprio usuario (nao faz sentido anunciar que ele mesmo esta na rede).
+    nao_membros = []
+
+    for i, numero in enumerate(numeros_e164):
         if minha_e164 and numero == minha_e164:
             continue
         outro = buscar_membro(numero)
         if outro is not None:
             nome = (outro.get("nome_perfil") or "").strip()
             membros_na_rede.append(nome or "alguem")
+        else:
+            nao_membros.append((i, numero))
         codigo = calcular_contact_hash(numero)
         if codigo not in hashes_existentes:
             registros_novos.append({"member_id": member_id, "contact_hash": codigo})
@@ -404,7 +409,7 @@ def processar_contatos(membro, numeros_e164):
     if registros_novos:
         supabase.table("edges").insert(registros_novos).execute()
 
-    return len(numeros_e164), membros_na_rede
+    return len(numeros_e164), membros_na_rede, nao_membros
 
 
 # ===========================================================================
@@ -713,42 +718,59 @@ def _ferr_adicionar_contatos(membro, numeros):
     if not numeros:
         return ("Nenhum contato veio nesta mensagem. Peca pra ela compartilhar pelo clipe 📎 "
                 "do WhatsApp ou digitar os numeros com DDD.")
-    total, membros_na_rede = processar_contatos(membro, numeros)
+
+    total, membros_na_rede, nao_membros = processar_contatos(membro, numeros)
     qtd_membros = len(membros_na_rede)
-    qtd_fora = total - qtd_membros
+    qtd_fora = len(nao_membros)
 
-    linhas = [f"Adicionei {total} contato(s) a rede de confianca dela (todos guardados em codigo)."]
+    linhas = [f"Adicionei {total} contato(s) a rede de confianca dela."]
 
+    # Quem ja e membro: anunciar com entusiasmo.
     if qtd_membros == 1:
         linhas.append(
             f"OTIMA DESCOBERTA: {membros_na_rede[0]} JA usa a Doroteia! "
-            "Compartilhe isso com entusiasmo — elas agora estao conectadas e as "
-            "indicacoes de uma aparecem pra outra com o nome de quem indicou."
+            "Compartilhe com entusiasmo — elas estao conectadas."
         )
     elif qtd_membros > 1:
         nomes = ", ".join(membros_na_rede)
         linhas.append(
-            f"OTIMA DESCOBERTA: {qtd_membros} desses contatos JA usam a Doroteia: {nomes}! "
-            "Compartilhe com entusiasmo — ela ja esta conectada a todas elas e as "
-            "indicacoes aparecem com nome entre elas."
+            f"OTIMA DESCOBERTA: {qtd_membros} desses JA usam a Doroteia: {nomes}! "
+            "Compartilhe com entusiasmo — ela ja esta conectada a todas."
         )
 
-    if qtd_fora > 0 and qtd_membros > 0:
-        linhas.append(
-            f"Os outros {qtd_fora} contato(s) ainda nao usam a Doroteia. "
-            "Pergunte se ela quer convida-los agora — pode compartilhar esses contatos "
-            "de novo pelo clipe 📎 e voce prepara os convites na hora."
-        )
-    elif qtd_fora > 0:
-        linhas.append(
-            f"Nenhum deles usa a Doroteia ainda. Agradeca e pergunte se ela quer "
-            "convida-los (pode compartilhar de novo pelo clipe 📎 que voce prepara os convites)."
-        )
+    # Quem nao e membro: gera os convites automaticamente, sem pedir pra reenviar.
+    if nao_membros:
+        numero_bot = g.get("display_phone_number") or ""
+        link_geral = encurtar_link(montar_link_convite(numero_bot))
+        msg_amigo = t.CONVITE_MENSAGEM_AMIGO.format(link=link_geral)
 
-    linhas.append(
-        "Agora pergunte com leveza se ela ja precisa de alguma indicacao — medico, escola, "
-        "prestador, o que for. E o momento certo pra ela experimentar a Doroteia na pratica."
-    )
+        for _, numero in nao_membros:
+            registrar_convite_pendente(membro, numero)
+
+        individuais = nao_membros[:MAX_LINKS_INDIVIDUAIS]
+        linhas_links = []
+        for idx, numero in individuais:
+            link = encurtar_link(montar_link_para_contato(numero, msg_amigo))
+            linhas_links.append(f"[CONTATO_{idx + 1}] -> {link}")
+
+        aviso_extra = ""
+        if qtd_fora > MAX_LINKS_INDIVIDUAIS:
+            sobra = qtd_fora - MAX_LINKS_INDIVIDUAIS
+            aviso_extra = (f"\n(Os outros {sobra} tambem estao atrelados — "
+                           "mande esses contatos de novo pra gerar os links deles.)")
+
+        linhas.append(
+            f"Ja preparei os convites para os {qtd_fora} que ainda nao usam a Doroteia. "
+            "Entregue cada link pra pessoa certa, TROCANDO [CONTATO_n] pelo nome "
+            "(voce sabe quem e cada ficha). Links (copie EXATOS):\n"
+            + "\n".join(linhas_links) + aviso_extra
+        )
+    else:
+        # Todos ja sao membros: nudge para primeira busca.
+        linhas.append(
+            "Pergunte com leveza se ela ja precisa de alguma indicacao — medico, escola, "
+            "prestador, o que for."
+        )
 
     return "\n".join(linhas)
 

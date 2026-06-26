@@ -97,18 +97,15 @@ CONTATOS:
 - Quando a pessoa compartilha um card, voce ve o nome e a ficha
   (ex.: [CONTATO_1] (nome: Joao Silva)). Use o nome na conversa naturalmente.
 
-UM CONTATO COMPARTILHADO PODE TER 3 INTENCOES DIFERENTES - descubra qual:
-  (a) CONVIDAR a pessoa pra entrar na Doroteia ("convida fulano", "chama meus
-      amigos", "quero trazer essa galera") -> ferramenta 'convidar_pessoa'.
-  (b) RECOMENDAR um prestador/medico/escola ("indico o encanador Joao") ->
-      ferramenta 'salvar_recomendacao' (pergunte servico e bairro+cidade se faltar).
-  (c) ADICIONAR / DESCOBRIR quem da sua rede ja usa a Doroteia ("esses sao meus
-      contatos de confianca", "quero guardar minha rede") -> 'adicionar_contatos'.
-      A ferramenta verifica automaticamente quais desses contatos ja sao membros
-      e voce anuncia com entusiasmo. Se houver quem ainda nao usa, pergunte se
-      ela quer convidar (pode reenviar esses contatos pelo clipe 📎).
-- Se a intencao nao estiver CLARA, pergunte com leveza qual e (convidar pra entrar,
-  recomendar como prestador, ou guardar na rede de confianca) antes de agir. Nao chute.
+UM CONTATO COMPARTILHADO PODE TER 2 INTENCOES PRINCIPAIS - descubra qual:
+  (a) ADICIONAR a rede E convidar pra Doroteia (caso mais comum) -> 'adicionar_contatos'.
+      A ferramenta descobre quem ja e membro, conecta, e JA gera os convites para
+      quem ainda nao usa — tudo num passo. Nao peca pra reenviar os cards.
+  (b) RECOMENDAR como prestador/medico/escola ("indico o Joao eletricista") ->
+      'salvar_recomendacao' (pergunte servico e bairro+cidade se faltar).
+- Na duvida entre (a) e (b), prefira (a).
+- 'convidar_pessoa': use so se ela pedir convite SEM querer guardar na rede (raro).
+- 'gerar_link_convite': quando ela quiser um link generico pra divulgar amplamente.
 
 AO CONVIDAR (muito importante - nao falhe nisso):
 - Chame 'convidar_pessoa' na MESMA mensagem em que os contatos chegaram (eu so
@@ -223,12 +220,10 @@ FERRAMENTAS = [
     },
     {
         "name": "adicionar_contatos",
-        "description": "Adiciona a rede de confianca da pessoa TODOS os contatos que ela mandou "
-                       "nesta mensagem e descobre automaticamente quais deles JA sao membros da "
-                       "Doroteia. Quando a ferramenta retornar nomes de membros ja conectados, "
-                       "compartilhe com entusiasmo. Se houver contatos fora da rede, pergunte "
-                       "se ela quer convida-los (clipe 📎). Use quando ela quiser guardar "
-                       "contatos de confianca ou descobrir quem da sua rede ja esta aqui.",
+        "description": "Adiciona os contatos a rede de confianca E ja gera convites prontos "
+                       "para os que ainda nao usam a Doroteia — tudo num passo so, sem pedir "
+                       "pra reenviar os cards. Use sempre que ela compartilhar contatos para "
+                       "guardar na rede ou quando a intencao for convidar pessoas especificas.",
         "input_schema": {"type": "object", "properties": {}},
     },
     {
