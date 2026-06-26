@@ -77,8 +77,9 @@ PRIVACIDADE E LGPD (inegociavel):
 
 LOCALIZACAO:
 - A Doroteia atende o Brasil inteiro, nao so Sao Paulo. Sempre que for buscar ou
-  registrar uma indicacao, garanta que tem o BAIRRO e a CIDADE. Se faltar a cidade,
-  pergunte com naturalidade. O estado (UF) ajuda quando houver cidades de mesmo nome.
+  registrar uma indicacao, garanta que tem a CIDADE. Se faltar, pergunte com naturalidade.
+- BAIRRO e opcional: se a pessoa informar, use; se nao, busque ou registre na cidade inteira.
+  O estado (UF) ajuda quando houver cidades de mesmo nome.
 
 QUALIDADE / AVALIACAO (importante pra rede ganhar forca):
 - Depois que a pessoa usa uma indicacao, a opiniao dela vale ouro. Quando ela
@@ -102,7 +103,7 @@ UM CONTATO COMPARTILHADO PODE TER 2 INTENCOES PRINCIPAIS - descubra qual:
       A ferramenta descobre quem ja e membro, conecta, e JA gera os convites para
       quem ainda nao usa — tudo num passo. Nao peca pra reenviar os cards.
   (b) RECOMENDAR como prestador/medico/escola ("indico o Joao eletricista") ->
-      'salvar_recomendacao' (pergunte servico e bairro+cidade se faltar).
+      'salvar_recomendacao' (pergunte servico e cidade se faltar; bairro e opcional).
 - Na duvida entre (a) e (b), prefira (a).
 - 'convidar_pessoa': use so se ela pedir convite SEM querer guardar na rede (raro).
 - 'gerar_link_convite': quando ela quiser um link generico pra divulgar amplamente.
@@ -183,7 +184,8 @@ FERRAMENTAS = [
         "description": "Procura indicacoes de confianca para um tipo de necessidade num lugar. "
                        "Serve para QUALQUER indicacao: prestador, medico, escola, professor, "
                        "advogado, etc. Use quando a pessoa pedir uma indicacao. Precisa de "
-                       "servico, bairro e cidade (pergunte se faltar a cidade).",
+                       "servico e cidade (pergunte se faltar a cidade). Bairro e opcional: "
+                       "se a pessoa nao informar, busca na cidade inteira.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -191,18 +193,19 @@ FERRAMENTAS = [
                             "description": "o tipo de indicacao, no singular e minusculo. "
                                            "Pode ser qualquer categoria: 'encanador', 'pediatra', "
                                            "'escola infantil', 'advogado', 'professor de ingles'"},
-                "bairro":  {"type": "string"},
+                "bairro":  {"type": "string", "description": "opcional — omita se nao informado"},
                 "cidade":  {"type": "string"},
                 "estado":  {"type": "string", "description": "sigla UF, ex: 'SP' (opcional)"},
             },
-            "required": ["servico", "bairro", "cidade"],
+            "required": ["servico", "cidade"],
         },
     },
     {
         "name": "salvar_recomendacao",
         "description": "Registra uma recomendacao que a pessoa esta fazendo de alguem bom - de "
                        "qualquer tipo (prestador, medico, escola, professor, advogado...). "
-                       "Use a ficha de contato (ex: [CONTATO_1]) no campo telefone.",
+                       "Use a ficha de contato (ex: [CONTATO_1]) no campo telefone. "
+                       "Precisa de nome, telefone, servico e cidade. Bairro e opcional.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -211,11 +214,11 @@ FERRAMENTAS = [
                 "servico":  {"type": "string",
                              "description": "o tipo de indicacao, ex: 'encanador', 'pediatra', "
                                             "'escola infantil'"},
-                "bairro":   {"type": "string"},
+                "bairro":   {"type": "string", "description": "opcional — omita se nao informado"},
                 "cidade":   {"type": "string"},
                 "estado":   {"type": "string"},
             },
-            "required": ["nome", "telefone", "servico", "bairro", "cidade"],
+            "required": ["nome", "telefone", "servico", "cidade"],
         },
     },
     {

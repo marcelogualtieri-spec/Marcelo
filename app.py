@@ -570,8 +570,9 @@ def executar_busca(pedidor, servico, bairro, cidade):
               rede; todos os nomes sao agregados pra mostrar prova social real.
     sem_nome: [prestador]                             -> fora da rede (amarelo)
     """
-    query = (supabase.table("recommendations").select("*")
-             .ilike("servico", servico).ilike("bairro", bairro))
+    query = supabase.table("recommendations").select("*").ilike("servico", servico)
+    if bairro:
+        query = query.ilike("bairro", bairro)
     if cidade:
         query = query.ilike("cidade", cidade)
     recs = query.execute().data
@@ -639,11 +640,11 @@ def _ferr_buscar(membro, entrada):
     servico = (entrada.get("servico") or "").strip().lower()
     bairro  = (entrada.get("bairro")  or "").strip()
     cidade  = (entrada.get("cidade")  or "").strip()
-    if not (servico and bairro and cidade):
-        return "Faltou servico, bairro ou cidade. Pergunte o que faltar com naturalidade."
+    if not (servico and cidade):
+        return "Faltou servico ou cidade. Pergunte o que faltar com naturalidade."
 
     com_nome, sem_nome = executar_busca(membro, servico, bairro, cidade)
-    local = f"{bairro}, {cidade}"
+    local = ", ".join(p for p in [bairro, cidade] if p)
 
     def _selo(p):
         # Mostra a reputacao pra IA poder destacar os bem avaliados.
@@ -697,8 +698,8 @@ def _ferr_recomendar(membro, entrada, numeros):
 
     if not telefone:
         return "Nao recebi um telefone valido do prestador. Peca o numero (com DDD) ou o contato."
-    if not (servico and bairro and cidade):
-        return "Faltou servico, bairro ou cidade do prestador. Pergunte o que faltar."
+    if not (servico and cidade):
+        return "Faltou servico ou cidade do prestador. Pergunte o que faltar."
 
     prestador = supabase.table("providers").insert({
         "nome": nome, "telefone": telefone, "servico": servico,
@@ -709,7 +710,8 @@ def _ferr_recomendar(membro, entrada, numeros):
         "servico": servico, "bairro": bairro, "cidade": cidade,
     }).execute()
 
-    return (f"Recomendacao de {nome} ({servico} em {bairro}, {cidade}) registrada com sucesso. "
+    local = ", ".join(p for p in [bairro, cidade] if p)
+    return (f"Recomendacao de {nome} ({servico} em {local}) registrada com sucesso. "
             "Agradeca a pessoa com carinho e explique que a indicacao dela vai aparecer (com o "
             "nome dela) pra quem da rede dela precisar desse servico.")
 
