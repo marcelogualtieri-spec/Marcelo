@@ -61,39 +61,6 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrende
 CRON_SECRET            = os.environ.get("CRON_SECRET", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 
-# Numeros de organizadora (separados por virgula) que podem criar comunidades
-# pelo chat. Aceita qualquer formato (+55 11 9..., 5511..., com ou sem o 9).
-# Ex.: ADMIN_WA_IDS="+55 11 99999-8888, 5511888887777".
-def _chaves_telefone(numero):
-    """Conjunto de chaves de comparacao de um telefone, TOLERANTE ao 9o digito
-    dos celulares BR (a Meta as vezes manda o wa_id sem o 9). Devolve so digitos."""
-    d = re.sub(r"\D", "", numero or "")
-    if not d:
-        return set()
-    chaves = {d}
-    e164 = normalizar_e164(numero) or normalizar_e164("+" + d)
-    if e164:
-        chaves.add(re.sub(r"\D", "", e164))
-    # Variantes do 9o digito para numeros BR: 55 + DDD(2) + resto(8 ou 9).
-    for base in list(chaves):
-        if base.startswith("55") and len(base) >= 12:
-            ddd, resto = base[2:4], base[4:]
-            if len(resto) == 9 and resto.startswith("9"):
-                chaves.add("55" + ddd + resto[1:])     # mesma pessoa, sem o 9
-            elif len(resto) == 8:
-                chaves.add("55" + ddd + "9" + resto)    # mesma pessoa, com o 9
-    return chaves
-
-
-ADMIN_WA_IDS_KEYS = set()
-for _n in os.environ.get("ADMIN_WA_IDS", "").split(","):
-    if _n.strip():
-        ADMIN_WA_IDS_KEYS |= _chaves_telefone(_n)
-
-
-def eh_admin(wa_id):
-    """True se o numero (qualquer formato) for de uma organizadora."""
-    return bool(ADMIN_WA_IDS_KEYS) and bool(_chaves_telefone(wa_id) & ADMIN_WA_IDS_KEYS)
 
 
 def assinatura_meta_valida():
@@ -1298,27 +1265,22 @@ def construir_executor(membro, interativa_enviada):
 
 
 def _ferr_criar_comunidade(membro, entrada):
-    if not eh_admin(membro["wa_id"]):
-        print(f"[ADMIN] tentativa de criar comunidade por NAO-admin: "
-              f"wa_id={membro['wa_id']!r} chaves={sorted(_chaves_telefone(membro['wa_id']))} "
-              f"admin_keys={sorted(ADMIN_WA_IDS_KEYS)}")
-        return ("Criar comunidade e uma funcao restrita a organizadoras e esta pessoa NAO e "
-                "organizadora. Explique com gentileza e em UMA frase que criar comunidades nao "
-                "esta disponivel pra ela. NAO invente processo de cadastro, equipe, suporte nem "
-                "peca pra ela 'falar com a equipe'. Em seguida, oferece o que voce realmente faz: "
-                "buscar indicacoes, trazer contatos pra rede ou indicar alguem.")
     nome_com = (entrada.get("nome") or "").strip()
     if not nome_com:
-        return "Faltou o nome da comunidade. Pergunte qual e o nome do grupo."
+        return "Faltou o nome da comunidade. Pergunte qual e o nome do grupo dela."
     comunidade, ja_existia = criar_comunidade(nome_com, criada_por=membro["id"])
     if not comunidade:
-        return "Nome invalido pra comunidade. Peca um nome com letras (ex.: 'Plato Perdizes')."
+        return "Nome invalido pra comunidade. Peca um nome com letras (ex.: 'Predio Azul')."
+    # Quem cria ja entra na comunidade — assim fica ligado a todo mundo que entrar.
+    etiquetar_membro_comunidade(membro["id"], comunidade["id"])
     numero_bot = g.get("display_phone_number") or ""
     link = encurtar_link(montar_link_comunidade(numero_bot, comunidade["slug"]))
-    estado = "ja existia" if ja_existia else "criada com sucesso"
-    return (f"Comunidade '{comunidade['nome']}' {estado}. Mostre este link pra organizadora "
-            "colar no grupo do WhatsApp (EXATAMENTE como veio, sozinho na linha). Quem entrar "
-            "por ele vai ser ligado a essa comunidade:\n" + link)
+    estado = "ja existia" if ja_existia else "criada"
+    return (f"Comunidade '{comunidade['nome']}' {estado}, e a pessoa ja faz parte dela. "
+            "Mostre este link pra ela compartilhar no grupo do WhatsApp (EXATAMENTE como veio, "
+            "sozinho na linha). Todo mundo que entrar por ele vai ficar na MESMA rede de "
+            "confianca dela — viram conhecidos e as indicacoes de um aparecem com nome pros "
+            "outros:\n" + link)
 
 
 # ===========================================================================
@@ -1556,11 +1518,10 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
             etiquetar_membro_comunidade(membro["id"], comunidade["id"])
             membro["comunidade_recem_entrou"] = comunidade["nome"]
 
-    # Contexto extra pra IA: comunidades da pessoa e se ela e organizadora.
+    # Contexto extra pra IA: comunidades da pessoa.
     coms = comunidades_do_membro(membro["id"])
     if coms:
         membro["comunidades_nomes"] = [c["nome"] for c in coms]
-    membro["eh_admin"] = eh_admin(wa_id)
 
     # Limpa o codigo tecnico do convite do texto antes de mandar pra IA.
     texto_recebido = limpar_texto_convite(texto_recebido)

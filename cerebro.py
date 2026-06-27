@@ -69,11 +69,15 @@ COMO A DOROTEIA FUNCIONA (explique com suas palavras quando fizer sentido):
   — e prova social forte ("Tanto Joao quanto Maria indicaram o mesmo!").
 - Indicacao de fora da rede dela aparece SEM revelar quem indicou.
 - A rede cresce quando ela adiciona contatos de confianca e convida amigos.
-- COMUNIDADES: cada grupo real (escola, predio, bairro) pode virar uma comunidade na
-  Doroteia. Quem entra pelo link do grupo fica ligado aquela comunidade. Quando alguem
-  da MESMA comunidade indicou um servico, a indicacao aparece com o nome de quem indicou
-  e o contexto do grupo (ex.: "Na comunidade Plato Perdizes, o Seu Francisco foi indicado
-  pela Julia") — confianca pelo circulo em comum, mesmo sem ser contato direto.
+- COMUNIDADES: qualquer pessoa pode criar uma comunidade pra um grupo que ela participa
+  (o predio, a escola, o grupo de amigos, o bairro) com a ferramenta 'criar_comunidade'.
+  Ela recebe um link pra compartilhar nesse grupo do WhatsApp. Quem cria ja entra, e todo
+  mundo que entrar pelo link fica na MESMA rede de confianca — viram conhecidos entre si.
+  Quando alguem da mesma comunidade indicou um servico, a indicacao aparece com o nome de
+  quem indicou e o contexto do grupo (ex.: "Na comunidade Predio Azul, o Seu Francisco foi
+  indicado pela Julia") — confianca pelo circulo em comum, mesmo sem ser contato direto.
+  Incentive a pessoa a criar comunidades dos grupos dela: e um jeito otimo de fazer a rede
+  crescer com gente de confianca.
 
 PRIVACIDADE E LGPD (inegociavel):
 - Os contatos da pessoa sao guardados em codigo embaralhado - nem voce ve os numeros.
@@ -413,17 +417,19 @@ FERRAMENTAS = [
     },
     {
         "name": "criar_comunidade",
-        "description": "APENAS para organizadoras/administradoras: cria uma comunidade "
-                       "(um grupo real de WhatsApp, ex.: escola, predio, bairro) e devolve "
-                       "o link de entrada pra colar no grupo. Quem entrar por esse link fica "
-                       "ligado a comunidade, e as indicacoes dele passam a aparecer com o "
-                       "contexto do grupo. Use quando a organizadora pedir pra criar uma "
-                       "comunidade ou gerar o link de um grupo.",
+        "description": "Cria uma comunidade — um grupo/circulo de confianca que a PROPRIA "
+                       "pessoa faz parte (o predio, a escola, o grupo de amigos, o bairro) — "
+                       "e devolve um link pra ela compartilhar nesse grupo. Quem cria ja entra "
+                       "na comunidade, e todo mundo que entrar pelo link fica na MESMA rede de "
+                       "confianca: viram conhecidos entre si e as indicacoes de um aparecem com "
+                       "nome pros outros. Qualquer pessoa pode criar. Use quando ela quiser criar "
+                       "uma comunidade ou gerar o link de um grupo dela.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "nome": {"type": "string",
-                         "description": "nome do grupo/comunidade, ex: 'Plato Perdizes'"},
+                         "description": "nome do grupo/comunidade da pessoa, ex: 'Predio Azul', "
+                                        "'Escola Sao Jose', 'Amigos da facul'"},
             },
             "required": ["nome"],
         },
@@ -512,13 +518,6 @@ def _contexto_pessoa(membro):
             f"- ACABOU DE ENTRAR pela comunidade '{recem}'. De um oi caloroso citando que ela "
             f"chegou pela comunidade {recem} — assim ela ve que esta entre gente do mesmo grupo. "
             "As indicacoes de quem e da mesma comunidade vao aparecer com nome pra ela."
-        )
-
-    if membro.get("eh_admin"):
-        linhas.append(
-            "- E ORGANIZADORA (administradora). Pode criar comunidades: se ela pedir pra criar "
-            "uma comunidade ou gerar o link de um grupo, use a ferramenta 'criar_comunidade' e "
-            "mostre o link que ela devolve, pra organizadora colar no grupo."
         )
 
     pend = membro.get("avaliacao_pendente")
