@@ -187,34 +187,44 @@ Maximo 5 linhas no total. Tom de amiga, nao de app. NAO chame nenhuma ferramenta
 SISTEMA_SEM_CONSENT = """
 
 ATENCAO - ESTA PESSOA JA FOI APRESENTADA, MAS AINDA NAO DEU CONSENTIMENTO.
-Antes de qualquer acao (buscar, indicar, contatos) voce PRECISA do "pode ser" dela.
-Identifique o que a mensagem dela pede e responda assim:
+Nesta fase voce conversa SO POR TEXTO. NAO use botoes. A unica ferramenta que voce
+pode chamar e 'registrar_consentimento', e so quando ela aceitar de verdade.
 
-(A) Ela quer SABER MAIS, tem DUVIDA, perguntou algo, ou clicou "Quero saber mais" /
-    "Ainda tenho duvida":
-    -> EXPLIQUE de verdade, com calma, em 'enviar_botoes' (o texto explicativo vai no
-       campo 'texto', acima dos botoes). NUNCA repita so a perguntinha seca — explique
-       o que ela quis saber. Cubra, conforme a duvida:
-       - O que voce faz: busca indicacoes de confianca (medico, escola, encanador...)
-         na rede de contatos dela; so aparece gente indicada por quem ela conhece.
-       - Privacidade: os contatos ficam embaralhados em codigo, voce nao ve os numeros,
-         nunca repassa o telefone de ninguem, e ela pode apagar tudo quando quiser.
-       - Por que precisa do consentimento: pra guardar com seguranca o nome dela e os
-         contatos de confianca, e so pra isso.
-       Termine perguntando se pode guardar os dados. Botoes: "Pode ser! 💛" e
-       "Quero saber mais".
+Identifique a intencao da mensagem e responda assim:
 
-(B) Ela ACEITOU ("sim", "pode ser", "bora", "topo", "pode", clicou "Pode ser!"):
-    -> chame 'registrar_consentimento'.
+(A) Ela ACEITOU ("sim", "pode ser", "pode", "bora", "topo", "ok", "aceito"):
+    -> chame 'registrar_consentimento'. Nada de texto antes.
 
-(C) Caso geral (primeira vez pedindo o ok, ou mensagem neutra):
-    -> peca o consentimento com 'enviar_botoes', JA explicando o porque numa frase:
-       texto como "Pra te ajudar eu guardo so seu nome e seus contatos de confianca,
-       tudo embaralhado e voce apaga quando quiser. Posso guardar seus dados pra isso? 🙂".
-       Botoes: "Pode ser! 💛" e "Quero saber mais".
+(B) Ela quer SABER MAIS, tem DUVIDA, perguntou algo, OU TENTOU AVANCAR com qualquer
+    pedido (buscar uma indicacao, indicar alguem, mandar contato, convidar, etc.)
+    SEM ter consentido:
+    -> NAO execute a acao. Responda em TEXTO, com calma e de forma completa, cobrindo:
+       1) TUDO que da pra fazer com voce:
+          - achar indicacoes de confianca pra qualquer necessidade (medico, dentista,
+            escola, encanador, advogado, diarista, mecanico... o que for), buscando na
+            rede dela — so aparece quem foi indicado por gente que ela conhece;
+          - indicar bons profissionais que ela conhece, pra fortalecer a rede;
+          - montar a rede de confianca trazendo contatos pelo clipe 📎;
+          - convidar amigos e familiares pra rede;
+          - avaliar quem ela ja usou, pra as melhores indicacoes ganharem forca;
+          - ver ou apagar os dados dela a qualquer momento.
+       2) PRIVACIDADE: os contatos ficam embaralhados em codigo, voce nao ve os numeros
+          de ninguem e nunca repassa telefone de ninguem.
+       3) POR QUE o consentimento e importante: sem o "ok" dela voce nao pode guardar
+          com seguranca o nome e os contatos de confianca — e e exatamente isso que
+          permite achar e guardar as indicacoes. E rapidinho e ela apaga tudo quando
+          quiser. Sem o consentimento, infelizmente voce nao consegue ajudar em nada.
+       Se ela fez um pedido concreto (ex.: "preciso de um encanador"), diga com carinho
+       que assim que ela der o "ok" voce ja corre atras disso pra ela.
+       Termine perguntando, de forma leve, se pode guardar os dados pra comecar.
 
-Enquanto ela nao consentir, NAO use nenhuma outra ferramenta alem de 'enviar_botoes'
-e 'registrar_consentimento'."""
+(C) Caso geral (so cumprimentou ou mensagem neutra):
+    -> em TEXTO, peca o consentimento explicando o porque em uma ou duas frases:
+       "Pra te ajudar eu preciso guardar so o seu nome e os seus contatos de confianca,
+       tudo embaralhado e voce apaga quando quiser. Posso? 💛"
+
+NUNCA avance pra nenhuma acao real enquanto ela nao consentir. Sempre que ela insistir
+em outra coisa, volte com gentileza pra importancia do consentimento."""
 
 
 # ---------------------------------------------------------------------------
@@ -500,10 +510,21 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         else:
             sistema += SISTEMA_SEM_CONSENT
 
-    # Primeiro contato sem consentimento: chamada direta sem ferramentas.
-    # Passa tools=[] garante stop_reason="end_turn" e texto puro — sem risco
-    # de o modelo escolher uma ferramenta apesar do prompt.
-    primeiro_contato = not membro.get("consent") and len(historico) == 0
+    # Quais ferramentas o modelo PODE chamar nesta rodada depende do estado:
+    # - Primeiro contato (sem historico): nenhuma — so apresentacao em texto.
+    # - Sem consentimento: SO 'registrar_consentimento'. Sem botoes nem outras
+    #   acoes — a fase de consentimento e 100% conversa em texto. Isso impede o
+    #   loop de botoes e garante que nenhuma acao vaze antes do "ok".
+    # - Com consentimento: todas as ferramentas.
+    consentiu = bool(membro.get("consent"))
+    primeiro_contato = not consentiu and len(historico) == 0
+    if primeiro_contato:
+        ferramentas_disponiveis = None
+    elif not consentiu:
+        ferramentas_disponiveis = [f for f in FERRAMENTAS
+                                   if f["name"] == "registrar_consentimento"]
+    else:
+        ferramentas_disponiveis = FERRAMENTAS
 
     texto_final = ""
     for _ in range(5):   # ate 5 rodadas de ferramenta por mensagem
@@ -513,7 +534,7 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
                 max_tokens=700,
                 system=sistema,
                 messages=mensagens,
-                **({} if primeiro_contato else {"tools": FERRAMENTAS}),
+                **({"tools": ferramentas_disponiveis} if ferramentas_disponiveis else {}),
             )
         except Exception as erro:
             print(f"[CEREBRO] erro na IA: {erro}")
@@ -543,9 +564,11 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         # mantem 'tools' no request (o historico tem blocos de ferramenta e a API
         # exige isso), mas proibe o modelo de chamar qualquer ferramenta agora.
         try:
+            extra = ({"tools": ferramentas_disponiveis, "tool_choice": {"type": "none"}}
+                     if ferramentas_disponiveis else {})
             forcar_texto = _cliente.messages.create(
                 model=MODELO, max_tokens=400, system=sistema, messages=mensagens,
-                tools=FERRAMENTAS, tool_choice={"type": "none"},
+                **extra,
             )
             texto_final = "".join(
                 b.text for b in forcar_texto.content if b.type == "text"
