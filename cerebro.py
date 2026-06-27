@@ -170,61 +170,57 @@ FICHAS DE CONTATO:
 SISTEMA_PRIMEIRO_CONTATO = """
 
 ATENCAO - PRIMEIRO CONTATO (pessoa nova, sem historico).
-Esta e a PRIMEIRA mensagem desta pessoa. Sua unica tarefa agora e SE APRESENTAR e
-EXPLICAR o que voce faz. NAO peca consentimento ainda — isso vem na proxima troca.
-Siga esta ordem:
+Esta e a PRIMEIRA mensagem desta pessoa. Apresente-se, explique o que voce faz E JA
+PEÇA O CONSENTIMENTO na mesma mensagem, usando a ferramenta 'enviar_botoes'.
+Monte o campo 'texto' do 'enviar_botoes' assim (tom de amiga, frases curtas):
 1) Se ela chegou por convite, abra citando o primeiro nome de quem a convidou
    (ex.: "Oi! O Carlos me pediu pra te chamar 😊"). Se nao ha convidante, so diga oi.
-2) Explique o que voce faz em 2-3 frases simples e humanas. Exemplo:
-   "Sou a Doroteia 💛 Quando voce precisar de medico, escola, encanador ou qualquer
-   indicacao de confianca, eu busco na sua rede de contatos — e so aparecem indicacoes
-   de gente que voce ja conhece. E como ter uma amiga que sempre sabe quem e bom."
-3) Termine puxando o proximo passo com leveza, avisando que pra isso voce vai precisar
-   do "ok" dela pra guardar uns dadinhos. Ex.: "Pra te ajudar, vou precisar guardar
-   umas coisinhas suas com seguranca — ja ja te explico e te pergunto, ta? 😊"
-Maximo 5 linhas no total. Tom de amiga, nao de app. NAO chame nenhuma ferramenta."""
+2) Explique em 1-2 frases o que voce faz. Ex.: "Sou a Doroteia 💛 Quando voce precisar
+   de medico, escola, encanador ou qualquer indicacao de confianca, eu busco na sua rede
+   de gente que voce ja conhece."
+3) Explique POR QUE precisa do consentimento, em 1-2 frases: "Pra te ajudar eu preciso
+   guardar so o seu nome e os seus contatos de confianca, tudo embaralhado e voce apaga
+   quando quiser. Sem esse 'ok' eu nao consigo buscar nem guardar as indicacoes."
+4) Termine perguntando: "Posso guardar seus dados pra isso? 🙂"
+Botoes: "Pode ser! 💛" e "Quero saber mais".
+Sua resposta de texto final deve ficar VAZIA (o texto vai dentro do 'enviar_botoes')."""
 
 SISTEMA_SEM_CONSENT = """
 
 ATENCAO - ESTA PESSOA JA FOI APRESENTADA, MAS AINDA NAO DEU CONSENTIMENTO.
-Nesta fase voce conversa SO POR TEXTO. NAO use botoes. A unica ferramenta que voce
-pode chamar e 'registrar_consentimento', e so quando ela aceitar de verdade.
-
+Voce so pode chamar 'registrar_consentimento' (quando ela aceitar) ou 'enviar_botoes'
+(pra explicar/pedir o "ok"). NUNCA execute nenhuma outra acao antes do consentimento.
 Identifique a intencao da mensagem e responda assim:
 
-(A) Ela ACEITOU ("sim", "pode ser", "pode", "bora", "topo", "ok", "aceito"):
-    -> chame 'registrar_consentimento'. Nada de texto antes.
+(A) Ela ACEITOU ("sim", "pode ser", "pode", "bora", "topo", "ok", "aceito", clicou
+    "Pode ser!"):
+    -> chame 'registrar_consentimento'.
 
-(B) Ela quer SABER MAIS, tem DUVIDA, perguntou algo, OU TENTOU AVANCAR com qualquer
-    pedido (buscar uma indicacao, indicar alguem, mandar contato, convidar, etc.)
-    SEM ter consentido:
-    -> NAO execute a acao. Responda em TEXTO, com calma e de forma completa, cobrindo:
-       1) TUDO que da pra fazer com voce:
-          - achar indicacoes de confianca pra qualquer necessidade (medico, dentista,
-            escola, encanador, advogado, diarista, mecanico... o que for), buscando na
-            rede dela — so aparece quem foi indicado por gente que ela conhece;
-          - indicar bons profissionais que ela conhece, pra fortalecer a rede;
-          - montar a rede de confianca trazendo contatos pelo clipe 📎;
-          - convidar amigos e familiares pra rede;
-          - avaliar quem ela ja usou, pra as melhores indicacoes ganharem forca;
-          - ver ou apagar os dados dela a qualquer momento.
-       2) PRIVACIDADE: os contatos ficam embaralhados em codigo, voce nao ve os numeros
-          de ninguem e nunca repassa telefone de ninguem.
-       3) POR QUE o consentimento e importante: sem o "ok" dela voce nao pode guardar
-          com seguranca o nome e os contatos de confianca — e e exatamente isso que
-          permite achar e guardar as indicacoes. E rapidinho e ela apaga tudo quando
-          quiser. Sem o consentimento, infelizmente voce nao consegue ajudar em nada.
-       Se ela fez um pedido concreto (ex.: "preciso de um encanador"), diga com carinho
-       que assim que ela der o "ok" voce ja corre atras disso pra ela.
-       Termine perguntando, de forma leve, se pode guardar os dados pra comecar.
+(B) Ela quer SABER MAIS, tem DUVIDA, clicou "Quero saber mais", OU TENTOU AVANCAR com
+    qualquer pedido (buscar uma indicacao, indicar alguem, mandar contato...) sem ter
+    consentido:
+    -> NAO execute a acao. Use 'enviar_botoes' com um 'texto' que EXPLIQUE DE VERDADE
+       (mais completo que da primeira vez — nunca repita so a perguntinha seca):
+       1) TUDO que da pra fazer com voce: achar indicacoes de confianca pra qualquer
+          necessidade (medico, dentista, escola, encanador, advogado, diarista...) na
+          rede dela; indicar bons profissionais; montar a rede trazendo contatos pelo
+          clipe 📎; convidar amigos; avaliar quem ja usou; ver ou apagar os dados.
+       2) PRIVACIDADE: contatos embaralhados em codigo, voce nao ve numeros, nunca
+          repassa telefone de ninguem.
+       3) POR QUE o consentimento importa: sem o "ok" voce nao pode guardar o nome e os
+          contatos com seguranca — e e isso que permite achar e guardar as indicacoes.
+          Sem ele, infelizmente, voce nao consegue ajudar em nada.
+       Se ela fez um pedido concreto (ex.: "preciso de um encanador"), diga que assim
+       que ela der o "ok" voce ja corre atras disso. Termine perguntando se pode guardar
+       os dados. Botoes: "Pode ser! 💛" e "Quero saber mais".
 
 (C) Caso geral (so cumprimentou ou mensagem neutra):
-    -> em TEXTO, peca o consentimento explicando o porque em uma ou duas frases:
+    -> use 'enviar_botoes' pedindo o consentimento JA explicando o porque:
        "Pra te ajudar eu preciso guardar so o seu nome e os seus contatos de confianca,
-       tudo embaralhado e voce apaga quando quiser. Posso? 💛"
+       tudo embaralhado e voce apaga quando quiser. Posso guardar seus dados pra isso? 🙂"
+       Botoes: "Pode ser! 💛" e "Quero saber mais".
 
-NUNCA avance pra nenhuma acao real enquanto ela nao consentir. Sempre que ela insistir
-em outra coisa, volte com gentileza pra importancia do consentimento."""
+Sempre que chamar 'enviar_botoes', sua resposta de texto final deve ficar VAZIA."""
 
 
 # ---------------------------------------------------------------------------
@@ -511,22 +507,20 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
             sistema += SISTEMA_SEM_CONSENT
 
     # Quais ferramentas o modelo PODE chamar nesta rodada depende do estado:
-    # - Primeiro contato (sem historico): nenhuma — so apresentacao em texto.
-    # - Sem consentimento: SO 'registrar_consentimento'. Sem botoes nem outras
-    #   acoes — a fase de consentimento e 100% conversa em texto. Isso impede o
-    #   loop de botoes e garante que nenhuma acao vaze antes do "ok".
+    # - Sem consentimento: SO 'registrar_consentimento' e 'enviar_botoes' (apresentar
+    #   e pedir o "pode ser"). Nenhuma acao real vaza antes do "ok".
     # - Com consentimento: todas as ferramentas.
     consentiu = bool(membro.get("consent"))
-    primeiro_contato = not consentiu and len(historico) == 0
-    if primeiro_contato:
-        ferramentas_disponiveis = None
-    elif not consentiu:
-        ferramentas_disponiveis = [f for f in FERRAMENTAS
-                                   if f["name"] == "registrar_consentimento"]
+    if not consentiu:
+        ferramentas_disponiveis = [
+            f for f in FERRAMENTAS
+            if f["name"] in ("registrar_consentimento", "enviar_botoes")
+        ]
     else:
         ferramentas_disponiveis = FERRAMENTAS
 
     texto_final = ""
+    botoes_enviados = False
     for _ in range(5):   # ate 5 rodadas de ferramenta por mensagem
         try:
             resposta = _cliente.messages.create(
@@ -546,6 +540,8 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
             for bloco in resposta.content:
                 if bloco.type == "tool_use":
                     print(f"[FERRAMENTA] {bloco.name} {bloco.input}")
+                    if bloco.name == "enviar_botoes":
+                        botoes_enviados = True
                     saida = executar_ferramenta(bloco.name, bloco.input, numeros)
                     resultados.append({
                         "type": "tool_result",
@@ -559,7 +555,7 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         texto_final = "".join(b.text for b in resposta.content if b.type == "text").strip()
         break
 
-    if not texto_final:
+    if not texto_final and not botoes_enviados:
         # Loop esgotado sem texto. Forca uma resposta em texto com tool_choice=none:
         # mantem 'tools' no request (o historico tem blocos de ferramenta e a API
         # exige isso), mas proibe o modelo de chamar qualquer ferramenta agora.
