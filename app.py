@@ -1097,8 +1097,13 @@ def _notificar_convidante(novo_membro):
 def construir_executor(membro, interativa_enviada):
     """Devolve a funcao que a IA usa pra disparar acoes. Mantem o consentimento
     como porteiro: sem consent, so 'registrar_consentimento' funciona."""
+    # enviar_botoes nao toca dados — e justamente como a Doroteia PEDE o consentimento.
+    # Bloquea-lo aqui criava um deadlock (modelo chamava botoes -> gate recusava ->
+    # loop -> "me perdi"). Por isso fica liberado mesmo sem consent.
+    LIVRES_SEM_CONSENT = ("registrar_consentimento", "enviar_botoes")
+
     def executar(nome, entrada, numeros):
-        if nome != "registrar_consentimento" and not membro.get("consent"):
+        if nome not in LIVRES_SEM_CONSENT and not membro.get("consent"):
             return ("A pessoa ainda nao consentiu. Nao execute acoes; peca o 'pode ser' dela primeiro.")
         if nome == "registrar_consentimento":
             registrar_consentimento(membro["wa_id"])

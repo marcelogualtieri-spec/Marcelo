@@ -513,16 +513,19 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         break
 
     if not texto_final:
-        # Loop esgotado sem texto — tenta uma vez sem ferramentas pra forcar resposta.
+        # Loop esgotado sem texto. Forca uma resposta em texto com tool_choice=none:
+        # mantem 'tools' no request (o historico tem blocos de ferramenta e a API
+        # exige isso), mas proibe o modelo de chamar qualquer ferramenta agora.
         try:
-            sem_tools = _cliente.messages.create(
+            forcar_texto = _cliente.messages.create(
                 model=MODELO, max_tokens=400, system=sistema, messages=mensagens,
+                tools=FERRAMENTAS, tool_choice={"type": "none"},
             )
             texto_final = "".join(
-                b.text for b in sem_tools.content if b.type == "text"
+                b.text for b in forcar_texto.content if b.type == "text"
             ).strip()
         except Exception as e:
-            print(f"[CEREBRO] fallback sem ferramentas falhou: {e}")
+            print(f"[CEREBRO] fallback tool_choice=none falhou: {e}")
 
     if not texto_final:
         texto_final = "Pode repetir, por favor? Acho que me perdi aqui 😅"
