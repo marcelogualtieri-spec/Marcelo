@@ -16,6 +16,7 @@ import secrets
 import string
 import traceback
 import time
+import unicodedata
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 from urllib.request import urlopen, Request
@@ -59,6 +60,15 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrende
 # WHATSAPP_PHONE_NUMBER_ID: visivel nos eventos do webhook (metadata.phone_number_id).
 CRON_SECRET            = os.environ.get("CRON_SECRET", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+
+# Numeros de organizadora (so digitos, separados por virgula) que podem criar
+# comunidades pelo chat. Ex.: ADMIN_WA_IDS="5511999998888,5511888887777".
+ADMIN_WA_IDS = {re.sub(r"\D", "", n) for n in os.environ.get("ADMIN_WA_IDS", "").split(",") if n.strip()}
+
+
+def eh_admin(wa_id):
+    """True se o numero (qualquer formato) for de uma organizadora."""
+    return bool(ADMIN_WA_IDS) and re.sub(r"\D", "", wa_id or "") in ADMIN_WA_IDS
 
 
 def assinatura_meta_valida():
@@ -463,11 +473,89 @@ def nome_do_convidante(invited_by_id):
 
 
 def limpar_texto_convite(texto):
-    """Tira o trecho tecnico '(convite: ABC123)' do primeiro contato, pra IA nao
-    repetir o codigo na conversa. O resto da mensagem fica intacto."""
+    """Tira os trechos tecnicos '(convite: ABC123)' e '(comunidade: slug)' do
+    primeiro contato, pra IA nao repetir o codigo na conversa. O resto fica intacto."""
     if not texto:
         return texto
-    return re.sub(r"\(?\s*convite:\s*[A-Za-z0-9]{6}\s*\)?", "", texto).strip()
+    texto = re.sub(r"\(?\s*convite:\s*[A-Za-z0-9]{6}\s*\)?", "", texto)
+    texto = re.sub(r"\(?\s*comunidade:\s*[a-z0-9\-]{2,60}\s*\)?", "", texto, flags=re.IGNORECASE)
+    return texto.strip()
+
+
+# ---------------------------------------------------------------------------
+# COMUNIDADES (cada grupo real vira um link de entrada que etiqueta quem entra)
+# ---------------------------------------------------------------------------
+def slugify_comunidade(nome):
+    """'Plato Perdizes' -> 'plato-perdizes' (ascii, minusculo, hifens)."""
+    txt = unicodedata.normalize("NFKD", nome or "").encode("ascii", "ignore").decode("ascii")
+    txt = re.sub(r"[^a-z0-9]+", "-", txt.lower().strip()).strip("-")
+    return txt
+
+
+def buscar_comunidade_por_slug(slug):
+    res = (supabase.table("comunidades").select("*")
+           .eq("slug", slug).limit(1).execute().data)
+    return res[0] if res else None
+
+
+def criar_comunidade(nome, criada_por=None):
+    """Cria (ou reaproveita) uma comunidade pelo nome. Devolve (comunidade, ja_existia)."""
+    base = slugify_comunidade(nome)
+    if not base:
+        return None, False
+    slug, i = base, 2
+    while True:
+        existente = buscar_comunidade_por_slug(slug)
+        if existente is None:
+            break
+        # Mesmo nome de exibicao -> reaproveita em vez de duplicar.
+        if (existente.get("nome") or "").strip().lower() == nome.strip().lower():
+            return existente, True
+        slug = f"{base}-{i}"
+        i += 1
+    nova = supabase.table("comunidades").insert({
+        "slug": slug, "nome": nome.strip(), "criada_por": criada_por,
+    }).execute().data[0]
+    return nova, False
+
+
+def etiquetar_membro_comunidade(member_id, comunidade_id):
+    """Vincula (idempotente) um membro a uma comunidade."""
+    try:
+        existe = (supabase.table("comunidade_membros").select("id")
+                  .eq("comunidade_id", comunidade_id).eq("member_id", member_id)
+                  .limit(1).execute().data)
+        if not existe:
+            supabase.table("comunidade_membros").insert({
+                "comunidade_id": comunidade_id, "member_id": member_id,
+            }).execute()
+    except Exception:
+        traceback.print_exc()
+
+
+def comunidades_do_membro(member_id):
+    """Lista [{id, slug, nome}] das comunidades do membro (vazia se nenhuma)."""
+    try:
+        vinculos = (supabase.table("comunidade_membros").select("comunidade_id")
+                    .eq("member_id", member_id).execute().data)
+        ids = [v["comunidade_id"] for v in vinculos]
+        if not ids:
+            return []
+        return (supabase.table("comunidades").select("id, slug, nome")
+                .in_("id", ids).execute().data)
+    except Exception:
+        traceback.print_exc()
+        return []
+
+
+def extrair_codigo_comunidade(texto):
+    achado = re.search(r"comunidade:\s*([a-z0-9\-]{2,60})", texto or "", re.IGNORECASE)
+    return achado.group(1).lower() if achado else None
+
+
+def montar_link_comunidade(numero_bot, slug):
+    mensagem = f"Oi! Quero entrar na Doroteia (comunidade: {slug})"
+    return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
 
 
 def registrar_convite_pendente(membro, numero_e164):
@@ -563,12 +651,16 @@ def existe_vinculo(pedidor, recomendador):
 
 
 def executar_busca(pedidor, servico, bairro, cidade):
-    """Roda a busca real e devolve (com_nome, sem_nome).
+    """Roda a busca real e devolve (com_nome, por_comunidade, sem_nome).
 
-    com_nome: [(prestador, [nomes_de_quem_indicou])]  -> rede direta (verde)
-              Um mesmo prestador pode ter sido indicado por varias pessoas da
-              rede; todos os nomes sao agregados pra mostrar prova social real.
-    sem_nome: [prestador]                             -> fora da rede (amarelo)
+    com_nome:      [(prestador, [nomes])]            -> rede direta (verde)
+                   Um mesmo prestador pode ter sido indicado por varias pessoas
+                   da rede; os nomes sao agregados pra mostrar prova social real.
+    por_comunidade:[(prestador, [nomes], nome_com)]  -> mesma comunidade (verde-comunidade)
+                   Quem indicou esta na MESMA comunidade que o pedidor; mostra o
+                   nome + a comunidade compartilhada.
+    sem_nome:      [prestador]                        -> fora da rede (amarelo)
+    Prioridade: rede direta > mesma comunidade > fora da rede.
     """
     query = supabase.table("recommendations").select("*").ilike("servico", servico)
     if bairro:
@@ -577,9 +669,11 @@ def executar_busca(pedidor, servico, bairro, cidade):
         query = query.ilike("cidade", cidade)
     recs = query.execute().data
 
-    # Agrupa por prestador para consolidar todos os indicadores da rede.
-    por_provider_rede = {}  # provider_id -> {"prestador": ..., "quem_indicou": [nomes]}
-    por_provider_fora = {}  # provider_id -> prestador (fora da rede, sem nome)
+    coms_pedidor = {c["id"] for c in comunidades_do_membro(pedidor["id"])}
+
+    por_provider_rede = {}  # pid -> {"prestador", "quem_indicou": [nomes]}
+    por_provider_com  = {}  # pid -> {"prestador", "quem_indicou": [nomes], "comunidade": nome}
+    por_provider_fora = {}  # pid -> prestador (fora da rede, sem nome)
 
     for rec in recs:
         recomendador = buscar_membro_por_id(rec["member_id"])
@@ -590,23 +684,41 @@ def executar_busca(pedidor, servico, bairro, cidade):
             continue
 
         pid = prestador["id"]
+        nome_rec = (recomendador.get("nome_perfil") or "").strip() or "alguem que voce conhece"
+
         if existe_vinculo(pedidor, recomendador):
-            nome_rec = (recomendador.get("nome_perfil") or "").strip() or "alguem que voce conhece"
             if pid not in por_provider_rede:
                 por_provider_rede[pid] = {"prestador": prestador, "quem_indicou": []}
             if nome_rec not in por_provider_rede[pid]["quem_indicou"]:
                 por_provider_rede[pid]["quem_indicou"].append(nome_rec)
+            continue
+
+        # Sem vinculo direto: checa comunidade compartilhada.
+        coms_rec = {c["id"]: c["nome"] for c in comunidades_do_membro(recomendador["id"])} if coms_pedidor else {}
+        compartilhadas = coms_pedidor & set(coms_rec.keys())
+        if compartilhadas:
+            nome_com = coms_rec[next(iter(compartilhadas))]
+            if pid not in por_provider_com:
+                por_provider_com[pid] = {"prestador": prestador, "quem_indicou": [], "comunidade": nome_com}
+            if nome_rec not in por_provider_com[pid]["quem_indicou"]:
+                por_provider_com[pid]["quem_indicou"].append(nome_rec)
         else:
             if pid not in por_provider_fora:
                 por_provider_fora[pid] = prestador
 
-    # Prestadores da rede nao entram no amarelo, mesmo que tenham indicacoes externas.
+    rede_pids = set(por_provider_rede.keys())
     com_nome = [(d["prestador"], d["quem_indicou"]) for d in por_provider_rede.values()]
-    sem_nome = [p for pid, p in por_provider_fora.items() if pid not in por_provider_rede]
+    # Prestador ja na rede direta nao se repete nos niveis abaixo.
+    por_comunidade = [(d["prestador"], d["quem_indicou"], d["comunidade"])
+                      for pid, d in por_provider_com.items() if pid not in rede_pids]
+    com_pids = {t[0]["id"] for t in por_comunidade}
+    sem_nome = [p for pid, p in por_provider_fora.items()
+                if pid not in rede_pids and pid not in com_pids]
 
     com_nome.sort(key=lambda par: _relevancia(par[0]), reverse=True)
+    por_comunidade.sort(key=lambda tup: _relevancia(tup[0]), reverse=True)
     sem_nome.sort(key=_relevancia, reverse=True)
-    return com_nome, sem_nome
+    return com_nome, por_comunidade, sem_nome
 
 
 def _formatar_indicadores(nomes):
@@ -643,7 +755,7 @@ def _ferr_buscar(membro, entrada):
     if not (servico and cidade):
         return "Faltou servico ou cidade. Pergunte o que faltar com naturalidade."
 
-    com_nome, sem_nome = executar_busca(membro, servico, bairro, cidade)
+    com_nome, por_comunidade, sem_nome = executar_busca(membro, servico, bairro, cidade)
     local = ", ".join(p for p in [bairro, cidade] if p)
 
     def _selo(p):
@@ -653,23 +765,37 @@ def _ferr_buscar(membro, entrada):
             return f" | avaliacao: {p.get('nota_media')}/5 ({qtd} avaliacao(oes))"
         return " | avaliacao: ainda sem notas"
 
-    if com_nome:
-        registrar_busca(servico, bairro, cidade, "verde", membro["id"])
+    if com_nome or por_comunidade:
+        # Verde (rede direta) tem prioridade; se so houver comunidade, registra "comunidade".
+        registrar_busca(servico, bairro, cidade, "verde" if com_nome else "comunidade", membro["id"])
         for p, _ in com_nome:
             registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+        for p, _, _ in por_comunidade:
+            registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+
         linhas = []
         for p, quem_lista in com_nome:
             endosso = _formatar_indicadores(quem_lista)
             prova = f" | {len(quem_lista)} pessoas da sua rede indicaram" if len(quem_lista) > 1 else ""
             linhas.append(
-                f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | "
+                f"- [REDE] Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | "
                 f"indicado por: {endosso}{prova}{_selo(p)}"
             )
-        return ("RESULTADO=verde - indicacoes de pessoas da rede de confianca dela, em "
-                f"{local}, JA ORDENADAS pelas mais bem avaliadas. Apresente com alegria, "
-                "citando quem indicou (quando mais de uma pessoa indicou o mesmo, destaque "
-                "isso — e prova social forte). Mantenha nome e telefone EXATOS:\n"
-                + "\n".join(linhas))
+        for p, quem_lista, nome_com in por_comunidade:
+            endosso = _formatar_indicadores(quem_lista)
+            linhas.append(
+                f"- [COMUNIDADE {nome_com}] Nome: {p['nome']} | telefone (copie EXATO): "
+                f"{p['telefone']} | indicado por: {endosso}{_selo(p)}"
+            )
+        return ("RESULTADO=verde - indicacoes de CONFIANCA em "
+                f"{local}, JA ORDENADAS pelas mais bem avaliadas. Cada linha traz a ORIGEM "
+                "entre colchetes:\n"
+                "- [REDE]: pessoa da rede direta dela. Cite quem indicou com alegria; se varias "
+                "pessoas indicaram o mesmo, destaque (prova social forte).\n"
+                "- [COMUNIDADE X]: quem indicou esta na MESMA comunidade que ela. Apresente "
+                "assim: 'Na comunidade X, o(a) <prestador> foi indicado(a) por <nome>'.\n"
+                "Mostre primeiro as [REDE], depois as [COMUNIDADE]. Mantenha nome e telefone "
+                "EXATOS:\n" + "\n".join(linhas))
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
         for p in sem_nome:
@@ -975,7 +1101,7 @@ def _ferr_ver_buscas(membro):
         return ("Ela ainda nao fez nenhuma busca por aqui. "
                 "Pergunte o que ela precisa agora — pode ser medico, escola, prestador, o que for.")
 
-    emoji_res = {"verde": "🟢", "amarelo": "🟡", "vermelho": "🔴"}
+    emoji_res = {"verde": "🟢", "comunidade": "🤝", "amarelo": "🟡", "vermelho": "🔴"}
     linhas = []
     for b in buscas:
         local_parts = [b.get("bairro") or "", b.get("cidade") or ""]
@@ -983,8 +1109,8 @@ def _ferr_ver_buscas(membro):
         icone = emoji_res.get(b.get("resultado") or "", "⚪")
         linhas.append(f"- {icone} {b['servico']}{' em ' + local if local else ''}")
 
-    return (f"Ultimas {len(linhas)} busca(s) dela. 🟢 achou na rede, 🟡 fora da rede, "
-            "🔴 sem resultado. Apresente de forma simples:\n" + "\n".join(linhas))
+    return (f"Ultimas {len(linhas)} busca(s) dela. 🟢 achou na rede, 🤝 na mesma comunidade, "
+            "🟡 fora da rede, 🔴 sem resultado. Apresente de forma simples:\n" + "\n".join(linhas))
 
 
 def _ferr_excluir(membro, entrada):
@@ -1140,8 +1266,28 @@ def construir_executor(membro, interativa_enviada):
             return _ferr_avaliar(membro, entrada)
         if nome == "enviar_botoes":
             return _ferr_enviar_botoes(entrada, interativa_enviada)
+        if nome == "criar_comunidade":
+            return _ferr_criar_comunidade(membro, entrada)
         return "Ferramenta desconhecida."
     return executar
+
+
+def _ferr_criar_comunidade(membro, entrada):
+    if not eh_admin(membro["wa_id"]):
+        return ("Apenas organizadoras podem criar comunidades. Explique com gentileza que "
+                "essa funcao e so pra administradoras.")
+    nome_com = (entrada.get("nome") or "").strip()
+    if not nome_com:
+        return "Faltou o nome da comunidade. Pergunte qual e o nome do grupo."
+    comunidade, ja_existia = criar_comunidade(nome_com, criada_por=membro["id"])
+    if not comunidade:
+        return "Nome invalido pra comunidade. Peca um nome com letras (ex.: 'Plato Perdizes')."
+    numero_bot = g.get("display_phone_number") or ""
+    link = encurtar_link(montar_link_comunidade(numero_bot, comunidade["slug"]))
+    estado = "ja existia" if ja_existia else "criada com sucesso"
+    return (f"Comunidade '{comunidade['nome']}' {estado}. Mostre este link pra organizadora "
+            "colar no grupo do WhatsApp (EXATAMENTE como veio, sozinho na linha). Quem entrar "
+            "por ele vai ser ligado a essa comunidade:\n" + link)
 
 
 # ===========================================================================
@@ -1369,6 +1515,21 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     # mesmo se ela voltar depois sem ter consentido na primeira vez.
     if not membro.get("consent") and membro.get("invited_by"):
         membro["convidado_por_nome"] = nome_do_convidante(membro["invited_by"])
+
+    # Comunidade: se chegou por um link de comunidade, etiqueta (idempotente) e
+    # prepara a saudacao citando o grupo. Vale pra membro novo e pra quem ja usa.
+    slug_com = extrair_codigo_comunidade(texto_recebido)
+    if slug_com:
+        comunidade = buscar_comunidade_por_slug(slug_com)
+        if comunidade:
+            etiquetar_membro_comunidade(membro["id"], comunidade["id"])
+            membro["comunidade_recem_entrou"] = comunidade["nome"]
+
+    # Contexto extra pra IA: comunidades da pessoa e se ela e organizadora.
+    coms = comunidades_do_membro(membro["id"])
+    if coms:
+        membro["comunidades_nomes"] = [c["nome"] for c in coms]
+    membro["eh_admin"] = eh_admin(wa_id)
 
     # Limpa o codigo tecnico do convite do texto antes de mandar pra IA.
     texto_recebido = limpar_texto_convite(texto_recebido)

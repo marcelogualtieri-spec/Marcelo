@@ -69,6 +69,11 @@ COMO A DOROTEIA FUNCIONA (explique com suas palavras quando fizer sentido):
   — e prova social forte ("Tanto Joao quanto Maria indicaram o mesmo!").
 - Indicacao de fora da rede dela aparece SEM revelar quem indicou.
 - A rede cresce quando ela adiciona contatos de confianca e convida amigos.
+- COMUNIDADES: cada grupo real (escola, predio, bairro) pode virar uma comunidade na
+  Doroteia. Quem entra pelo link do grupo fica ligado aquela comunidade. Quando alguem
+  da MESMA comunidade indicou um servico, a indicacao aparece com o nome de quem indicou
+  e o contexto do grupo (ex.: "Na comunidade Plato Perdizes, o Seu Francisco foi indicado
+  pela Julia") — confianca pelo circulo em comum, mesmo sem ser contato direto.
 
 PRIVACIDADE E LGPD (inegociavel):
 - Os contatos da pessoa sao guardados em codigo embaralhado - nem voce ve os numeros.
@@ -394,6 +399,23 @@ FERRAMENTAS = [
             "required": ["texto", "botoes"],
         },
     },
+    {
+        "name": "criar_comunidade",
+        "description": "APENAS para organizadoras/administradoras: cria uma comunidade "
+                       "(um grupo real de WhatsApp, ex.: escola, predio, bairro) e devolve "
+                       "o link de entrada pra colar no grupo. Quem entrar por esse link fica "
+                       "ligado a comunidade, e as indicacoes dele passam a aparecer com o "
+                       "contexto do grupo. Use quando a organizadora pedir pra criar uma "
+                       "comunidade ou gerar o link de um grupo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "nome": {"type": "string",
+                         "description": "nome do grupo/comunidade, ex: 'Plato Perdizes'"},
+            },
+            "required": ["nome"],
+        },
+    },
 ]
 
 
@@ -466,6 +488,25 @@ def _contexto_pessoa(membro):
             f"(a indicacao de um aparece pro outro, automaticamente). De um oi caloroso que JA "
             f"cita que {primeiro_conv} a convidou, explique em 1-2 linhas o que voce faz e peca "
             "o 'pode ser' (consentimento) de forma leve. Nao a faca se sentir comecando do zero."
+        )
+
+    coms = membro.get("comunidades_nomes") or []
+    if coms:
+        linhas.append(f"- Comunidades dela: {', '.join(coms)}.")
+
+    recem = (membro.get("comunidade_recem_entrou") or "").strip()
+    if recem:
+        linhas.append(
+            f"- ACABOU DE ENTRAR pela comunidade '{recem}'. De um oi caloroso citando que ela "
+            f"chegou pela comunidade {recem} — assim ela ve que esta entre gente do mesmo grupo. "
+            "As indicacoes de quem e da mesma comunidade vao aparecer com nome pra ela."
+        )
+
+    if membro.get("eh_admin"):
+        linhas.append(
+            "- E ORGANIZADORA (administradora). Pode criar comunidades: se ela pedir pra criar "
+            "uma comunidade ou gerar o link de um grupo, use a ferramenta 'criar_comunidade' e "
+            "mostre o link que ela devolve, pra organizadora colar no grupo."
         )
 
     pend = membro.get("avaliacao_pendente")

@@ -1,5 +1,5 @@
 -- ============================================================================
--- MIGRAÇÕES v2 → v7 — cole TUDO de uma vez no SQL Editor do Supabase
+-- MIGRAÇÕES v2 → v9 — cole TUDO de uma vez no SQL Editor do Supabase
 -- ----------------------------------------------------------------------------
 -- Execute ANTES do deploy do código novo. É seguro rodar mais de uma vez
 -- (tudo usa IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
@@ -12,6 +12,7 @@
 --   v6 -> histórico de buscas por membro (painel do usuário)
 --   v7 -> alerta quando busca vermelha recebe nova indicação
 --   v8 -> nudge pós-onboarding para adicionar contatos
+--   v9 -> comunidades (etiquetar membros por grupo de WhatsApp)
 -- ============================================================================
 
 
@@ -122,3 +123,34 @@ create index if not exists idx_searches_alerta
 -- members: registra quando o lembrete de adicionar contatos foi enviado.
 alter table members
     add column if not exists nudge_contatos_at timestamptz;
+
+
+-- ============================================================================
+-- v9 — comunidades (etiquetar membros por grupo de WhatsApp)
+-- ============================================================================
+
+-- Cada comunidade representa um grupo real (escola, prédio, bairro). Quem entra
+-- pelo link exclusivo da comunidade é vinculado a ela em comunidade_membros.
+-- A Doroteia NUNCA lê membros de grupo — a barreira é o próprio link, que só
+-- circula dentro do grupo.
+
+create table if not exists comunidades (
+    id          uuid primary key default gen_random_uuid(),
+    slug        text not null unique,            -- usado no link, ex.: 'plato-perdizes'
+    nome        text not null,                   -- exibição, ex.: 'Plato Perdizes'
+    criada_por  uuid references members(id) on delete set null,
+    created_at  timestamptz not null default now()
+);
+
+create table if not exists comunidade_membros (
+    id            uuid primary key default gen_random_uuid(),
+    comunidade_id uuid not null references comunidades(id) on delete cascade,
+    member_id     uuid not null references members(id)     on delete cascade,
+    created_at    timestamptz not null default now(),
+    unique (comunidade_id, member_id)
+);
+
+create index if not exists idx_comunidade_membros_member
+    on comunidade_membros (member_id);
+create index if not exists idx_comunidade_membros_comunidade
+    on comunidade_membros (comunidade_id);
