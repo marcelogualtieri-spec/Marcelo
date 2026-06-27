@@ -1034,6 +1034,24 @@ def _ferr_enviar_botoes(entrada, interativa_enviada):
     return "ok - mensagem com botoes enviada. Sua resposta de texto final deve ser VAZIA."
 
 
+def _notificar_convidante(novo_membro):
+    """Avisa quem convidou que seu contato acabou de entrar na Doroteia."""
+    try:
+        convidante = buscar_membro_por_id(novo_membro.get("invited_by"))
+        if not convidante or not convidante.get("consent"):
+            return
+        primeiro_nome = ((novo_membro.get("nome_perfil") or "").split() or [""])[0]
+        nome_exibir = primeiro_nome or "Alguem que voce convidou"
+        texto = (
+            f"Boa noticia! 🎉 *{nome_exibir}* acabou de entrar na Doroteia pelo seu convite. "
+            "Voces dois ja estao conectados na rede de confianca!"
+        )
+        phone_number_id = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+        enviar_mensagem_meta(convidante["wa_id"], texto, phone_number_id)
+    except Exception:
+        traceback.print_exc()
+
+
 def construir_executor(membro, interativa_enviada):
     """Devolve a funcao que a IA usa pra disparar acoes. Mantem o consentimento
     como porteiro: sem consent, so 'registrar_consentimento' funciona."""
@@ -1043,6 +1061,8 @@ def construir_executor(membro, interativa_enviada):
         if nome == "registrar_consentimento":
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
+            if membro.get("invited_by"):
+                _notificar_convidante(membro)
             return (
                 "Consentimento registrado. Responda em NO MAXIMO 3 linhas: "
                 "uma frase de boas-vindas calorosa (cite quem convidou se souber), "
