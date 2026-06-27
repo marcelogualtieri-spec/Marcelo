@@ -184,6 +184,15 @@ def _e164(bruto):
     return ""
 
 
+def _button_id(msg):
+    """ID do botao/opcao clicada numa mensagem interativa (ou '' se nao houver)."""
+    if msg.get("type") == "interactive":
+        inter = msg.get("interactive") or {}
+        sub = inter.get(inter.get("type", ""), {}) or {}
+        return (sub.get("id") or "").strip()
+    return ""
+
+
 def conteudo_da_mensagem(msg):
     """Extrai (texto, numeros_compartilhados) de uma mensagem da Cloud API."""
     tipo = msg.get("type")
@@ -1472,6 +1481,7 @@ def processar_eventos(dados):
                 origem = msg.get("from", "")
                 nome_perfil = nomes.get(origem, "")
                 texto, contatos = conteudo_da_mensagem(msg)
+                button_id = _button_id(msg)
                 # contatos: [(e164, nome_card)] para tipo=="contacts", [] nos demais casos
 
                 g.to = origem
@@ -1479,15 +1489,155 @@ def processar_eventos(dados):
                 g.display_phone_number = display
 
                 wa_id = _e164(origem)
-                print(f"Mensagem de {wa_id} ({nome_perfil}): {texto!r}")
+                print(f"Mensagem de {wa_id} ({nome_perfil}): {texto!r}"
+                      + (f" [botao={button_id}]" if button_id else ""))
                 try:
-                    _processar_mensagem(wa_id, texto, nome_perfil, contatos)
+                    _processar_mensagem(wa_id, texto, nome_perfil, contatos, button_id)
                 except Exception:
                     traceback.print_exc()
                     resposta_whatsapp(t.ERRO_GENERICO)
 
 
-def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilhados):
+# ===========================================================================
+# MENUS DETERMINISTICOS (navegacao por botoes — sem IA, pra nao inventar fluxo)
+# ===========================================================================
+
+def enviar_menu_principal(texto=None):
+    enviar_botoes_meta(texto or "O que voce precisa agora? 💛", [
+        {"id": "buscar", "label": "🔍 Buscar"},
+        {"id": "rede",   "label": "🤝 Minha rede"},
+        {"id": "dados",  "label": "🔒 Meus dados"},
+    ])
+
+
+def enviar_submenu_rede():
+    enviar_botoes_meta("Sua rede de confianca 🤝\nO que voce quer fazer?", [
+        {"id": "rede_indicar",    "label": "➕ Indicar"},
+        {"id": "rede_convidar",   "label": "📨 Convidar"},
+        {"id": "rede_comunidade", "label": "🏘️ Comunidade"},
+    ])
+
+
+def enviar_submenu_dados():
+    enviar_botoes_meta("Seus dados e privacidade 🔒", [
+        {"id": "dados_ver",    "label": "📋 Ver dados"},
+        {"id": "dados_apagar", "label": "🗑️ Apagar tudo"},
+        {"id": "menu",         "label": "🏠 Menu"},
+    ])
+
+
+def enviar_confirmar_exclusao():
+    enviar_botoes_meta(
+        "Tem certeza que quer apagar TUDO? Isso remove seu cadastro, sua rede e suas "
+        "indicacoes — e nao da pra desfazer.",
+        [{"id": "apagar_sim", "label": "Sim, apagar"},
+         {"id": "apagar_nao", "label": "Cancelar"}])
+
+
+def enviar_botoes_consent(texto=None):
+    enviar_botoes_meta(
+        texto or "Pra comecar, preciso do seu aceite aos termos 💛",
+        [{"id": "consent_sim",        "label": "SIM, aceito 💛"},
+         {"id": "consent_saber_mais", "label": "Saber mais"}])
+
+
+def _resumo_dados_texto(membro):
+    nome = (membro.get("nome_perfil") or "").strip() or "(sem nome)"
+    n_contatos = contar("edges", membro["id"])
+    n_indic = contar("recommendations", membro["id"])
+    coms = comunidades_do_membro(membro["id"])
+    linhas = [
+        "📋 *Seus dados aqui comigo:*",
+        f"- Nome: {nome}",
+        f"- Contatos na sua rede (em codigo, nunca o numero): {n_contatos}",
+        f"- Indicacoes que voce fez: {n_indic}",
+    ]
+    if coms:
+        linhas.append(f"- Comunidades: {', '.join(c['nome'] for c in coms)}")
+    link = os.environ.get("TERMOS_URL") or (PUBLIC_BASE_URL + "/termos")
+    linhas.append("\n🔒 Nunca guardo o numero dos seus contatos, so um codigo embaralhado.")
+    linhas.append("Termos e privacidade:\n" + link)
+    return "\n".join(linhas)
+
+
+# Acoes da IA que CONCLUEM um pedido — depois delas mostramos o menu principal.
+TOOLS_TERMINAIS = {
+    "buscar_servico", "salvar_recomendacao", "adicionar_contatos", "convidar_pessoa",
+    "gerar_link_convite", "criar_comunidade", "ver_meus_dados", "ver_minhas_indicacoes",
+    "ver_minha_rede", "ver_minhas_buscas", "avaliar_indicacao",
+}
+
+ACEITES_TXT = {"sim", "aceito", "aceitar", "concordo", "pode ser", "bora", "ok",
+               "topo", "claro", "aceito os termos"}
+
+
+def rotear_menu(membro, texto, button_id):
+    """Trata a navegacao deterministica (botoes/menus/comandos fixos).
+    Retorna True se ja respondeu (nao precisa chamar a IA)."""
+    cmd = (button_id or re.sub(r"\s+", " ", (texto or "").strip().lower()))
+    consentiu = bool(membro.get("consent"))
+
+    # -------- Antes do aceite --------
+    if not consentiu:
+        if cmd == "consent_sim" or cmd in ACEITES_TXT:
+            registrar_consentimento(membro["wa_id"])
+            membro["consent"] = True
+            if membro.get("invited_by"):
+                _notificar_convidante(membro)
+            enviar_menu_principal(
+                "Que bom ter voce comigo! 💛 Anotei seu aceite.\n\nO que voce precisa agora?")
+            return True
+        if cmd == "consent_saber_mais" or "saber mais" in cmd:
+            resposta_whatsapp(t.SABER_MAIS)
+            enviar_botoes_consent()
+            return True
+        # Qualquer outra coisa antes do aceite: repete o pedido com botoes.
+        enviar_botoes_consent()
+        return True
+
+    # -------- Depois do aceite: navegacao --------
+    if cmd in ("menu", "inicio", "voltar", "home", "🏠 menu", "oi", "ola", "olá",
+               "oie", "opa", "bom dia", "boa tarde", "boa noite", "menu principal"):
+        enviar_menu_principal(); return True
+    if cmd == "sair" or cmd == "dados_apagar" or "apagar" in cmd or "excluir" in cmd or "deletar" in cmd:
+        enviar_confirmar_exclusao(); return True
+
+    if cmd == "buscar":
+        resposta_whatsapp("Me conta o que voce precisa e em qual cidade 🙂\n"
+                          "Ex.: *pediatra em Sao Paulo*, *encanador em Perdizes*.")
+        return True
+    if cmd == "rede":
+        enviar_submenu_rede(); return True
+    if cmd == "dados":
+        enviar_submenu_dados(); return True
+
+    if cmd == "rede_indicar":
+        resposta_whatsapp("Quem voce quer indicar? 💛\nManda o contato pelo clipe 📎 "
+                          "(ou escreve: nome, telefone, servico e cidade).")
+        return True
+    if cmd == "rede_convidar":
+        resposta_whatsapp("Compartilhe pelo clipe 📎 o contato de quem voce quer convidar — "
+                          "ou pede *meu link* pra divulgar pra varias pessoas.")
+        return True
+    if cmd == "rede_comunidade":
+        resposta_whatsapp("Qual o nome do grupo que voce quer transformar em comunidade? 🏘️\n"
+                          "Ex.: *Predio Azul*, *Escola Sao Jose*.")
+        return True
+
+    if cmd == "dados_ver":
+        resposta_whatsapp(_resumo_dados_texto(membro))
+        enviar_menu_principal(); return True
+    if cmd == "apagar_sim":
+        excluir_membro(membro)
+        resposta_whatsapp(t.ADEUS); return True
+    if cmd == "apagar_nao":
+        resposta_whatsapp("Ufa, nao apaguei nada 😌 Esta tudo no lugar.")
+        enviar_menu_principal(); return True
+
+    return False
+
+
+def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilhados, button_id=""):
     # contatos_compartilhados: [(e164, nome_card)] ou []
     membro = buscar_membro(wa_id)
 
@@ -1527,6 +1677,15 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     # Limpa o codigo tecnico do convite do texto antes de mandar pra IA.
     texto_recebido = limpar_texto_convite(texto_recebido)
 
+    # PRIMEIRO CONTATO (sem consent e sem historico): o cerebro manda a mensagem de
+    # boas-vindas fixa + botoes de aceite. Nao passa pelo roteador de menu.
+    primeiro_contato = not membro.get("consent") and not (membro.get("historico"))
+
+    # NAVEGACAO DETERMINISTICA: botoes/menus/comandos sao tratados aqui, sem IA,
+    # pra ela nao inventar fluxos. So o texto livre de captura vai pra IA.
+    if not primeiro_contato and rotear_menu(membro, texto_recebido, button_id):
+        return
+
     # Se houver uma indicacao antiga ainda sem nota, a Doroteia pode puxar o
     # follow-up ("usou? como foi?") com naturalidade nesta conversa.
     membro["avaliacao_pendente"] = buscar_avaliacao_pendente(membro)
@@ -1534,14 +1693,18 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     # Flag: se a IA mandar botoes via ferramenta, nao envia texto duplicado.
     interativa_enviada = [False]
 
-    cerebro.conversar(
+    usados = cerebro.conversar(
         membro,
         texto_recebido,
         contatos_compartilhados,
         executar_ferramenta=construir_executor(membro, interativa_enviada),
         enviar_texto=lambda texto: (None if interativa_enviada[0] else resposta_whatsapp(texto)),
         salvar_historico=lambda hist: salvar_historico(wa_id, hist),
-    )
+    ) or set()
+
+    # Depois de uma acao concluida pela IA, oferece o menu — pra nunca ficar solto.
+    if membro.get("consent") and not interativa_enviada[0] and (usados & TOOLS_TERMINAIS):
+        enviar_menu_principal()
 
 
 @app.route("/termos", methods=["GET"])

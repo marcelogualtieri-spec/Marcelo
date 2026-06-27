@@ -155,14 +155,14 @@ INDICACOES VIA CARD (quando o card e de um prestador/medico/escola):
   o telefone com DDD?" NAO diga que "o contato nao chegou" — o card chegou, so o numero
   que faltou.
 
-BOTOES CLICAVEIS:
-- Voce tem a ferramenta 'enviar_botoes' para momentos de escolha clara e binaria:
-  consentir (Pode ser / Saber mais), confirmar exclusao (Apagar / Cancelar), menu
-  rapido quando fizer sentido. Maximo 3 botoes.
-- NAO use botoes para perguntas abertas onde a pessoa precisa digitar (servico,
-  recomendacao, compartilhar contato) — nessas horas use so texto.
-- Quando chamar 'enviar_botoes', sua resposta de texto final deve ser VAZIA
-  (o texto ja foi enviado junto com os botoes).
+FLUXO GUIADO POR BOTOES (muito importante):
+- A navegacao da Doroteia e feita por BOTOES e MENUS que o SISTEMA envia sozinho
+  (Buscar / Minha rede / Meus dados e seus submenus). Voce NAO controla os botoes e
+  NAO deve descrever menus, listar opcoes numeradas nem dizer "digite 1, 2 ou 3".
+- O seu papel e so a ACAO que a pessoa pediu: faca a busca/indicacao/etc. com a
+  ferramenta certa, ou pergunte APENAS o unico dado que falta (ex.: a cidade). Nada de
+  oferecer um cardapio de opcoes — desse menu o sistema cuida depois da sua resposta.
+- Responda curto e direto. Apos a sua resposta, o sistema mostra os botoes do menu.
 
 FORMATACAO DO WHATSAPP (importante):
 - Use *texto* (um asterisco) para negrito e _texto_ para italico.
@@ -197,60 +197,8 @@ FICHAS DE CONTATO:
   numero (isso protege a privacidade). Trate a ficha como "o contato que ela mandou";
   as ferramentas sabem o numero real por tras dela."""
 
-SISTEMA_PRIMEIRO_CONTATO = """
-
-ATENCAO - PRIMEIRO CONTATO (pessoa nova, sem historico).
-Esta e a PRIMEIRA mensagem desta pessoa. Apresente-se, explique o que voce faz E JA
-PEÇA O CONSENTIMENTO na mesma mensagem, usando a ferramenta 'enviar_botoes'.
-Monte o campo 'texto' do 'enviar_botoes' assim (tom de amiga, frases curtas):
-1) Se ela chegou por convite, abra citando o primeiro nome de quem a convidou
-   (ex.: "Oi! O Carlos me pediu pra te chamar 😊"). Se nao ha convidante, so diga oi.
-2) Explique em 1-2 frases o que voce faz. Ex.: "Sou a Doroteia 💛 Quando voce precisar
-   de medico, escola, encanador ou qualquer indicacao de confianca, eu busco na sua rede
-   de gente que voce ja conhece."
-3) Explique POR QUE precisa do consentimento, em 1-2 frases: "Pra te ajudar eu preciso
-   guardar so o seu nome e os seus contatos de confianca, tudo embaralhado e voce apaga
-   quando quiser. Sem esse 'ok' eu nao consigo buscar nem guardar as indicacoes."
-4) Termine perguntando: "Posso guardar seus dados pra isso? 🙂"
-Botoes: "Pode ser! 💛" e "Quero saber mais".
-Sua resposta de texto final deve ficar VAZIA (o texto vai dentro do 'enviar_botoes')."""
-
-SISTEMA_SEM_CONSENT = """
-
-ATENCAO - ESTA PESSOA JA FOI APRESENTADA, MAS AINDA NAO DEU CONSENTIMENTO.
-Voce so pode chamar 'registrar_consentimento' (quando ela aceitar) ou 'enviar_botoes'
-(pra explicar/pedir o "ok"). NUNCA execute nenhuma outra acao antes do consentimento.
-Identifique a intencao da mensagem e responda assim:
-
-(A) Ela ACEITOU ("sim", "pode ser", "pode", "bora", "topo", "ok", "aceito", clicou
-    "Pode ser!"):
-    -> chame 'registrar_consentimento'.
-
-(B) Ela quer SABER MAIS, tem DUVIDA, clicou "Quero saber mais", OU TENTOU AVANCAR com
-    qualquer pedido (buscar uma indicacao, indicar alguem, mandar contato...) sem ter
-    consentido:
-    -> NAO execute a acao. Use 'enviar_botoes' com um 'texto' que EXPLIQUE DE VERDADE
-       (mais completo que da primeira vez — nunca repita so a perguntinha seca):
-       1) TUDO que da pra fazer com voce: achar indicacoes de confianca pra qualquer
-          necessidade (medico, dentista, escola, encanador, advogado, diarista...) na
-          rede dela; indicar bons profissionais; montar a rede trazendo contatos pelo
-          clipe 📎; convidar amigos; avaliar quem ja usou; ver ou apagar os dados.
-       2) PRIVACIDADE: contatos embaralhados em codigo, voce nao ve numeros, nunca
-          repassa telefone de ninguem.
-       3) POR QUE o consentimento importa: sem o "ok" voce nao pode guardar o nome e os
-          contatos com seguranca — e e isso que permite achar e guardar as indicacoes.
-          Sem ele, infelizmente, voce nao consegue ajudar em nada.
-       Se ela fez um pedido concreto (ex.: "preciso de um encanador"), diga que assim
-       que ela der o "ok" voce ja corre atras disso. Termine perguntando se pode guardar
-       os dados. Botoes: "Pode ser! 💛" e "Quero saber mais".
-
-(C) Caso geral (so cumprimentou ou mensagem neutra):
-    -> use 'enviar_botoes' pedindo o consentimento JA explicando o porque:
-       "Pra te ajudar eu preciso guardar so o seu nome e os seus contatos de confianca,
-       tudo embaralhado e voce apaga quando quiser. Posso guardar seus dados pra isso? 🙂"
-       Botoes: "Pode ser! 💛" e "Quero saber mais".
-
-Sempre que chamar 'enviar_botoes', sua resposta de texto final deve ficar VAZIA."""
+# Obs.: a fase de boas-vindas/consentimento e 100% deterministica (mensagem fixa +
+# botoes tratados no app.py). A IA so e chamada DEPOIS do aceite, pra executar acoes.
 
 
 # ---------------------------------------------------------------------------
@@ -390,38 +338,6 @@ FERRAMENTAS = [
                 "comentario": {"type": "string", "description": "comentario livre dela (opcional)"},
             },
             "required": ["nome", "usou"],
-        },
-    },
-    {
-        "name": "enviar_botoes",
-        "description": "Envia a PROPRIA resposta como mensagem com botoes clicaveis (max 3). "
-                       "Use em momentos de escolha clara e binaria: consentir, confirmar exclusao, "
-                       "opcao A vs B. NAO use para perguntas abertas. Quando chamar esta "
-                       "ferramenta, deixe sua resposta de texto final VAZIA.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "texto": {
-                    "type": "string",
-                    "description": "o texto da mensagem que aparece acima dos botoes",
-                },
-                "botoes": {
-                    "type": "array",
-                    "maxItems": 3,
-                    "description": "lista de ate 3 botoes",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id":    {"type": "string",
-                                      "description": "identificador interno, palavras simples em minusculo"},
-                            "label": {"type": "string",
-                                      "description": "texto visivel no botao, max 20 caracteres"},
-                        },
-                        "required": ["id", "label"],
-                    },
-                },
-            },
-            "required": ["texto", "botoes"],
         },
     },
     {
@@ -581,22 +497,15 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
 
     sistema = SISTEMA_BASE + "\n\n" + _contexto_pessoa(membro)
     if not consentiu:
-        sistema += SISTEMA_SEM_CONSENT
-
-    # Quais ferramentas o modelo PODE chamar nesta rodada depende do estado:
-    # - Sem consentimento: SO 'registrar_consentimento' e 'enviar_botoes' (explicar
-    #   e pedir o aceite). Nenhuma acao real vaza antes do "SIM".
-    # - Com consentimento: todas as ferramentas.
-    if not consentiu:
-        ferramentas_disponiveis = [
-            f for f in FERRAMENTAS
-            if f["name"] in ("registrar_consentimento", "enviar_botoes")
-        ]
+        # (Defensivo) A navegacao pre-consent e deterministica no app.py e nao deveria
+        # chegar aqui; se chegar, so liberamos registrar o consentimento.
+        ferramentas_disponiveis = [f for f in FERRAMENTAS
+                                   if f["name"] == "registrar_consentimento"]
     else:
         ferramentas_disponiveis = FERRAMENTAS
 
+    usados = set()       # nomes das ferramentas chamadas (app.py decide o meno a mostrar)
     texto_final = ""
-    botoes_enviados = False
     for _ in range(5):   # ate 5 rodadas de ferramenta por mensagem
         try:
             resposta = _cliente.messages.create(
@@ -608,7 +517,7 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
             )
         except Exception as erro:
             print(f"[CEREBRO] erro na IA: {erro}")
-            return   # app.py ja tem rede de seguranca (ERRO_GENERICO no except externo)
+            return usados   # app.py ja tem rede de seguranca (ERRO_GENERICO no except externo)
 
         if resposta.stop_reason == "tool_use":
             mensagens.append({"role": "assistant", "content": resposta.content})
@@ -616,8 +525,7 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
             for bloco in resposta.content:
                 if bloco.type == "tool_use":
                     print(f"[FERRAMENTA] {bloco.name} {bloco.input}")
-                    if bloco.name == "enviar_botoes":
-                        botoes_enviados = True
+                    usados.add(bloco.name)
                     saida = executar_ferramenta(bloco.name, bloco.input, numeros)
                     resultados.append({
                         "type": "tool_result",
@@ -631,7 +539,7 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         texto_final = "".join(b.text for b in resposta.content if b.type == "text").strip()
         break
 
-    if not texto_final and not botoes_enviados:
+    if not texto_final:
         # Loop esgotado sem texto. Forca uma resposta em texto com tool_choice=none:
         # mantem 'tools' no request (o historico tem blocos de ferramenta e a API
         # exige isso), mas proibe o modelo de chamar qualquer ferramenta agora.
@@ -659,3 +567,4 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         {"role": "assistant", "content": texto_final},
     ]
     salvar_historico(novo_historico[-MAX_HISTORICO:])
+    return usados

@@ -43,13 +43,18 @@ BOAS_VINDAS = (
 )
 
 SABER_MAIS = (
-    "Claro, fico feliz em explicar 💛\n\n"
-    "- *Sua privacidade vem primeiro:* a ligacao entre voce e seus contatos eu "
-    "guardo de um jeito embaralhado - ninguem, nem eu, ve os numeros.\n"
-    "- *Seu telefone* nunca e repassado pra ninguem.\n"
-    "- Voce so recebe mensagem se chamar primeiro ou entrar por um convite.\n"
-    "- Cansou? E so pedir que eu apago tudo na hora.\n\n"
-    "Topa comecar? Responde *SIM*. 🙂"
+    "Claro, deixa eu explicar com calma 💛\n\n"
+    "*O que eu faco:*\n"
+    "- 🔍 Busco indicacoes de confianca (medico, escola, encanador...) feitas por "
+    "pessoas que voce conhece.\n"
+    "- 🤝 Voce indica bons profissionais, convida gente e cria comunidades dos seus "
+    "grupos (predio, escola) pra rede crescer com gente de confianca.\n\n"
+    "*Sua privacidade:*\n"
+    "- Guardo so o seu nome e os contatos que voce escolher.\n"
+    "- A ligacao com seus contatos fica embaralhada em codigo - nem eu vejo os numeros.\n"
+    "- Seu telefone nunca e repassado pra ninguem.\n"
+    "- Quer apagar tudo? E so digitar *SAIR* a qualquer momento.\n\n"
+    "Topa comecar? E so tocar em *SIM, aceito*. 🙂"
 )
 
 PRECISA_CONSENTIR = (
