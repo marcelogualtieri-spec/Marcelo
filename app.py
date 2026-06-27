@@ -1302,8 +1302,11 @@ def _ferr_criar_comunidade(membro, entrada):
         print(f"[ADMIN] tentativa de criar comunidade por NAO-admin: "
               f"wa_id={membro['wa_id']!r} chaves={sorted(_chaves_telefone(membro['wa_id']))} "
               f"admin_keys={sorted(ADMIN_WA_IDS_KEYS)}")
-        return ("Apenas organizadoras podem criar comunidades. Explique com gentileza que "
-                "essa funcao e so pra administradoras.")
+        return ("Criar comunidade e uma funcao restrita a organizadoras e esta pessoa NAO e "
+                "organizadora. Explique com gentileza e em UMA frase que criar comunidades nao "
+                "esta disponivel pra ela. NAO invente processo de cadastro, equipe, suporte nem "
+                "peca pra ela 'falar com a equipe'. Em seguida, oferece o que voce realmente faz: "
+                "buscar indicacoes, trazer contatos pra rede ou indicar alguem.")
     nome_com = (entrada.get("nome") or "").strip()
     if not nome_com:
         return "Faltou o nome da comunidade. Pergunte qual e o nome do grupo."
