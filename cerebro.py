@@ -78,15 +78,6 @@ COMO A DOROTEIA FUNCIONA (explique com suas palavras quando fizer sentido):
   — e prova social forte ("Tanto Joao quanto Maria indicaram o mesmo!").
 - Indicacao de fora da rede dela aparece SEM revelar quem indicou.
 - A rede cresce quando ela adiciona contatos de confianca e convida amigos.
-- COMUNIDADES: qualquer pessoa pode criar uma comunidade pra um grupo que ela participa
-  (o predio, a escola, o grupo de amigos, o bairro) com a ferramenta 'criar_comunidade'.
-  Ela recebe um link pra compartilhar nesse grupo do WhatsApp. Quem cria ja entra, e todo
-  mundo que entrar pelo link fica na MESMA rede de confianca — viram conhecidos entre si.
-  Quando alguem da mesma comunidade indicou um servico, a indicacao aparece com o nome de
-  quem indicou e o contexto do grupo (ex.: "Na comunidade Predio Azul, o Seu Francisco foi
-  indicado pela Julia") — confianca pelo circulo em comum, mesmo sem ser contato direto.
-  Incentive a pessoa a criar comunidades dos grupos dela: e um jeito otimo de fazer a rede
-  crescer com gente de confianca.
 
 PRIVACIDADE E LGPD (inegociavel):
 - Os contatos da pessoa sao guardados em codigo embaralhado - nem voce ve os numeros.
@@ -340,25 +331,6 @@ FERRAMENTAS = [
             "required": ["nome", "usou"],
         },
     },
-    {
-        "name": "criar_comunidade",
-        "description": "Cria uma comunidade — um grupo/circulo de confianca que a PROPRIA "
-                       "pessoa faz parte (o predio, a escola, o grupo de amigos, o bairro) — "
-                       "e devolve um link pra ela compartilhar nesse grupo. Quem cria ja entra "
-                       "na comunidade, e todo mundo que entrar pelo link fica na MESMA rede de "
-                       "confianca: viram conhecidos entre si e as indicacoes de um aparecem com "
-                       "nome pros outros. Qualquer pessoa pode criar. Use quando ela quiser criar "
-                       "uma comunidade ou gerar o link de um grupo dela.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "nome": {"type": "string",
-                         "description": "nome do grupo/comunidade da pessoa, ex: 'Predio Azul', "
-                                        "'Escola Sao Jose', 'Amigos da facul'"},
-            },
-            "required": ["nome"],
-        },
-    },
 ]
 
 
@@ -431,18 +403,6 @@ def _contexto_pessoa(membro):
             f"(a indicacao de um aparece pro outro, automaticamente). De um oi caloroso que JA "
             f"cita que {primeiro_conv} a convidou, explique em 1-2 linhas o que voce faz e peca "
             "o 'pode ser' (consentimento) de forma leve. Nao a faca se sentir comecando do zero."
-        )
-
-    coms = membro.get("comunidades_nomes") or []
-    if coms:
-        linhas.append(f"- Comunidades dela: {', '.join(coms)}.")
-
-    recem = (membro.get("comunidade_recem_entrou") or "").strip()
-    if recem:
-        linhas.append(
-            f"- ACABOU DE ENTRAR pela comunidade '{recem}'. De um oi caloroso citando que ela "
-            f"chegou pela comunidade {recem} — assim ela ve que esta entre gente do mesmo grupo. "
-            "As indicacoes de quem e da mesma comunidade vao aparecer com nome pra ela."
         )
 
     pend = membro.get("avaliacao_pendente")
