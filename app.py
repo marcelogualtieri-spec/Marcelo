@@ -29,6 +29,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from privacidade import calcular_contact_hash, normalizar_e164
 import cerebro
 import textos as t
+import termos
 
 
 # ---------------------------------------------------------------------------
@@ -1541,6 +1542,12 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
         enviar_texto=lambda texto: (None if interativa_enviada[0] else resposta_whatsapp(texto)),
         salvar_historico=lambda hist: salvar_historico(wa_id, hist),
     )
+
+
+@app.route("/termos", methods=["GET"])
+def pagina_termos():
+    """Termos de Uso e Politica de Privacidade (link da mensagem de boas-vindas)."""
+    return Response(termos.pagina_termos(), mimetype="text/html")
 
 
 @app.route("/c/<codigo>", methods=["GET"])

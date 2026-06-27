@@ -20,18 +20,26 @@ RODAPE = "\n\n_Dica: e so digitar *menu* quando quiser ver tudo que eu faco._"
 
 
 # --- Onboarding e consentimento (tela 7.1) -------------------------------
+# Mensagem FIXA de boas-vindas / consentimento. Enviada exatamente assim no
+# primeiro contato (o {link} vira o endereco dos Termos de Uso e Privacidade).
 BOAS_VINDAS = (
-    "Oi{voc}! 💛 Eu sou a Doroteia.\n\n"
-    "Sabe aquela amiga que sempre tem a indicacao certa na ponta da lingua? "
-    "Entao, e esse o meu papel - so que aqui dentro do WhatsApp.\n\n"
-    "Voce me conta o que precisa (tipo \"preciso de um encanador em Perdizes\") "
-    "e eu te digo quem *da sua confianca* ja indicou alguem bom.\n\n"
-    "Antes da gente comecar, so preciso do seu \"pode ser\":\n"
-    "- Seu nome so aparece como quem indicou pra quem ja e seu contato aqui.\n"
-    "- Voce nunca recebe mensagem de quem voce nao chamou.\n"
-    "- Seu telefone fica so com voce - nunca passo pra ninguem.\n\n"
-    "Combinado? Responde *SIM* que a gente comeca, ou *SABER MAIS* se quiser "
-    "que eu explique com calma. 🙂"
+    "Oi! Eu sou a Doroteia 💛\n\n"
+    "Uma rede que te ajuda a encontrar profissionais recomendados por pessoas que "
+    "voce conhece – nada de bagunca em grupos de WhatsApp ou falta de confianca em "
+    "sites de busca.\n\n"
+    "1️⃣ 🔍 *Indicacoes de confianca:* Precisa de medico, escola, encanador e mais? "
+    "Busco recomendacoes feitas por pessoas que voce conhece e fazem parte da rede. "
+    "So quem te conhece ve que foi voce quem recomendou, e vice-versa.\n\n"
+    "2️⃣ 🤝 *Uma rede que se fortalece:* Aqui no chat voce pede dicas, recomenda quem "
+    "confia e convida prestadores para entrar na rede atraves de um link. Se nao "
+    "tivermos uma indicacao de imediato, eu pergunto aos seus conhecidos pelo chat ou "
+    "te envio alguem muito bem avaliado na rede.\n\n"
+    "3️⃣ 🔒 *Sua privacidade em 1º lugar:* Guardo apenas o seu nome e os contatos que "
+    "voce escolher conectar comigo. E a sua agenda, com seguranca e sem repassar para "
+    "estranhos. Quer apagar seus dados? E so digitar *SAIR* a qualquer momento.\n\n"
+    "🔗 *Termos de Uso e Privacidade:*\n{link}\n\n"
+    "Posso comecar a te ajudar? Responda *SIM* para aceitar os termos e vamos mudar o "
+    "jeito de pedir e indicar servicos! (Ou digite *SABER MAIS*)."
 )
 
 SABER_MAIS = (

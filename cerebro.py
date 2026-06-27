@@ -13,12 +13,21 @@
 # ("[CONTATO_1]"). So o nosso codigo sabe o numero real por tras da ficha.
 # ===========================================================================
 
+import os
 import re
 
 from anthropic import Anthropic
 from privacidade import extrair_numeros_de_texto, normalizar_e164
+import textos
 
 _cliente = Anthropic()
+
+# Endereco dos Termos de Uso e Privacidade (pagina /termos do proprio servidor).
+LINK_TERMOS = (os.environ.get("TERMOS_URL")
+               or "https://doroteia-ia.onrender.com/termos")
+
+# Mensagem fixa de boas-vindas/consentimento, ja com o link dos termos.
+BOAS_VINDAS = textos.BOAS_VINDAS.format(link=LINK_TERMOS)
 
 # Motor leve e rapido pra conversa do dia a dia.
 MODELO = "claude-haiku-4-5"
@@ -549,20 +558,35 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
     conteudo_usuario = (texto_ia + nota).strip() or "(a pessoa mandou uma mensagem sem texto)"
 
     historico = list(membro.get("historico") or [])
+    consentiu = bool(membro.get("consent"))
+
+    # PRIMEIRO CONTATO: manda a mensagem de boas-vindas FIXA (verbatim) + botoes de
+    # aceite, SEM passar pela IA — assim ela nao reescreve nem inventa nada.
+    if not consentiu and len(historico) == 0:
+        enviar_texto(_limpar_markdown(BOAS_VINDAS))
+        executar_ferramenta("enviar_botoes", {
+            "texto": "👇 Posso comecar a te ajudar?",
+            "botoes": [
+                {"id": "consent_sim", "label": "SIM, aceito 💛"},
+                {"id": "consent_saber_mais", "label": "Saber mais"},
+            ],
+        }, numeros)
+        salvar_historico([
+            {"role": "user", "content": conteudo_usuario},
+            {"role": "assistant", "content": BOAS_VINDAS},
+        ])
+        return
+
     mensagens = historico + [{"role": "user", "content": conteudo_usuario}]
 
     sistema = SISTEMA_BASE + "\n\n" + _contexto_pessoa(membro)
-    if not membro.get("consent"):
-        if len(historico) == 0:
-            sistema += SISTEMA_PRIMEIRO_CONTATO
-        else:
-            sistema += SISTEMA_SEM_CONSENT
+    if not consentiu:
+        sistema += SISTEMA_SEM_CONSENT
 
     # Quais ferramentas o modelo PODE chamar nesta rodada depende do estado:
-    # - Sem consentimento: SO 'registrar_consentimento' e 'enviar_botoes' (apresentar
-    #   e pedir o "pode ser"). Nenhuma acao real vaza antes do "ok".
+    # - Sem consentimento: SO 'registrar_consentimento' e 'enviar_botoes' (explicar
+    #   e pedir o aceite). Nenhuma acao real vaza antes do "SIM".
     # - Com consentimento: todas as ferramentas.
-    consentiu = bool(membro.get("consent"))
     if not consentiu:
         ferramentas_disponiveis = [
             f for f in FERRAMENTAS
