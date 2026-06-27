@@ -11,6 +11,7 @@
 --   v5 -> follow-up proativo (coluna follow_up_at em indicacoes_recebidas)
 --   v6 -> histórico de buscas por membro (painel do usuário)
 --   v7 -> alerta quando busca vermelha recebe nova indicação
+--   v8 -> nudge pós-onboarding para adicionar contatos
 -- ============================================================================
 
 
@@ -112,3 +113,12 @@ alter table searches
 create index if not exists idx_searches_alerta
     on searches (resultado, alerta_enviado, servico, cidade)
     where resultado = 'vermelho' and alerta_enviado = false;
+
+
+-- ============================================================================
+-- v8 — nudge pós-onboarding para adicionar contatos
+-- ============================================================================
+
+-- members: registra quando o lembrete de adicionar contatos foi enviado.
+alter table members
+    add column if not exists nudge_contatos_at timestamptz;

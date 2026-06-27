@@ -1222,14 +1222,71 @@ def _enviar_follow_ups():
     return enviados
 
 
+# Quantos dias apos o consent esperamos antes de lembrar de adicionar contatos.
+DIAS_PARA_NUDGE_CONTATOS = 2
+MAX_NUDGES_POR_RODADA = 50
+
+
+def _enviar_nudge_contatos():
+    """Lembra membros que consentiram ha >= DIAS_PARA_NUDGE_CONTATOS dias mas
+    ainda nao adicionaram nenhum contato na rede. Envia no maximo uma vez
+    (nudge_contatos_at registra o envio). Retorna quantos nudges enviou."""
+    limite = (datetime.now(timezone.utc) - timedelta(days=DIAS_PARA_NUDGE_CONTATOS)).isoformat()
+
+    try:
+        candidatos = (supabase.table("members")
+                      .select("id, wa_id, nome_perfil")
+                      .eq("consent", True)
+                      .is_("nudge_contatos_at", "null")
+                      .lt("consent_at", limite)
+                      .limit(MAX_NUDGES_POR_RODADA)
+                      .execute().data)
+    except Exception:
+        traceback.print_exc()
+        return 0
+
+    enviados = 0
+    agora = datetime.now(timezone.utc).isoformat()
+
+    for membro in candidatos:
+        try:
+            # Marca antes de enviar — evita duplicata mesmo se o envio falhar.
+            supabase.table("members").update({"nudge_contatos_at": agora}).eq("id", membro["id"]).execute()
+
+            # So envia se a pessoa realmente nao tem contatos ainda.
+            tem_contatos = (supabase.table("edges").select("id")
+                            .eq("member_id", membro["id"]).limit(1).execute().data)
+            if tem_contatos:
+                continue
+
+            primeiro_nome = ((membro.get("nome_perfil") or "").split() or [""])[0]
+            saudacao = f"Oi, {primeiro_nome}!" if primeiro_nome else "Oi!"
+            texto = (
+                f"{saudacao} 😊 Voce ainda nao tem contatos na sua rede da Doroteia. "
+                "E ai que a magica acontece — quanto mais gente de confianca voce trouxer, "
+                "melhores as indicacoes que aparecem pra voce! "
+                "Manda alguns pelo clipe 📎 do WhatsApp, pode ser varios de uma vez. 💛"
+            )
+            enviar_mensagem_meta(membro["wa_id"], texto, WHATSAPP_PHONE_NUMBER_ID)
+            enviados += 1
+            time.sleep(0.3)
+
+        except Exception:
+            traceback.print_exc()
+
+    print(f"[NUDGE-CONTATOS] {enviados} nudge(s) enviado(s).")
+    return enviados
+
+
 @app.route("/cron/follow-up", methods=["POST"])
 def cron_follow_up():
     """Endpoint chamado pelo cron diario (GitHub Actions).
     Protegido por X-Cron-Secret para impedir acionamento externo nao autorizado."""
     if CRON_SECRET and request.headers.get("X-Cron-Secret") != CRON_SECRET:
         return Response("Nao autorizado.", status=401)
-    enviados = _enviar_follow_ups()
-    return Response(f"OK - {enviados} follow-up(s) enviado(s).", status=200)
+    follow_ups = _enviar_follow_ups()
+    nudges = _enviar_nudge_contatos()
+    return Response(f"OK - {follow_ups} follow-up(s), {nudges} nudge(s) enviado(s).", status=200)
 
 
 # ===========================================================================
