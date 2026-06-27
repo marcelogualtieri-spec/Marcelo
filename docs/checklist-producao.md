@@ -55,70 +55,31 @@
 - ✅ WhatsApp Cloud API direta (sem intermediário/BSP pago)
 - ✅ Encurtador interno de links (/c/<code>) — sem exposição de números nas URLs
 
----
-
-## ⏳ Falta — tarefas suas (👤)
-
-1. **👤 Número oficial do WhatsApp** — sair do sandbox da Meta. Precisa de:
-   - Conta **Meta Business** (Gerenciador de Negócios)
-   - **Verificação da empresa** pela Meta
-   - Um **número dedicado** (que NÃO esteja no app do WhatsApp)
-   - Nome de exibição aprovado ("Doroteia")
-   - *Leva alguns dias. 🤖 Eu te guio clique a clique quando quiser começar.*
-
-2. **👤 Configurar variáveis de ambiente no Render**
-   Faltam as novas (as demais provavelmente já estão):
-   - `WHATSAPP_PHONE_NUMBER_ID` — ID do número do bot (visível no painel Meta ou nos logs do webhook)
-   - `CRON_SECRET` — string aleatória que você inventar (ex.: `openssl rand -hex 32`)
-   - `PUBLIC_BASE_URL` — deve estar como `https://doroteia-ia.onrender.com`
-
-3. **👤 Configurar CRON_SECRET no GitHub Secrets**
-   Mesma string que colocou no Render → repositório → Settings → Secrets → Actions → `CRON_SECRET`
-
-4. **👤 Rodar as migrações no Supabase** (se ainda não fez)
-   Abra o SQL Editor do Supabase e cole o conteúdo de `db/migrations-todas.sql`.
-   É seguro rodar mais de uma vez (tudo usa `IF NOT EXISTS`).
-
-5. **👤 Backup da `CONTACT_HASH_KEY`**
-   Guarde numa cópia segura (gerenciador de senhas). Se perder, o grafo de contatos quebra — os hashes deixam de casar e ninguém se "conhece" mais.
-
-6. **👤 Plano pago no Render** (recomendado)
-   O plano grátis "dorme" após inatividade e demora ~50s pra acordar — a primeira mensagem pode falhar ou dar timeout no webhook da Meta. Um plano básico (~US$ 7/mês) mantém o servidor sempre acordado.
-
-7. **👤 Revisão do DPO** (LGPD)
-   Entregar `docs/privacidade-hash.md` pra validação jurídica.
-   Pontos abertos: base legal para o telefone do prestador, política de retenção, canal de exercício de direitos.
+### Deploy / configuração
+- ✅ Número oficial do WhatsApp aprovado e ativo
+- ✅ Variáveis de ambiente configuradas no Render (`WHATSAPP_PHONE_NUMBER_ID`, `CRON_SECRET`, etc.)
+- ✅ `CRON_SECRET` configurado no GitHub Secrets
+- ✅ Migrações v2–v6 rodadas no Supabase
+- ✅ Revisão do DPO (LGPD) concluída
 
 ---
 
 ## ⏳ Falta — onde eu te ajudo (🤖)
 
-1. **🤖 Guiar o cadastro do número oficial** passo a passo.
-2. **🤖 Preparar entrega pro DPO** (resumo executivo + perguntas para o jurídico).
-3. **🤖 Teste com 3–5 amigos reais** antes dos 40 — pra pegar surpresas de linguagem e de fluxo. Eu ajudo a interpretar os logs.
-4. **🤖 Processamento assíncrono**: hoje a Doroteia responde de forma síncrona (dentro dos 20s do webhook da Meta). Pros 40 usuários está ótimo. Se escalar muito, separamos: responde "ok" na hora e processa em background. *Não é urgente.*
+1. **🤖 Backup da `CONTACT_HASH_KEY`** — se ainda não fez, guarde uma cópia em gerenciador de senhas. Se perder, o grafo de contatos quebra (os hashes deixam de casar).
+2. **🤖 Teste com 3–5 amigos reais** antes de abrir pros 40 — pra pegar surpresas de linguagem e de fluxo. Eu ajudo a interpretar os logs.
+3. **🤖 Processamento assíncrono** — hoje a Doroteia responde de forma síncrona (dentro dos 20s do webhook da Meta). Pros 40 usuários está ótimo. Se escalar muito, separamos: responde "ok" na hora e processa em background. *Não é urgente.*
 
 ---
 
-## 💰 Custos estimados (quando for ao ar)
+## 💰 Custos (em produção)
 
 | Serviço | Custo |
 |---|---|
-| WhatsApp Cloud API | Gratuito até 1.000 conversas/mês; depois por conversa (~US$ 0,01–0,05 BR) |
+| WhatsApp Cloud API | Gratuito até 1.000 conversas/mês; depois por conversa (~US$ 0,01–0,05) |
 | Claude Haiku (Anthropic) | Frações de centavo por mensagem interpretada |
-| Render | Grátis no sandbox; ~US$ 7/mês pro plano que não dorme |
+| Render | ~US$ 7/mês (plano que não dorme) |
 | Supabase | Grátis cobre bem o beta (500 MB, 50k linhas) |
 | GitHub Actions | Grátis para repositórios públicos / 2.000 min/mês nos privados |
 
 > Para 40 pessoas, tudo isso é muito baixo. A tabela `searches` (ver `docs/metricas.md`) ajuda a estimar volume quando escalar.
-
----
-
-## 🚦 Resumo: o que fazer agora pra ativar o follow-up
-
-1. `WHATSAPP_PHONE_NUMBER_ID` no Render
-2. `CRON_SECRET` no Render **e** no GitHub Secrets
-3. Migração `db/migrations-todas.sql` rodada no Supabase
-4. Deploy do código mais recente no Render (branch `claude/optimistic-shannon-6p9ig5` → main)
-
-O número oficial e o DPO podem seguir em paralelo enquanto você testa. 💛
