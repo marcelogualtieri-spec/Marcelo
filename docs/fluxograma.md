@@ -35,20 +35,32 @@ flowchart TD
     C3 --> D
     C4 --> D
 
+    %% ---------- Etiquetagem por comunidade (novo + retorno) ----------
+    D --> CM{"Tem código de comunidade\nno texto? (comunidade: slug)"}
+    B -- "Sim" --> CM
+    CM -- "Sim" --> CM1["etiquetar_membro_comunidade\n(idempotente) + boas-vindas\ncitando o grupo"]
+    CM -- "Não" --> CC["Enriquece contexto:\n- comunidades da pessoa\n- eh_admin?"]
+    CM1 --> CC
+
     %% ---------- Sem consentimento ----------
-    D --> E["IA recebe SISTEMA_SEM_CONSENT\n(prompt compacto, max 4 linhas)"]
-    B -- "Sim, SEM consent" --> E
-    E --> E1["IA cita quem convidou (se houver)\nexplica o que é a Doroteia\nenvia botões: 'Pode ser! 💛' / 'Quero saber mais'"]
-    E1 --> E2{"Pessoa aceita?"}
-    E2 -- "Sim (botão ou texto)" --> E3["IA chama registrar_consentimento\napp grava consent=true + consent_at"]
+    CC --> G0{"Já consentiu?"}
+    G0 -- "Não, 1º contato\n(histórico vazio)" --> E0["SISTEMA_PRIMEIRO_CONTATO\nbotões: apresenta + explica o que faz\n+ POR QUE precisa do consent\n'Pode ser! 💛' / 'Quero saber mais'"]
+    G0 -- "Não, já apresentada" --> E["SISTEMA_SEM_CONSENT\nsó tools: registrar_consentimento + enviar_botoes"]
+    E --> E1{"Intenção?"}
+    E1 -- "Quer saber mais / dúvida / tenta avançar" --> E1a["Explica TUDO que dá pra fazer\n+ privacidade + importância do consent\n(botões de novo)"]
+    E1 -- "Aceitou" --> E3
+    E0 --> E2{"Pessoa aceita?"}
+    E2 -- "Sim (botão ou texto)" --> E3["IA chama registrar_consentimento\napp grava consent=true + consent_at\n(se invited_by: avisa o convidante)"]
     E3 --> E4["IA responde em ≤3 linhas:\nboas-vindas, convida a compartilhar contatos\ne pergunta o que ela precisa"]
 
     %% ---------- Já consentiu ----------
-    B -- "Sim, JA consentiu" --> F["Enriquece o membro:\n- convidado_por_nome (se aplicável)\n- avaliacao_pendente (indicação sem nota)"]
+    G0 -- "Sim" --> F["Enriquece o membro:\n- convidado_por_nome (se aplicável)\n- avaliacao_pendente (indicação sem nota)"]
     E4 --> F
-    F --> G2["cerebro.conversar()\nClaude Haiku com histórico (≤12 msgs)\n+ tools disponíveis"]
+    F --> G2["cerebro.conversar()\nClaude Haiku com histórico (≤12 msgs)\n+ todas as tools"]
     G2 --> H{"IA decide qual\nferramenta usar"}
 ```
+
+> **Fase de consentimento sem botão solto:** enquanto a pessoa não consente, o modelo só recebe as ferramentas `registrar_consentimento` e `enviar_botoes` — nenhuma ação real (buscar, indicar, contatos) vaza antes do "ok".
 
 ---
 
@@ -60,17 +72,25 @@ flowchart TD
 flowchart TD
     A["buscar_servico(servico, cidade, bairro?)"] --> B["executar_busca:\nbusca em recommendations\nfiltro: servico + cidade\nbairro apenas se informado"]
     B --> C["Para cada rec:\nverifica consent do recomendador\n+ existe_vinculo(pedidor, recomendador)"]
-    C --> D["Agrupa por provider_id\ncoleta todos os nomes da rede"]
-    D --> E{"Tem na rede?"}
-    E -- "Sim" --> F["🟢 VERDE\nnome(s) de quem indicou\nordenados por nota_media\nregistra em indicacoes_recebidas"]
-    E -- "Não, mas tem fora" --> G["🟡 AMARELO\nmostram sem dizer quem indicou\nordenados por nota_media\nregistra em indicacoes_recebidas"]
-    E -- "Nenhum" --> H["🔴 VERMELHO\nconvida a recomendar alguém\nou trazer mais contatos"]
-    F --> I["registrar_busca(... member_id)"]
-    G --> I
-    H --> I
+    C --> D{"Tem vínculo direto?"}
+    D -- "Sim" --> F["🟢 VERDE (rede direta)\nnome(s) de quem indicou"]
+    D -- "Não" --> D2{"Compartilha alguma\ncomunidade com o pedidor?"}
+    D2 -- "Sim" --> CM["🤝 MESMA COMUNIDADE\nnome de quem indicou + nome do grupo\n'Na comunidade X, Fulano indicou'"]
+    D2 -- "Não" --> G["🟡 AMARELO (fora da rede)\nsem dizer quem indicou"]
+    F --> R["Agrupa por provider_id,\nordena por nota_media,\nregistra em indicacoes_recebidas"]
+    CM --> R
+    G --> R
+    R --> E{"Algum resultado?"}
+    E -- "Verde ou comunidade" --> I["registrar_busca\n(verde, ou 'comunidade' se só comunidade)"]
+    E -- "Só amarelo" --> I2["registrar_busca(amarelo)"]
+    E -- "Nenhum" --> H["🔴 VERMELHO\nconvida a recomendar alguém\nou trazer mais contatos\nregistrar_busca(vermelho)"]
 ```
 
-**Vínculo** (`existe_vinculo`): pedidor convidou recomendador, OU recomendador convidou pedidor, OU o hash do telefone de um aparece na tabela `edges` do outro.
+Prioridade de apresentação: **🟢 rede direta → 🤝 mesma comunidade → 🟡 fora da rede → 🔴 nada**. Um prestador que apareça em mais de um nível só conta no mais forte.
+
+**Vínculo direto** (`existe_vinculo`): pedidor convidou recomendador, OU recomendador convidou pedidor, OU o hash do telefone de um aparece na tabela `edges` do outro.
+
+**Mesma comunidade:** `comunidades(pedidor) ∩ comunidades(recomendador) ≠ ∅` — derivado em tempo de busca a partir de `comunidade_membros`.
 
 ### 3.2 Adicionar contatos + gerar convites (passo único)
 
@@ -134,7 +154,7 @@ flowchart TD
 | `ver_meus_dados` | Nome, consent, contagens (edges, recommendations) |
 | `ver_minhas_indicacoes` | Tudo que ela já indicou, com nota média quando houver |
 | `ver_minha_rede` | Quais contatos do grafo dela já são membros com consent |
-| `ver_minhas_buscas` | Últimas 10 buscas, com resultado 🟢🟡🔴 |
+| `ver_minhas_buscas` | Últimas 10 buscas, com resultado 🟢🤝🟡🔴 |
 
 ### 3.7 Exclusão (LGPD)
 
@@ -149,6 +169,27 @@ flowchart TD
     D -- "Não" --> H["IA cancela e volta ao normal"]
 ```
 
+### 3.8 Comunidades (cada grupo vira um link de entrada)
+
+```mermaid
+flowchart TD
+    subgraph CRIAR["Organizadora cria a comunidade (admin)"]
+      A1["Organizadora (número em ADMIN_WA_IDS)\nmanda 'criar comunidade Plato Perdizes'"] --> A2["IA chama criar_comunidade\n(gated: só admin)"]
+      A2 --> A3["slugify → 'plato-perdizes'\nINSERT em comunidades (slug único)"]
+      A3 --> A4["Monta link curto:\nwa.me/&lt;bot&gt;?text=...(comunidade: plato-perdizes)"]
+      A4 --> A5["IA entrega o link\npra colar no grupo do WhatsApp"]
+    end
+
+    subgraph ENTRAR["Pessoa entra pelo link"]
+      B1["Clica no link (só circula dentro do grupo)"] --> B2["Mensagem chega com\n'(comunidade: plato-perdizes)'"]
+      B2 --> B3["extrair_codigo_comunidade\n→ busca comunidade pelo slug"]
+      B3 --> B4["etiquetar_membro_comunidade\n(idempotente, vale p/ novo e p/ quem já usa)"]
+      B4 --> B5["Boas-vindas citando o grupo\n'Vi que você chegou pela comunidade X 🙌'"]
+    end
+```
+
+> **Privacidade:** a Doroteia **nunca lê membros de grupo**. A barreira de entrada é o próprio link — só quem está no grupo o vê. A pessoa se "etiqueta" sozinha ao entrar (dado consentido). 100% legal/LGPD.
+
 ---
 
 ## 4. Regras de vínculo (como o verde acende)
@@ -160,7 +201,9 @@ flowchart LR
     Q -- "R convidou P (invited_by)" --> V
     Q -- "Hash de R está em edges de P" --> V
     Q -- "Hash de P está em edges de R" --> V
-    Q -- "Sem vínculo" --> Y["🟡 sem nome"]
+    Q -- "Sem vínculo" --> CQ{"P e R compartilham\nalguma comunidade?"}
+    CQ -- "Sim" --> CV["🤝 mostra nome de R\n+ nome da comunidade"]
+    CQ -- "Não" --> Y["🟡 sem nome"]
 ```
 
 > O vínculo por contato é checado comparando **HMAC-SHA256** dos números (irreversíveis), nunca os números em si. Detalhes em `docs/privacidade-hash.md`.
@@ -175,7 +218,9 @@ flowchart LR
 | Criar membro | `app.py / criar_membro()` | `members` |
 | Gravar consentimento | `app.py / registrar_consentimento()` | `members` |
 | Hash + grafo de contatos | `app.py / processar_contatos()` | `edges` |
-| Busca verde/amarelo/vermelho | `app.py / executar_busca()` | `recommendations`, `members`, `edges` |
+| Busca verde/comunidade/amarelo/vermelho | `app.py / executar_busca()` | `recommendations`, `members`, `edges`, `comunidade_membros` |
+| Criar comunidade (admin) | `app.py / criar_comunidade()` + `_ferr_criar_comunidade()` | `comunidades` |
+| Etiquetar membro na entrada | `app.py / etiquetar_membro_comunidade()` | `comunidade_membros` |
 | Salvar recomendação | `app.py / _ferr_recomendar()` | `providers`, `recommendations` |
 | Convite por telefone | `app.py / registrar_convite_pendente()` | `pending_invites` |
 | Aplicar convite ao entrar | `app.py / aplicar_convite_pendente()` | `pending_invites`, `members` |
@@ -203,6 +248,8 @@ flowchart LR
 | `short_links` | Encurtador interno `/c/<code>` |
 | `avaliacoes` | Notas 1–5 por membro por provider |
 | `indicacoes_recebidas` | Providers mostrados a cada pessoa → base do follow-up |
+| `comunidades` | Grupos reais (escola, prédio, bairro) com slug + nome |
+| `comunidade_membros` | Quem pertence a qual comunidade (N-para-N) |
 
 ---
 
@@ -220,6 +267,7 @@ flowchart LR
 | `CONTACT_HASH_KEY` | Chave secreta do HMAC-SHA256 dos contatos |
 | `PUBLIC_BASE_URL` | Base para links curtos (ex: `https://doroteia-ia.onrender.com`) |
 | `CRON_SECRET` | Protege o endpoint `/cron/follow-up` |
+| `ADMIN_WA_IDS` | Números de organizadora (só dígitos, separados por vírgula) que podem criar comunidades |
 
 | Variável | Onde também configurar |
 |---|---|

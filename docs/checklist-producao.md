@@ -9,16 +9,27 @@
 
 ### Onboarding
 - ✅ Pessoa nova entra: detecta convite (por código no texto ou por hash do telefone)
-- ✅ Boas-vindas com IA: cita quem convidou, explica a Doroteia em 3–4 linhas, envia botões "Pode ser! 💛" / "Quero saber mais"
+- ✅ 1º contato: a IA se apresenta, explica o que faz **e por que precisa do consentimento**, com botões "Pode ser! 💛" / "Quero saber mais"
+- ✅ "Quero saber mais" / dúvida / tentar avançar: explica **tudo** que dá pra fazer + privacidade + importância do consent (não repete a perguntinha seca)
+- ✅ Trava de segurança: sem consentimento, o modelo só tem as ferramentas `registrar_consentimento` e `enviar_botoes` — nenhuma ação real vaza antes do "ok"
 - ✅ Consentimento (LGPD): só após aceite explícito — botão ou texto afirmativo
 - ✅ Pós-consent: boas-vindas calorosas (≤3 linhas), convida a compartilhar contatos, pergunta o que precisa
 
-### Busca de indicações (verde / amarelo / vermelho)
+### Busca de indicações (verde / comunidade / amarelo / vermelho)
 - ✅ Busca por serviço + cidade (bairro opcional — se faltar, busca na cidade inteira)
 - ✅ Vínculo de confiança: por convite (invited_by) OU por hash de contato (edges)
+- ✅ 🤝 Nível "mesma comunidade": se quem indicou está no mesmo grupo, aparece com nome + contexto ("Na comunidade Plato Perdizes, o Seu Francisco foi indicado pela Júlia")
+- ✅ Prioridade: 🟢 rede direta → 🤝 mesma comunidade → 🟡 fora da rede → 🔴 nada
 - ✅ Vários indicadores do mesmo prestador aparecem juntos com prova social ("Tanto João quanto Maria indicaram o mesmo!")
 - ✅ Ordenação por nota média (mais bem avaliados primeiro)
 - ✅ Escopo amplo: médico, escola, advogado, prestador, professor — qualquer indicação
+
+### Comunidades (cada grupo de WhatsApp vira um link de entrada)
+- ✅ Organizadora cria comunidade pelo chat ("criar comunidade Plato Perdizes") → recebe link pronto pra colar no grupo (restrito a `ADMIN_WA_IDS`)
+- ✅ Quem entra pelo link é etiquetado na comunidade (idempotente; vale pra membro novo e pra quem já usa)
+- ✅ Boas-vindas citam o grupo de origem
+- ✅ Sem ler membros de grupo — a barreira é o próprio link, que só circula dentro do grupo (100% legal/LGPD)
+- ⏳ 👤 **Ativar:** rodar migration v9 + setar `ADMIN_WA_IDS` no Render + deploy (ver seção "Falta")
 
 ### Rede de contatos
 - ✅ Adicionar + convidar em passo único: compartilha card → IA detecta quem já é membro + gera convite individual por pessoa que ainda não usa
@@ -35,16 +46,17 @@
 - ✅ "Ainda não usei" — marca como dispensado, para de perguntar
 - ✅ Nota média recalculada em providers (desnormalizada para ranquear rápido)
 
-### Follow-up proativo
-- ✅ GitHub Actions roda todo dia às 10h BRT → POST /cron/follow-up
-- ✅ 7 dias após mostrar uma indicação, Doroteia pergunta "chegou a usar? como foi?"
-- ✅ Máximo 50 mensagens por rodada, uma por membro
-- ✅ follow_up_at evita duplicatas; status='avaliada' evita reperguntar
+### Mensagens proativas
+- ✅ Follow-up: 7 dias após mostrar uma indicação, Doroteia pergunta "chegou a usar? como foi?" (cron diário 10h BRT → POST /cron/follow-up)
+- ✅ Loop de convite: quando um contato convidado entra, o convidante é avisado ("Fulano entrou pelo seu convite!")
+- ✅ Alerta de busca vermelha: quem buscou e não achou nada é avisado quando aparece uma indicação nova daquele serviço na cidade
+- ✅ Nudge pós-onboarding: lembra quem consentiu há 2+ dias mas não trouxe nenhum contato
+- ✅ Máximo 50 mensagens por rodada, uma por membro; flags (`follow_up_at`, `alerta_enviado`, `nudge_contatos_at`) evitam duplicatas
 
 ### Painel do usuário
 - ✅ "O que já indiquei?" → `ver_minhas_indicacoes` (com notas)
 - ✅ "Quem da minha rede está aqui?" → `ver_minha_rede`
-- ✅ "O que busquei antes?" → `ver_minhas_buscas` (últimas 10, com 🟢🟡🔴)
+- ✅ "O que busquei antes?" → `ver_minhas_buscas` (últimas 10, com 🟢🤝🟡🔴)
 - ✅ Dados gerais + opção de apagar tudo (LGPD)
 
 ### Segurança / infraestrutura
@@ -59,16 +71,19 @@
 - ✅ Número oficial do WhatsApp aprovado e ativo
 - ✅ Variáveis de ambiente configuradas no Render (`WHATSAPP_PHONE_NUMBER_ID`, `CRON_SECRET`, etc.)
 - ✅ `CRON_SECRET` configurado no GitHub Secrets
-- ✅ Migrações v2–v6 rodadas no Supabase
+- ✅ Migrações v2–v8 rodadas no Supabase
 - ✅ Revisão do DPO (LGPD) concluída
+- ⏳ 👤 Migration **v9** (comunidades) rodada no Supabase
+- ⏳ 👤 `ADMIN_WA_IDS` configurado no Render (números de organizadora, só dígitos)
 
 ---
 
 ## ⏳ Falta — onde eu te ajudo (🤖)
 
-1. **🤖 Backup da `CONTACT_HASH_KEY`** — se ainda não fez, guarde uma cópia em gerenciador de senhas. Se perder, o grafo de contatos quebra (os hashes deixam de casar).
-2. **🤖 Teste com 3–5 amigos reais** antes de abrir pros 40 — pra pegar surpresas de linguagem e de fluxo. Eu ajudo a interpretar os logs.
-3. **🤖 Processamento assíncrono** — hoje a Doroteia responde de forma síncrona (dentro dos 20s do webhook da Meta). Pros 40 usuários está ótimo. Se escalar muito, separamos: responde "ok" na hora e processa em background. *Não é urgente.*
+1. **👤 Ativar comunidades** — (a) rodar `db/migration-v9.sql` no Supabase; (b) setar `ADMIN_WA_IDS` no Render com o seu número (só dígitos, ex.: `5511999998888`); (c) deploy. Depois é só mandar "criar comunidade <nome>" pra Doroteia e colar o link no grupo.
+2. **🤖 Backup da `CONTACT_HASH_KEY`** — se ainda não fez, guarde uma cópia em gerenciador de senhas. Se perder, o grafo de contatos quebra (os hashes deixam de casar).
+3. **🤖 Teste com 3–5 amigos reais** antes de abrir pros 40 — pra pegar surpresas de linguagem e de fluxo. Eu ajudo a interpretar os logs.
+4. **🤖 Processamento assíncrono** — hoje a Doroteia responde de forma síncrona (dentro dos 20s do webhook da Meta). Pros 40 usuários está ótimo. Se escalar muito, separamos: responde "ok" na hora e processa em background. *Não é urgente.*
 
 ---
 
