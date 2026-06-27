@@ -15,22 +15,12 @@
 - ✅ Consentimento (LGPD): só após aceite explícito — botão ou texto afirmativo
 - ✅ Pós-consent: boas-vindas calorosas (≤3 linhas), convida a compartilhar contatos, pergunta o que precisa
 
-### Busca de indicações (verde / comunidade / amarelo / vermelho)
+### Busca de indicações (verde / amarelo / vermelho)
 - ✅ Busca por serviço + cidade (bairro opcional — se faltar, busca na cidade inteira)
 - ✅ Vínculo de confiança: por convite (invited_by) OU por hash de contato (edges)
-- ✅ 🤝 Nível "mesma comunidade": se quem indicou está no mesmo grupo, aparece com nome + contexto ("Na comunidade Plato Perdizes, o Seu Francisco foi indicado pela Júlia")
-- ✅ Prioridade: 🟢 rede direta → 🤝 mesma comunidade → 🟡 fora da rede → 🔴 nada
 - ✅ Vários indicadores do mesmo prestador aparecem juntos com prova social ("Tanto João quanto Maria indicaram o mesmo!")
 - ✅ Ordenação por nota média (mais bem avaliados primeiro)
 - ✅ Escopo amplo: médico, escola, advogado, prestador, professor — qualquer indicação
-
-### Comunidades (cada grupo de WhatsApp vira um link de entrada)
-- ✅ Qualquer pessoa cria a comunidade de um grupo que participa ("criar comunidade Prédio Azul") → recebe link pra compartilhar no grupo
-- ✅ Quem cria já entra na comunidade; quem entra pelo link é etiquetado (idempotente; vale pra membro novo e pra quem já usa)
-- ✅ Todos da mesma comunidade ficam na mesma rede de confiança — conhecidos entre si, indicações aparecem com nome
-- ✅ Boas-vindas citam o grupo de origem
-- ✅ Sem ler membros de grupo — a barreira é o próprio link, que só circula dentro do grupo (100% legal/LGPD)
-- ✅ Ativado em produção: migration v9 rodada, deploy feito
 
 ### Rede de contatos
 - ✅ Adicionar + convidar em passo único: compartilha card → IA detecta quem já é membro + gera convite individual por pessoa que ainda não usa
