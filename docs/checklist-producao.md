@@ -29,7 +29,7 @@
 - ✅ Quem entra pelo link é etiquetado na comunidade (idempotente; vale pra membro novo e pra quem já usa)
 - ✅ Boas-vindas citam o grupo de origem
 - ✅ Sem ler membros de grupo — a barreira é o próprio link, que só circula dentro do grupo (100% legal/LGPD)
-- ⏳ 👤 **Ativar:** rodar migration v9 + setar `ADMIN_WA_IDS` no Render + deploy (ver seção "Falta")
+- ✅ Ativado em produção: migration v9 rodada, `ADMIN_WA_IDS` configurado, deploy feito
 
 ### Rede de contatos
 - ✅ Adicionar + convidar em passo único: compartilha card → IA detecta quem já é membro + gera convite individual por pessoa que ainda não usa
@@ -71,19 +71,17 @@
 - ✅ Número oficial do WhatsApp aprovado e ativo
 - ✅ Variáveis de ambiente configuradas no Render (`WHATSAPP_PHONE_NUMBER_ID`, `CRON_SECRET`, etc.)
 - ✅ `CRON_SECRET` configurado no GitHub Secrets
-- ✅ Migrações v2–v8 rodadas no Supabase
+- ✅ Migrações v2–v9 rodadas no Supabase
 - ✅ Revisão do DPO (LGPD) concluída
-- ⏳ 👤 Migration **v9** (comunidades) rodada no Supabase
-- ⏳ 👤 `ADMIN_WA_IDS` configurado no Render (números de organizadora, só dígitos)
+- ✅ `ADMIN_WA_IDS` configurado no Render (números de organizadora, só dígitos)
 
 ---
 
 ## ⏳ Falta — onde eu te ajudo (🤖)
 
-1. **👤 Ativar comunidades** — (a) rodar `db/migration-v9.sql` no Supabase; (b) setar `ADMIN_WA_IDS` no Render com o seu número (só dígitos, ex.: `5511999998888`); (c) deploy. Depois é só mandar "criar comunidade <nome>" pra Doroteia e colar o link no grupo.
-2. **🤖 Backup da `CONTACT_HASH_KEY`** — se ainda não fez, guarde uma cópia em gerenciador de senhas. Se perder, o grafo de contatos quebra (os hashes deixam de casar).
-3. **🤖 Teste com 3–5 amigos reais** antes de abrir pros 40 — pra pegar surpresas de linguagem e de fluxo. Eu ajudo a interpretar os logs.
-4. **🤖 Processamento assíncrono** — hoje a Doroteia responde de forma síncrona (dentro dos 20s do webhook da Meta). Pros 40 usuários está ótimo. Se escalar muito, separamos: responde "ok" na hora e processa em background. *Não é urgente.*
+1. **🤖 Backup da `CONTACT_HASH_KEY`** — se ainda não fez, guarde uma cópia em gerenciador de senhas. Se perder, o grafo de contatos quebra (os hashes deixam de casar).
+2. **🤖 Teste com 3–5 amigos reais** antes de abrir pros 40 — pra pegar surpresas de linguagem e de fluxo. Eu ajudo a interpretar os logs.
+3. **🤖 Processamento assíncrono** — hoje a Doroteia responde de forma síncrona (dentro dos 20s do webhook da Meta). Pros 40 usuários está ótimo. Se escalar muito, separamos: responde "ok" na hora e processa em background. *Não é urgente.*
 
 ---
 
