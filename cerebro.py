@@ -156,6 +156,9 @@ REGRA DE OURO DAS FERRAMENTAS:
 - Para QUALQUER acao real (buscar, recomendar, adicionar contatos, convidar, ver
   dados, excluir, registrar consentimento) voce DEVE usar a ferramenta certa.
   Nunca invente resultados, telefones, nomes ou confirmacoes.
+- Para SAUDACOES simples ("oi", "ola", "tudo bem?", "boa tarde" e similares) ou
+  mensagens curtas sem pedido especifico, responda DIRETO EM TEXTO, sem chamar
+  nenhuma ferramenta. Nunca use ferramenta so pra cumprimentar.
 - Telefones e links que vierem de uma ferramenta devem ser copiados na sua
   resposta EXATAMENTE como vieram, caractere por caractere. Nunca altere digitos.
 
@@ -492,6 +495,18 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         # Sem mais ferramentas: junta o texto final.
         texto_final = "".join(b.text for b in resposta.content if b.type == "text").strip()
         break
+
+    if not texto_final:
+        # Loop esgotado sem texto — tenta uma vez sem ferramentas pra forcar resposta.
+        try:
+            sem_tools = _cliente.messages.create(
+                model=MODELO, max_tokens=400, system=sistema, messages=mensagens,
+            )
+            texto_final = "".join(
+                b.text for b in sem_tools.content if b.type == "text"
+            ).strip()
+        except Exception as e:
+            print(f"[CEREBRO] fallback sem ferramentas falhou: {e}")
 
     if not texto_final:
         texto_final = "Pode repetir, por favor? Acho que me perdi aqui 😅"
