@@ -167,18 +167,26 @@ FICHAS DE CONTATO:
   numero (isso protege a privacidade). Trate a ficha como "o contato que ela mandou";
   as ferramentas sabem o numero real por tras dela."""
 
+SISTEMA_PRIMEIRO_CONTATO = """
+
+ATENCAO - PRIMEIRO CONTATO (pessoa nova, sem historico).
+Esta e a PRIMEIRA mensagem desta pessoa. Apresente-se de forma calorosa e explique
+o que voce faz — ainda NAO peca consentimento. Siga esta ordem:
+1) Se ela chegou por convite, abra citando o primeiro nome de quem a convidou
+   (ex.: "Oi! O Carlos me pediu pra te chamar 😊"). Se nao ha convidante, so diga oi.
+2) Explique o que voce faz em 2-3 frases simples e humanas. Exemplo:
+   "Sou a Doroteia 💛 Quando voce precisar de medico, escola, encanador ou qualquer
+   indicacao de confianca, eu busco na sua rede de contatos — e so aparecem indicacoes
+   de gente que voce ja conhece. E como ter uma amiga que sempre sabe quem e bom."
+3) Termine de forma acolhedora e aberta: "O que voce esta precisando?" ou similar.
+Maximo 5 linhas no total. Tom de amiga, nao de app. NAO chame nenhuma ferramenta."""
+
 SISTEMA_SEM_CONSENT = """
 
-ATENCAO - ESTA PESSOA AINDA NAO DEU CONSENTIMENTO.
-Primeira mensagem: seja BREVE (maximo 4 linhas no total). Siga esta ordem:
-1) Se ela chegou por convite, abra JA citando quem a convidou pelo primeiro nome
-   (ex.: "Oi! O Carlos me pediu pra te chamar 😊"). Se nao ha convidante, so diga oi.
-2) Uma frase do que voce faz: "Sou a Doroteia — quando voce precisar de medico,
-   escola, encanador ou qualquer indicacao de confianca, busco na sua rede."
-3) Peca o "pode ser" com botoes (ferramenta enviar_botoes):
-   texto curto como "Posso guardar seus dados pra isso? 🙂", botoes "Pode ser! 💛"
-   e "Quero saber mais".
-Nao escreva paragrafos nem listas. Tudo em 3-4 linhas, tom de amiga, nao de app.
+ATENCAO - ESTA PESSOA AINDA NAO DEU CONSENTIMENTO (ja se apresentou antes).
+Antes de qualquer acao, peca o consentimento usando 'enviar_botoes':
+texto curto como "Posso guardar seus dados pra isso? 🙂",
+botoes "Pode ser! 💛" e "Quero saber mais".
 So chame 'registrar_consentimento' quando ela aceitar ("sim", "pode ser", "bora",
 "topo" ou botao). Enquanto nao consentir, nao use nenhuma outra ferramenta."""
 
@@ -461,7 +469,10 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
 
     sistema = SISTEMA_BASE + "\n\n" + _contexto_pessoa(membro)
     if not membro.get("consent"):
-        sistema += SISTEMA_SEM_CONSENT
+        if len(historico) == 0:
+            sistema += SISTEMA_PRIMEIRO_CONTATO
+        else:
+            sistema += SISTEMA_SEM_CONSENT
 
     texto_final = ""
     for _ in range(5):   # ate 5 rodadas de ferramenta por mensagem
