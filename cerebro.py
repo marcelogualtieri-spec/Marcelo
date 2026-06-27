@@ -474,6 +474,11 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         else:
             sistema += SISTEMA_SEM_CONSENT
 
+    # Primeiro contato sem consentimento: chamada direta sem ferramentas.
+    # Passa tools=[] garante stop_reason="end_turn" e texto puro — sem risco
+    # de o modelo escolher uma ferramenta apesar do prompt.
+    primeiro_contato = not membro.get("consent") and len(historico) == 0
+
     texto_final = ""
     for _ in range(5):   # ate 5 rodadas de ferramenta por mensagem
         try:
@@ -481,8 +486,8 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
                 model=MODELO,
                 max_tokens=700,
                 system=sistema,
-                tools=FERRAMENTAS,
                 messages=mensagens,
+                **({} if primeiro_contato else {"tools": FERRAMENTAS}),
             )
         except Exception as erro:
             print(f"[CEREBRO] erro na IA: {erro}")
