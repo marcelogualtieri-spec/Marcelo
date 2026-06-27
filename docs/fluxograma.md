@@ -39,7 +39,7 @@ flowchart TD
     D --> CM{"Tem código de comunidade\nno texto? (comunidade: slug)"}
     B -- "Sim" --> CM
     CM -- "Sim" --> CM1["etiquetar_membro_comunidade\n(idempotente) + boas-vindas\ncitando o grupo"]
-    CM -- "Não" --> CC["Enriquece contexto:\n- comunidades da pessoa\n- eh_admin?"]
+    CM -- "Não" --> CC["Enriquece contexto:\n- comunidades da pessoa"]
     CM1 --> CC
 
     %% ---------- Sem consentimento ----------
@@ -173,18 +173,19 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph CRIAR["Organizadora cria a comunidade (admin)"]
-      A1["Organizadora (número em ADMIN_WA_IDS)\nmanda 'criar comunidade Plato Perdizes'"] --> A2["IA chama criar_comunidade\n(gated: só admin)"]
-      A2 --> A3["slugify → 'plato-perdizes'\nINSERT em comunidades (slug único)"]
-      A3 --> A4["Monta link curto:\nwa.me/&lt;bot&gt;?text=...(comunidade: plato-perdizes)"]
-      A4 --> A5["IA entrega o link\npra colar no grupo do WhatsApp"]
+    subgraph CRIAR["Qualquer pessoa cria a comunidade de um grupo dela"]
+      A1["Pessoa manda\n'criar comunidade Prédio Azul'"] --> A2["IA chama criar_comunidade\n(qualquer pessoa consentida)"]
+      A2 --> A3["slugify → 'predio-azul'\nINSERT em comunidades (slug único)"]
+      A3 --> A6["Quem criou já entra na comunidade\n(etiquetar_membro_comunidade)"]
+      A6 --> A4["Monta link curto:\nwa.me/&lt;bot&gt;?text=...(comunidade: predio-azul)"]
+      A4 --> A5["IA entrega o link\npra ela compartilhar no grupo"]
     end
 
-    subgraph ENTRAR["Pessoa entra pelo link"]
-      B1["Clica no link (só circula dentro do grupo)"] --> B2["Mensagem chega com\n'(comunidade: plato-perdizes)'"]
+    subgraph ENTRAR["Cada pessoa entra pelo link"]
+      B1["Clica no link (só circula dentro do grupo)"] --> B2["Mensagem chega com\n'(comunidade: predio-azul)'"]
       B2 --> B3["extrair_codigo_comunidade\n→ busca comunidade pelo slug"]
       B3 --> B4["etiquetar_membro_comunidade\n(idempotente, vale p/ novo e p/ quem já usa)"]
-      B4 --> B5["Boas-vindas citando o grupo\n'Vi que você chegou pela comunidade X 🙌'"]
+      B4 --> B5["Agora todos da comunidade estão\nna MESMA rede de confiança\n(conhecidos entre si)"]
     end
 ```
 
@@ -219,7 +220,7 @@ flowchart LR
 | Gravar consentimento | `app.py / registrar_consentimento()` | `members` |
 | Hash + grafo de contatos | `app.py / processar_contatos()` | `edges` |
 | Busca verde/comunidade/amarelo/vermelho | `app.py / executar_busca()` | `recommendations`, `members`, `edges`, `comunidade_membros` |
-| Criar comunidade (admin) | `app.py / criar_comunidade()` + `_ferr_criar_comunidade()` | `comunidades` |
+| Criar comunidade (qualquer pessoa) | `app.py / criar_comunidade()` + `_ferr_criar_comunidade()` | `comunidades`, `comunidade_membros` |
 | Etiquetar membro na entrada | `app.py / etiquetar_membro_comunidade()` | `comunidade_membros` |
 | Salvar recomendação | `app.py / _ferr_recomendar()` | `providers`, `recommendations` |
 | Convite por telefone | `app.py / registrar_convite_pendente()` | `pending_invites` |
@@ -267,7 +268,6 @@ flowchart LR
 | `CONTACT_HASH_KEY` | Chave secreta do HMAC-SHA256 dos contatos |
 | `PUBLIC_BASE_URL` | Base para links curtos (ex: `https://doroteia-ia.onrender.com`) |
 | `CRON_SECRET` | Protege o endpoint `/cron/follow-up` |
-| `ADMIN_WA_IDS` | Números de organizadora (só dígitos, separados por vírgula) que podem criar comunidades |
 
 | Variável | Onde também configurar |
 |---|---|

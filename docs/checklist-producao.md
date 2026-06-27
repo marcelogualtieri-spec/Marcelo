@@ -25,11 +25,12 @@
 - ✅ Escopo amplo: médico, escola, advogado, prestador, professor — qualquer indicação
 
 ### Comunidades (cada grupo de WhatsApp vira um link de entrada)
-- ✅ Organizadora cria comunidade pelo chat ("criar comunidade Plato Perdizes") → recebe link pronto pra colar no grupo (restrito a `ADMIN_WA_IDS`)
-- ✅ Quem entra pelo link é etiquetado na comunidade (idempotente; vale pra membro novo e pra quem já usa)
+- ✅ Qualquer pessoa cria a comunidade de um grupo que participa ("criar comunidade Prédio Azul") → recebe link pra compartilhar no grupo
+- ✅ Quem cria já entra na comunidade; quem entra pelo link é etiquetado (idempotente; vale pra membro novo e pra quem já usa)
+- ✅ Todos da mesma comunidade ficam na mesma rede de confiança — conhecidos entre si, indicações aparecem com nome
 - ✅ Boas-vindas citam o grupo de origem
 - ✅ Sem ler membros de grupo — a barreira é o próprio link, que só circula dentro do grupo (100% legal/LGPD)
-- ✅ Ativado em produção: migration v9 rodada, `ADMIN_WA_IDS` configurado, deploy feito
+- ✅ Ativado em produção: migration v9 rodada, deploy feito
 
 ### Rede de contatos
 - ✅ Adicionar + convidar em passo único: compartilha card → IA detecta quem já é membro + gera convite individual por pessoa que ainda não usa
@@ -73,7 +74,6 @@
 - ✅ `CRON_SECRET` configurado no GitHub Secrets
 - ✅ Migrações v2–v9 rodadas no Supabase
 - ✅ Revisão do DPO (LGPD) concluída
-- ✅ `ADMIN_WA_IDS` configurado no Render (números de organizadora, só dígitos)
 
 ---
 
