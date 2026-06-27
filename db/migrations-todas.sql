@@ -1,5 +1,5 @@
 -- ============================================================================
--- MIGRAÇÕES v2 + v3 + v4 + v5 — cole TUDO de uma vez no SQL Editor do Supabase
+-- MIGRAÇÕES v2 → v7 — cole TUDO de uma vez no SQL Editor do Supabase
 -- ----------------------------------------------------------------------------
 -- Execute ANTES do deploy do código novo. É seguro rodar mais de uma vez
 -- (tudo usa IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
@@ -9,6 +9,8 @@
 --   v3 -> memória de conversa da Doroteia (IA conversacional)
 --   v4 -> avaliação das indicações (1 a 5 estrelas) + relevância na rede
 --   v5 -> follow-up proativo (coluna follow_up_at em indicacoes_recebidas)
+--   v6 -> histórico de buscas por membro (painel do usuário)
+--   v7 -> alerta quando busca vermelha recebe nova indicação
 -- ============================================================================
 
 
@@ -96,3 +98,17 @@ alter table searches
 
 create index if not exists idx_searches_member
     on searches (member_id, created_at desc);
+
+
+-- ============================================================================
+-- v7 — alerta de busca vermelha
+-- ============================================================================
+
+-- searches: rastreia quem ja foi notificado quando uma nova indicacao aparece
+-- para um servico que buscou sem resultado (vermelho).
+alter table searches
+    add column if not exists alerta_enviado boolean not null default false;
+
+create index if not exists idx_searches_alerta
+    on searches (resultado, alerta_enviado, servico, cidade)
+    where resultado = 'vermelho' and alerta_enviado = false;

@@ -688,6 +688,46 @@ def _ferr_buscar(membro, entrada):
             "fortalecer a rede.")
 
 
+def _enviar_alertas_busca_vermelha(recomendador, servico, cidade):
+    """Quando uma nova recomendacao e salva, notifica quem buscou o mesmo servico
+    na mesma cidade, nao achou nada (vermelho) e ainda nao foi alertado."""
+    try:
+        candidatas = (supabase.table("searches")
+                      .select("id, member_id")
+                      .eq("resultado", "vermelho")
+                      .eq("alerta_enviado", False)
+                      .ilike("servico", servico)
+                      .ilike("cidade", cidade)
+                      .execute().data)
+        if not candidatas:
+            return
+
+        # Uma notificacao por membro — ignorar quem acabou de recomendar.
+        vistos = {recomendador["id"]}
+        for busca in candidatas:
+            mid = busca["member_id"]
+            if not mid or mid in vistos:
+                continue
+            vistos.add(mid)
+
+            destino = buscar_membro_por_id(mid)
+            if not destino or not destino.get("consent"):
+                continue
+
+            primeiro_nome = ((destino.get("nome_perfil") or "").split() or [""])[0]
+            saudacao = f"Oi, {primeiro_nome}!" if primeiro_nome else "Oi!"
+            texto = (
+                f"{saudacao} 💡 Lembra que voce buscou *{servico}* em {cidade} e nao achou nada? "
+                "Acabou de aparecer uma indicacao por la — quer buscar de novo?"
+            )
+            phone_number_id = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+            enviar_mensagem_meta(destino["wa_id"], texto, phone_number_id)
+
+            supabase.table("searches").update({"alerta_enviado": True}).eq("id", busca["id"]).execute()
+    except Exception:
+        traceback.print_exc()
+
+
 def _ferr_recomendar(membro, entrada, numeros):
     nome     = (entrada.get("nome")    or "").strip() or "Prestador"
     servico  = (entrada.get("servico") or "").strip().lower()
@@ -709,6 +749,8 @@ def _ferr_recomendar(membro, entrada, numeros):
         "member_id": membro["id"], "provider_id": prestador["id"],
         "servico": servico, "bairro": bairro, "cidade": cidade,
     }).execute()
+
+    _enviar_alertas_busca_vermelha(membro, servico, cidade)
 
     local = ", ".join(p for p in [bairro, cidade] if p)
     return (f"Recomendacao de {nome} ({servico} em {local}) registrada com sucesso. "
