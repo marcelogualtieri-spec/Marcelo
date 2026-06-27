@@ -61,14 +61,39 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrende
 CRON_SECRET            = os.environ.get("CRON_SECRET", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 
-# Numeros de organizadora (so digitos, separados por virgula) que podem criar
-# comunidades pelo chat. Ex.: ADMIN_WA_IDS="5511999998888,5511888887777".
-ADMIN_WA_IDS = {re.sub(r"\D", "", n) for n in os.environ.get("ADMIN_WA_IDS", "").split(",") if n.strip()}
+# Numeros de organizadora (separados por virgula) que podem criar comunidades
+# pelo chat. Aceita qualquer formato (+55 11 9..., 5511..., com ou sem o 9).
+# Ex.: ADMIN_WA_IDS="+55 11 99999-8888, 5511888887777".
+def _chaves_telefone(numero):
+    """Conjunto de chaves de comparacao de um telefone, TOLERANTE ao 9o digito
+    dos celulares BR (a Meta as vezes manda o wa_id sem o 9). Devolve so digitos."""
+    d = re.sub(r"\D", "", numero or "")
+    if not d:
+        return set()
+    chaves = {d}
+    e164 = normalizar_e164(numero) or normalizar_e164("+" + d)
+    if e164:
+        chaves.add(re.sub(r"\D", "", e164))
+    # Variantes do 9o digito para numeros BR: 55 + DDD(2) + resto(8 ou 9).
+    for base in list(chaves):
+        if base.startswith("55") and len(base) >= 12:
+            ddd, resto = base[2:4], base[4:]
+            if len(resto) == 9 and resto.startswith("9"):
+                chaves.add("55" + ddd + resto[1:])     # mesma pessoa, sem o 9
+            elif len(resto) == 8:
+                chaves.add("55" + ddd + "9" + resto)    # mesma pessoa, com o 9
+    return chaves
+
+
+ADMIN_WA_IDS_KEYS = set()
+for _n in os.environ.get("ADMIN_WA_IDS", "").split(","):
+    if _n.strip():
+        ADMIN_WA_IDS_KEYS |= _chaves_telefone(_n)
 
 
 def eh_admin(wa_id):
     """True se o numero (qualquer formato) for de uma organizadora."""
-    return bool(ADMIN_WA_IDS) and re.sub(r"\D", "", wa_id or "") in ADMIN_WA_IDS
+    return bool(ADMIN_WA_IDS_KEYS) and bool(_chaves_telefone(wa_id) & ADMIN_WA_IDS_KEYS)
 
 
 def assinatura_meta_valida():
@@ -1274,6 +1299,9 @@ def construir_executor(membro, interativa_enviada):
 
 def _ferr_criar_comunidade(membro, entrada):
     if not eh_admin(membro["wa_id"]):
+        print(f"[ADMIN] tentativa de criar comunidade por NAO-admin: "
+              f"wa_id={membro['wa_id']!r} chaves={sorted(_chaves_telefone(membro['wa_id']))} "
+              f"admin_keys={sorted(ADMIN_WA_IDS_KEYS)}")
         return ("Apenas organizadoras podem criar comunidades. Explique com gentileza que "
                 "essa funcao e so pra administradoras.")
     nome_com = (entrada.get("nome") or "").strip()
