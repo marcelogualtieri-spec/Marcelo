@@ -1364,7 +1364,7 @@ def processar_eventos(dados):
 # ===========================================================================
 
 def enviar_menu_principal(texto=None):
-    enviar_botoes_meta(texto or "O que voce precisa agora? 💛", [
+    enviar_botoes_meta(texto or "O que você precisa agora? 💛", [
         {"id": "buscar", "label": "🔍 Buscar"},
         {"id": "rede",   "label": "🤝 Minha rede"},
         {"id": "dados",  "label": "🔒 Meus dados"},
@@ -1372,7 +1372,7 @@ def enviar_menu_principal(texto=None):
 
 
 def enviar_submenu_rede():
-    enviar_botoes_meta("Sua rede de confianca 🤝\nO que voce quer fazer?", [
+    enviar_botoes_meta("Sua rede de confiança 🤝\nO que você quer fazer?", [
         {"id": "rede_indicar",  "label": "➕ Indicar"},
         {"id": "rede_convidar", "label": "📨 Convidar"},
         {"id": "menu",          "label": "🏠 Menu"},
@@ -1389,8 +1389,8 @@ def enviar_submenu_dados():
 
 def enviar_confirmar_exclusao():
     enviar_botoes_meta(
-        "Tem certeza que quer apagar TUDO? Isso remove seu cadastro, sua rede e suas "
-        "indicacoes — e nao da pra desfazer.",
+        "Tem certeza de que quer apagar TUDO? Isso remove seu cadastro, sua rede e suas "
+        "indicações — e não dá para desfazer.",
         [{"id": "apagar_sim", "label": "Sim, apagar"},
          {"id": "apagar_nao", "label": "Cancelar"}])
 
@@ -1402,11 +1402,11 @@ def _resumo_dados_texto(membro):
     linhas = [
         "📋 *Seus dados aqui comigo:*",
         f"- Nome: {nome}",
-        f"- Contatos na sua rede (em codigo, nunca o numero): {n_contatos}",
-        f"- Indicacoes que voce fez: {n_indic}",
+        f"- Contatos na sua rede (em código, nunca o número): {n_contatos}",
+        f"- Indicações que você fez: {n_indic}",
     ]
     link = os.environ.get("TERMOS_URL") or (PUBLIC_BASE_URL + "/termos")
-    linhas.append("\n🔒 Nunca guardo o numero dos seus contatos, so um codigo embaralhado.")
+    linhas.append("\n🔒 Nunca guardo o número dos seus contatos, só um código embaralhado.")
     linhas.append("Termos e privacidade:\n" + link)
     return "\n".join(linhas)
 
@@ -1436,7 +1436,7 @@ def rotear_menu(membro, texto, button_id):
         resposta_whatsapp(t.ADEUS)
         return True
     if cmd == "apagar_nao":
-        resposta_whatsapp("Ufa, nao apaguei nada 😌 Esta tudo no lugar.")
+        resposta_whatsapp("Ufa, não apaguei nada! 😌 Está tudo no lugar.")
         if consentiu:
             enviar_menu_principal()
         return True
@@ -1452,13 +1452,13 @@ def rotear_menu(membro, texto, button_id):
             if membro.get("invited_by"):
                 _notificar_convidante(membro)
             enviar_menu_principal(
-                "Que bom ter voce comigo! 💛 Anotei seu aceite.\n\nO que voce precisa agora?")
+                "Que bom ter você comigo! 💛 Anotei seu aceite.\n\nO que você precisa agora?")
             return True
         if cmd == "consent_saber_mais" or "saber mais" in cmd:
-            resposta_whatsapp(t.SABER_MAIS)   # a propria mensagem ja pede o SIM
+            resposta_whatsapp(t.SABER_MAIS)   # a própria mensagem já pede o SIM
             return True
         # Qualquer outra coisa antes do aceite: um lembrete curto, em texto.
-        resposta_whatsapp("Pra comecar, responda *SIM* para aceitar os termos, ou digite "
+        resposta_whatsapp("Para começar, responda *SIM* para aceitar os termos, ou digite "
                           "*SABER MAIS* se quiser entender melhor. 💛")
         return True
 
@@ -1468,8 +1468,8 @@ def rotear_menu(membro, texto, button_id):
         enviar_menu_principal(); return True
 
     if cmd == "buscar":
-        resposta_whatsapp("Me conta o que voce precisa e em qual cidade 🙂\n"
-                          "Ex.: *pediatra em Sao Paulo*, *encanador em Perdizes*.")
+        resposta_whatsapp("Me conta o que você precisa e em qual cidade. 🙂\n"
+                          "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.")
         return True
     if cmd == "rede":
         enviar_submenu_rede(); return True
@@ -1477,12 +1477,12 @@ def rotear_menu(membro, texto, button_id):
         enviar_submenu_dados(); return True
 
     if cmd == "rede_indicar":
-        resposta_whatsapp("Quem voce quer indicar? 💛\nManda o contato pelo clipe 📎 "
-                          "(ou escreve: nome, telefone, servico e cidade).")
+        resposta_whatsapp("Quem você quer indicar? 💛\nEnvie o contato pelo clipe 📎 "
+                          "(ou escreva: nome, telefone, serviço e cidade).")
         return True
     if cmd == "rede_convidar":
-        resposta_whatsapp("Compartilhe pelo clipe 📎 o contato de quem voce quer convidar — "
-                          "ou pede *meu link* pra divulgar pra varias pessoas.")
+        resposta_whatsapp("Compartilhe pelo clipe 📎 o contato de quem você quer convidar — "
+                          "ou peça *meu link* para divulgar para várias pessoas.")
         return True
 
     if cmd == "dados_ver":

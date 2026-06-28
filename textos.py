@@ -24,32 +24,32 @@ RODAPE = "\n\n_Dica: e so digitar *menu* quando quiser ver tudo que eu faco._"
 # primeiro contato (o {link} vira o endereco dos Termos de Uso e Privacidade).
 BOAS_VINDAS = (
     "Oi! Eu sou a Doroteia 💛\n\n"
-    "Encontre profissionais recomendados por quem voce confia, sem a bagunca dos "
-    "grupos de WhatsApp ou recomendacoes suspeitas em sites de busca e redes sociais.\n\n"
-    "1️⃣ 🔍 *Indicacoes de confianca:* busco profissionais ja testados pelos seus "
-    "contatos — os que voce convidar ou os que ja estao por aqui.\n\n"
-    "2️⃣ 🤝 *Troca:* peca dicas de profissionais, recomende quem trabalha bem e "
+    "Encontre profissionais recomendados por quem você confia, sem a bagunça dos "
+    "grupos de WhatsApp ou recomendações suspeitas em sites de busca e redes sociais.\n\n"
+    "1️⃣ 🔍 *Indicações de confiança:* busco profissionais já testados pelos seus "
+    "contatos — os que você convidar ou os que já estão por aqui.\n\n"
+    "2️⃣ 🤝 *Troca:* peça dicas de profissionais, recomende quem trabalha bem e "
     "convide a sua rede.\n\n"
-    "3️⃣ 🔒 *Privacidade:* guardo so o seu nome e telefone. Os contatos que voce "
-    "escolher conectar formam a sua agenda, e so quem se conecta com voce ve o seu "
-    "nome. Para sair da rede, e so digitar *SAIR*.\n\n"
+    "3️⃣ 🔒 *Privacidade:* guardo só o seu nome e telefone. Os contatos que você "
+    "escolher conectar formam a sua agenda, e só quem se conecta com você vê o seu "
+    "nome. Para sair da rede, é só digitar *SAIR*.\n\n"
     "🔗 *Termos de Uso:*\n{link}\n\n"
-    "Posso comecar a te ajudar? Responda *SIM* para aceitar os termos e iniciar, ou "
+    "Posso começar a te ajudar? Responda *SIM* para aceitar os termos e iniciar, ou "
     "digite *SABER MAIS*."
 )
 
 SABER_MAIS = (
     "Claro, deixa eu explicar com calma 💛\n\n"
-    "A Doroteia e uma central de indicacoes de confianca: voce pede um profissional "
-    "(medico, encanador, professor...) e eu busco entre as recomendacoes de quem voce "
+    "A Doroteia é uma central de indicações de confiança: você pede um profissional "
+    "(médico, encanador, professor...) e eu busco entre as recomendações de quem você "
     "conhece — nada de grupo de WhatsApp ou site duvidoso.\n\n"
-    "*Privacidade:* guardo so o seu nome e telefone. A sua agenda de confianca fica "
-    "embaralhada em codigo, e so quem se conecta com voce ve o seu nome. Para sair, e "
-    "so digitar *SAIR*.\n\n"
-    "💼 *Voce tambem presta algum servico?* Da pra ter um perfil profissional aqui. So "
-    "lembre: um profissional so e encontrado quando esta ligado a alguem do lado cliente "
-    "— quanto mais clientes te indicarem, maior a chance de aparecer.\n\n"
-    "Topa comecar? Responda *SIM* para aceitar os termos. 🙂"
+    "*Privacidade:* guardo só o seu nome e telefone. A sua agenda de confiança fica "
+    "embaralhada em código, e só quem se conecta com você vê o seu nome. Para sair, é "
+    "só digitar *SAIR*.\n\n"
+    "💼 *Você também presta algum serviço?* Dá para ter um perfil profissional aqui. Só "
+    "lembre: um profissional só é encontrado quando está ligado a alguém do lado cliente "
+    "— quanto mais clientes indicarem você, maior a chance de aparecer.\n\n"
+    "Topa começar? Responda *SIM* para aceitar os termos. 🙂"
 )
 
 PRECISA_CONSENTIR = (
@@ -221,12 +221,12 @@ EXCLUSAO_CONFIRMAR = "Pra apagar tudo, digite *EXCLUIR*. Pra voltar, e so mandar
 EXCLUSAO_CANCELADA = "Ufa, nao apaguei nada! 😌 Esta tudo no lugar."
 ADEUS = (
     "Pronto, apaguei tudo certinho 💛 Foi um prazer te ajudar!\n"
-    "Se um dia quiser voltar, e so me mandar um oi que a gente recomeca. 👋"
+    "Se um dia quiser voltar, é só me mandar um oi que a gente recomeça. 👋"
 )
 
 # --- Rede de seguranca (qualquer erro inesperado) ------------------------
 ERRO_GENERICO = (
-    "Opa, deu um probleminha aqui do meu lado 😅\n"
-    "Tenta de novo daqui a pouquinho, por favor? Se continuar, e so mandar "
-    "*menu* que a gente recomeca. 💛"
+    "Opa, tivemos um probleminha aqui do meu lado 😅\n"
+    "Pode tentar de novo daqui a pouquinho, por favor? Se continuar, é só mandar "
+    "*menu* que a gente recomeça. 💛"
 )
