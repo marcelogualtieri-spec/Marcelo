@@ -1428,6 +1428,22 @@ def rotear_menu(membro, texto, button_id):
     cmd = (button_id or re.sub(r"\s+", " ", (texto or "").strip().lower()))
     consentiu = bool(membro.get("consent"))
 
+    # -------- Exclusao (SAIR) — vale antes e depois do aceite --------
+    # Os botoes de confirmacao vem PRIMEIRO; senao o gatilho generico de "apagar"
+    # capturaria 'apagar_sim'/'apagar_nao' e a confirmacao entraria em loop.
+    if cmd == "apagar_sim":
+        excluir_membro(membro)
+        resposta_whatsapp(t.ADEUS)
+        return True
+    if cmd == "apagar_nao":
+        resposta_whatsapp("Ufa, nao apaguei nada 😌 Esta tudo no lugar.")
+        if consentiu:
+            enviar_menu_principal()
+        return True
+    if cmd in ("sair", "dados_apagar") or re.search(r"\b(apagar|excluir|deletar)\b", cmd):
+        enviar_confirmar_exclusao()
+        return True
+
     # -------- Antes do aceite (so TEXTO, uma mensagem por vez) --------
     if not consentiu:
         if cmd == "consent_sim" or cmd in ACEITES_TXT:
@@ -1450,8 +1466,6 @@ def rotear_menu(membro, texto, button_id):
     if cmd in ("menu", "inicio", "voltar", "home", "🏠 menu", "oi", "ola", "olá",
                "oie", "opa", "bom dia", "boa tarde", "boa noite", "menu principal"):
         enviar_menu_principal(); return True
-    if cmd == "sair" or cmd == "dados_apagar" or "apagar" in cmd or "excluir" in cmd or "deletar" in cmd:
-        enviar_confirmar_exclusao(); return True
 
     if cmd == "buscar":
         resposta_whatsapp("Me conta o que voce precisa e em qual cidade 🙂\n"
@@ -1473,12 +1487,6 @@ def rotear_menu(membro, texto, button_id):
 
     if cmd == "dados_ver":
         resposta_whatsapp(_resumo_dados_texto(membro))
-        enviar_menu_principal(); return True
-    if cmd == "apagar_sim":
-        excluir_membro(membro)
-        resposta_whatsapp(t.ADEUS); return True
-    if cmd == "apagar_nao":
-        resposta_whatsapp("Ufa, nao apaguei nada 😌 Esta tudo no lugar.")
         enviar_menu_principal(); return True
 
     return False
