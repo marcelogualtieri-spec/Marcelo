@@ -56,6 +56,10 @@ WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET")
 # ultimo caso usa a URL da requisicao (que pode vir errada atras de proxy).
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrender.com").rstrip("/")
 
+# Links dos Termos de Uso (cliente e profissional).
+LINK_TERMOS = os.environ.get("TERMOS_URL") or (PUBLIC_BASE_URL + "/termos")
+LINK_TERMOS_PROF = os.environ.get("TERMOS_PROF_URL") or (PUBLIC_BASE_URL + "/termos/profissional")
+
 # Cron de follow-up: chave de protecao do endpoint e id do numero do bot.
 # CRON_SECRET: string aleatoria configurada no Render + GitHub Secrets.
 # WHATSAPP_PHONE_NUMBER_ID: visivel nos eventos do webhook (metadata.phone_number_id).
@@ -1579,6 +1583,28 @@ def provider_do_membro(member_id):
         return None
 
 
+def _criar_perfil_profissional_self(membro):
+    """Autocadastro de profissional: cria o perfil (aguardando_perfil) para o membro.
+
+    Usado tanto no onboarding inicial (caminho "quero ser profissional" antes do
+    aceite) quanto no menu "Outras opções" depois do aceite. Idempotente.
+    """
+    if provider_do_membro(membro["id"]):
+        return
+    agora = datetime.now(timezone.utc).isoformat()
+    try:
+        telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
+        supabase.table("providers").insert({
+            "member_id": membro["id"],
+            "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
+            "telefone": telefone, "servico": "", "cidade": "",
+            "status": "aguardando_perfil",
+            "termos_aceitos_em": agora, "termos_versao": termos.DATA_VIGENCIA,
+        }).execute()
+    except Exception:
+        traceback.print_exc()
+
+
 def iniciar_onboarding_prestador(membro, servico):
     """Vincula (ou cria) um cadastro de prestador ao membro e pede o aceite."""
     try:
@@ -1744,8 +1770,9 @@ def rotear_menu(membro, texto, button_id):
                 ])
                 return True
 
-    # -------- Antes do aceite (so TEXTO, uma mensagem por vez) --------
+    # -------- Antes do aceite --------
     if not consentiu:
+        # Aceite como CLIENTE (botao "SIM" da boas-vindas ou do SABER MAIS, ou texto).
         if cmd == "consent_sim" or cmd in ACEITES_TXT:
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
@@ -1753,8 +1780,49 @@ def rotear_menu(membro, texto, button_id):
                 _notificar_convidante(membro)
             enviar_menu_principal(t.CLIENTE_ATIVO)
             return True
-        if cmd == "consent_saber_mais" or "saber mais" in cmd:
-            resposta_whatsapp(t.SABER_MAIS)   # a própria mensagem já pede o SIM
+        # SABER MAIS: explica com calma e abre os 3 caminhos por botao.
+        if cmd == "consent_saber_mais" or "saber mais" in cmd or cmd == "voltar_saber":
+            enviar_botoes_meta(t.SABER_MAIS.format(link=LINK_TERMOS), [
+                {"id": "consent_sim", "label": "SIM, aceito"},
+                {"id": "prof_quero",  "label": "Quero ser prof."},
+                {"id": "adiar",       "label": "Deixa pra depois"},
+            ])
+            return True
+        # Caminho profissional: escolher entre os dois perfis ou so o profissional.
+        if cmd == "prof_quero":
+            enviar_botoes_meta(t.PROF_ESCOLHA, [
+                {"id": "prof_dual",    "label": "Cliente e prof."},
+                {"id": "prof_so",      "label": "Só profissional"},
+                {"id": "voltar_saber", "label": "Voltar"},
+            ])
+            return True
+        # Perfil DUAL: precisa aceitar os DOIS termos (cliente + profissional).
+        if cmd == "prof_dual":
+            enviar_botoes_meta(
+                t.PROF_DUAL.format(link_cli=LINK_TERMOS, link_prof=LINK_TERMOS_PROF), [
+                    {"id": "prest_self_ok", "label": "Aceito os dois"},
+                    {"id": "voltar_saber",  "label": "Voltar"},
+                ])
+            return True
+        # So PROFISSIONAL: aceita apenas os termos do profissional.
+        if cmd == "prof_so":
+            enviar_botoes_meta(t.PROF_SO.format(link_prof=LINK_TERMOS_PROF), [
+                {"id": "prest_self_ok", "label": "Aceito os termos"},
+                {"id": "voltar_saber",  "label": "Voltar"},
+            ])
+            return True
+        # Aceite dos termos do profissional (vale para dual e so-profissional).
+        if cmd == "prest_self_ok":
+            registrar_consentimento(membro["wa_id"])
+            membro["consent"] = True
+            if membro.get("invited_by"):
+                _notificar_convidante(membro)
+            _criar_perfil_profissional_self(membro)
+            resposta_whatsapp(t.PRESTADOR_QUERO_SER_OK)
+            return True
+        # Deixar para depois.
+        if cmd == "adiar":
+            resposta_whatsapp(t.ADIAR)
             return True
         # Qualquer outra coisa antes do aceite: um lembrete curto, em texto.
         resposta_whatsapp("Para começar, responda *SIM* para aceitar os termos, ou digite "
@@ -1813,18 +1881,7 @@ def rotear_menu(membro, texto, button_id):
         if prest:
             enviar_menu_prestador()
             return True
-        agora = datetime.now(timezone.utc).isoformat()
-        try:
-            telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
-            supabase.table("providers").insert({
-                "member_id": membro["id"],
-                "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
-                "telefone": telefone, "servico": "", "cidade": "",
-                "status": "aguardando_perfil",
-                "termos_aceitos_em": agora, "termos_versao": termos.DATA_VIGENCIA,
-            }).execute()
-        except Exception:
-            traceback.print_exc()
+        _criar_perfil_profissional_self(membro)
         resposta_whatsapp(t.PRESTADOR_QUERO_SER_OK)
         return True
 
@@ -1911,8 +1968,14 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
 
 @app.route("/termos", methods=["GET"])
 def pagina_termos():
-    """Termos de Uso e Politica de Privacidade (link da mensagem de boas-vindas)."""
+    """Termos de Uso e Politica de Privacidade (cliente)."""
     return Response(termos.pagina_termos(), mimetype="text/html")
+
+
+@app.route("/termos/profissional", methods=["GET"])
+def pagina_termos_profissional():
+    """Termos de Uso do Profissional."""
+    return Response(termos.pagina_termos_profissional(), mimetype="text/html")
 
 
 @app.route("/c/<codigo>", methods=["GET"])

@@ -37,18 +37,52 @@ BOAS_VINDAS = (
     "*SABER MAIS*."
 )
 
+# Enviada COM BOTÕES (SIM, aceito · Quero ser prof. · Deixa pra depois).
+# O {link} vira o endereço dos Termos de Uso do cliente.
 SABER_MAIS = (
     "Claro, deixa eu explicar com calma 💛\n\n"
     "A Dorote.ia é uma central de indicações de confiança: você pede um profissional "
     "(médico, encanador, professor...) e eu busco entre as recomendações de quem você "
     "conhece — nada de grupo de WhatsApp ou site duvidoso.\n\n"
     "*Privacidade:* guardo apenas o seu nome e telefone. Os seus contatos ficam "
-    "protegidos com segurança, e o seu nome só aparece para quem se conecta com você. "
-    "Para sair, é só digitar *SAIR*.\n\n"
+    "protegidos com segurança, e o seu nome só aparece para quem você aprovar a "
+    "conexão. Para sair, é só digitar *SAIR* a qualquer momento.\n\n"
     "💼 *Você também presta algum serviço?* Dá para ter um perfil profissional aqui. Só "
     "lembre: um profissional só é encontrado quando está ligado a alguém do lado cliente "
-    "— quanto mais clientes indicarem você, maior a chance de aparecer.\n\n"
-    "Topa começar? Responda *SIM* para aceitar os termos. 🙂"
+    "— quanto mais clientes indicarem, maior a chance de aparecer.\n\n"
+    "📄 Termos de uso (cliente):\n{link}\n\n"
+    "Topa começar e aceitar os termos?"
+)
+
+# Caminho profissional — escolha entre os dois perfis ou só o profissional.
+PROF_ESCOLHA = (
+    "💼 Que ótimo que você presta um serviço!\n\n"
+    "Aqui você pode ter os dois perfis — *cliente* (para pedir indicações de confiança) "
+    "e *profissional* (para ser recomendado) — ou apenas o perfil *profissional*.\n\n"
+    "Como você prefere começar?"
+)
+
+# Perfil DUAL: aceita os dois termos (cliente + profissional).
+PROF_DUAL = (
+    "Perfeito! Você terá os dois perfis: *cliente* e *profissional*. 💛💼\n\n"
+    "Para começar, é só conferir e aceitar os dois termos de uso:\n\n"
+    "📄 Termos do cliente:\n{link_cli}\n\n"
+    "📄 Termos do profissional:\n{link_prof}\n\n"
+    "Ao tocar em *Aceito os dois*, você confirma que leu e concorda com ambos."
+)
+
+# Apenas PROFISSIONAL: aceita só os termos do profissional.
+PROF_SO = (
+    "Perfeito! Você terá o perfil *profissional*. 💼\n\n"
+    "Para começar, é só conferir e aceitar os termos de uso do profissional:\n\n"
+    "📄 Termos do profissional:\n{link_prof}\n\n"
+    "Ao tocar em *Aceito os termos*, você confirma que leu e concorda."
+)
+
+# Deixar para outro momento (antes do aceite).
+ADIAR = (
+    "Tudo bem, sem pressa! 💛 Quando quiser começar, é só me mandar um *oi* por aqui. "
+    "Vou estar à disposição."
 )
 
 PRECISA_CONSENTIR = (

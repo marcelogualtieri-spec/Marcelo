@@ -209,3 +209,103 @@ def pagina_termos():
         controlador=CONTROLADOR,
         dpo=CONTATO_DPO,
     )
+
+
+# ===========================================================================
+# TERMOS DE USO DO PROFISSIONAL (quem se cadastra para ser recomendado)
+# ===========================================================================
+TERMOS_PROF_HTML = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Termos do Profissional — Dorote.ia</title>
+<style>
+  :root {{ color-scheme: light dark; }}
+  body {{ font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+         line-height: 1.6; max-width: 760px; margin: 0 auto; padding: 24px;
+         color: #1c1c1e; background: #fff; }}
+  h1 {{ font-size: 1.6rem; }}
+  h2 {{ font-size: 1.15rem; margin-top: 2rem; }}
+  .meta {{ color: #666; font-size: .9rem; }}
+  code {{ background: #f2f2f2; padding: 1px 5px; border-radius: 4px; }}
+  ul {{ padding-left: 1.2rem; }}
+  .box {{ background: #fdf6e3; border: 1px solid #f0e3b8; border-radius: 8px; padding: 12px 16px; }}
+  footer {{ margin-top: 3rem; color: #666; font-size: .85rem; }}
+</style>
+</head>
+<body>
+<h1>Termos de Uso do Profissional — Dorote.ia 💼💛</h1>
+<p class="meta">Última atualização: {data}</p>
+
+<p>Estes Termos valem para quem se cadastra na <strong>Dorote.ia</strong> como
+profissional, para ser recomendado a clientes da rede. Eles complementam a
+<a href="/termos">Política de Privacidade</a> geral.</p>
+
+<div class="box">
+<strong>Resumo honesto:</strong> ao aceitar, você autoriza usar o seu contato e a
+categoria do seu serviço para ser recomendado a quem busca o que você faz. Você é
+encontrado quando clientes reais registram recomendações sobre o seu trabalho.
+Pode <strong>pausar ou sair</strong> a qualquer momento.
+</div>
+
+<h2>1. Quem é o responsável (Controlador)</h2>
+<p>O tratamento dos seus dados é feito por: <strong>{controlador}</strong>.
+Encarregado (DPO): <strong>{dpo}</strong>.</p>
+
+<h2>2. O aceite</h2>
+<p>Ao confirmar no chat, você declara ter lido e concordado com estes Termos e autoriza
+o uso do seu contato e da categoria do seu serviço para a finalidade de ser recomendado
+na rede. Esse aceite é registrado com data e hora.</p>
+
+<h2>3. Dados do profissional</h2>
+<ul>
+  <li>Seu <strong>nome, telefone e categoria de serviço</strong>, além de informações
+  que você escolher fornecer (região de atendimento, diferenciais, descrição).</li>
+  <li>As <strong>recomendações</strong> que clientes fazem sobre o seu trabalho e as
+  <strong>avaliações</strong> que você recebe.</li>
+</ul>
+
+<h2>4. Como você é recomendado</h2>
+<ul>
+  <li>Você só é encontrado quando há <strong>recomendações reais de clientes</strong>
+  sobre o seu trabalho.</li>
+  <li>Quando alguém da rede busca o seu serviço e recebe a sua indicação, o seu
+  <strong>contato é compartilhado com essa pessoa</strong> — esse é o propósito do serviço.</li>
+  <li>A Dorote.ia é uma rede de indicações, <strong>sem troca de mensagens</strong> entre
+  usuários. Você não recebe mensagens de clientes por aqui.</li>
+</ul>
+
+<h2>5. Seus direitos e controles</h2>
+<ul>
+  <li><strong>Pausar</strong> o cadastro: você deixa de ser recomendado temporariamente.</li>
+  <li><strong>Remover</strong> o cadastro a qualquer momento (no chat ou digitando
+  <code>SAIR</code>); você deixa de ser recomendado e seus dados de profissional são
+  apagados.</li>
+  <li>Acessar, corrigir e atualizar as informações do seu perfil.</li>
+</ul>
+
+<h2>6. Segurança, operadores e seus demais direitos (LGPD)</h2>
+<p>A segurança dos dados, os operadores (Meta, Anthropic, Supabase, Render), a
+transferência internacional e os demais direitos do titular seguem o descrito na
+<a href="/termos">Política de Privacidade</a> geral (art. 18 da LGPD).</p>
+
+<h2>7. Menores de idade</h2>
+<p>O serviço não é destinado a menores de 18 anos.</p>
+
+<h2>8. Alterações</h2>
+<p>Podemos atualizar estes Termos. Mudanças relevantes serão comunicadas pelo WhatsApp.</p>
+
+<footer>
+Dorote.ia — feito com 💛 para conectar pessoas de confiança.
+</footer>
+</body>
+</html>"""
+
+
+def pagina_termos_profissional():
+    return TERMOS_PROF_HTML.format(
+        data=DATA_VIGENCIA,
+        controlador=CONTROLADOR,
+        dpo=CONTATO_DPO,
+    )
