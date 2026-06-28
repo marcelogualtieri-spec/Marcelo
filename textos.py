@@ -4,7 +4,7 @@
 # Pode editar as PALAVRAS a vontade, sem medo! 💛
 #
 # So nao apague os "encaixes" entre chaves { }, porque eles sao preenchidos
-# pela Doroteia na hora de enviar:
+# pela Dorote.ia na hora de enviar:
 #   {voc}      -> vira ", Marcelo" quando sabemos o nome (ou nada, se nao soubermos)
 #   {nome}     -> nome do prestador (nas recomendacoes/resultados)
 #   {quem}     -> nome de quem indicou (no resultado verde)
@@ -23,7 +23,7 @@ RODAPE = "\n\n_Dica: e so digitar *menu* quando quiser ver tudo que eu faco._"
 # Mensagem FIXA de boas-vindas / consentimento. Enviada exatamente assim no
 # primeiro contato (o {link} vira o endereco dos Termos de Uso e Privacidade).
 BOAS_VINDAS = (
-    "Oi! Eu sou a Doroteia 💛\n\n"
+    "Oi! Eu sou a Dorote.ia 💛\n\n"
     "Encontre profissionais recomendados por quem você confia, sem a bagunça dos "
     "grupos de WhatsApp ou recomendações suspeitas em sites de busca e redes sociais.\n\n"
     "1️⃣ 🔍 *Indicações de confiança:* busco profissionais já testados pelos seus "
@@ -40,7 +40,7 @@ BOAS_VINDAS = (
 
 SABER_MAIS = (
     "Claro, deixa eu explicar com calma 💛\n\n"
-    "A Doroteia é uma central de indicações de confiança: você pede um profissional "
+    "A Dorote.ia é uma central de indicações de confiança: você pede um profissional "
     "(médico, encanador, professor...) e eu busco entre as recomendações de quem você "
     "conhece — nada de grupo de WhatsApp ou site duvidoso.\n\n"
     "*Privacidade:* guardo só o seu nome e telefone. A sua agenda de confiança fica "
@@ -161,12 +161,12 @@ CONVITE_EXTRAS = (
 
 # A mensagem que VOCE vai enviar pra pessoa (ela recebe isso).
 CONVITE_MENSAGEM_AMIGO = (
-    "Oi! 💛 Te indico a Doroteia: um cantinho no WhatsApp que recomenda "
+    "Oi! 💛 Te indico a Dorote.ia: um cantinho no WhatsApp que recomenda "
     "indicacoes de confianca - medico, escola, encanador, o que voce precisar. "
     "Pra entrar (e ja ficar ligado comigo), e so abrir aqui: {link}"
 )
 
-# O que a Doroteia te responde, com o link que abre a conversa com a pessoa.
+# O que a Dorote.ia te responde, com o link que abre a conversa com a pessoa.
 CONVITE_PRONTO = (
     "Prontinho! 🙌 Ja deixei voce e essa pessoa conectados - quando ela entrar, "
     "voces aparecem um pro outro automaticamente.\n\n"
@@ -226,7 +226,7 @@ ADEUS = (
 
 # --- Pos-consentimento e menus do cliente novo ---------------------------
 CLIENTE_ATIVO = (
-    "Tudo pronto! O seu cadastro na Doroteia está ativo. 💛\n\n"
+    "Tudo pronto! O seu cadastro na Dorote.ia está ativo. 💛\n\n"
     "Você já faz parte da nossa central de indicações de confiança. Como a nossa rede "
     "cresce através das conexões, o que deseja fazer primeiro?"
 )
@@ -235,7 +235,7 @@ BUSCAR_SEM_REDE = (
     "🔍 *Buscar profissional*\n\n"
     "Como você ainda está montando a sua rede, ainda não tenho indicações diretas dos "
     "seus contatos de confiança. Você tem duas opções:\n\n"
-    "1️⃣ *Rede geral:* posso buscar recomendações anônimas na central Doroteia.\n"
+    "1️⃣ *Rede geral:* posso buscar recomendações anônimas na central Dorote.ia.\n"
     "2️⃣ *Monte a sua rede:* convide pessoas de confiança. Assim que elas entrarem e "
     "aceitarem a conexão, as indicações delas aparecem automaticamente para você.\n\n"
     "O que deseja fazer?"
@@ -262,8 +262,8 @@ PRESTADOR_QUERO_SER_OK = (
 # --- Prestador de servico (Fase 3) ---------------------------------------
 PRESTADOR_ACOLHIDA = (
     "Olá! 💼 Um contato que confia no seu trabalho indicou você para fazer parte da "
-    "Doroteia.\n\n"
-    "A Doroteia é uma central que conecta quem precisa de um serviço a pessoas "
+    "Dorote.ia.\n\n"
+    "A Dorote.ia é uma central que conecta quem precisa de um serviço a pessoas "
     "especialistas — como você em *{servico}*. Quando alguém da rede precisar e receber "
     "a sua indicação, o seu contato vai só para essa pessoa. Ninguém te manda mensagem "
     "por aqui.\n\n"

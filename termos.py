@@ -1,6 +1,6 @@
 # termos.py
 # ===========================================================================
-# TERMOS DE USO E POLITICA DE PRIVACIDADE da Doroteia.
+# TERMOS DE USO E POLITICA DE PRIVACIDADE da Dorote.ia.
 # Servidos como pagina HTML em /termos (link que aparece na mensagem de
 # boas-vindas). O texto reflete as praticas REAIS de seguranca do produto
 # (hash HMAC dos contatos, sem guardar numero de nao-membro, etc.) e a LGPD.
@@ -14,7 +14,7 @@
 DATA_VIGENCIA = "27 de junho de 2026"
 
 # Preencha com os dados reais antes de divulgar publicamente.
-CONTROLADOR = "Doroteia [AJUSTAR: nome/razao social do responsavel]"
+CONTROLADOR = "Dorote.ia [AJUSTAR: nome/razao social do responsavel]"
 CONTATO_DPO = "[AJUSTAR: e-mail de contato para questoes de privacidade]"
 
 
@@ -23,7 +23,7 @@ TERMOS_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Termos de Uso e Privacidade — Doroteia</title>
+<title>Termos de Uso e Privacidade — Dorote.ia</title>
 <style>
   :root {{ color-scheme: light dark; }}
   body {{ font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
@@ -39,10 +39,10 @@ TERMOS_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>Termos de Uso e Política de Privacidade — Doroteia 💛</h1>
+<h1>Termos de Uso e Política de Privacidade — Dorote.ia 💛</h1>
 <p class="meta">Última atualização: {data}</p>
 
-<p>A Doroteia é uma assistente no WhatsApp que ajuda você a encontrar
+<p>A Dorote.ia é uma assistente no WhatsApp que ajuda você a encontrar
 profissionais e serviços recomendados por pessoas da sua própria rede de
 confiança. Estes Termos explicam como o serviço funciona e como cuidamos dos
 seus dados, em conformidade com a <strong>Lei Geral de Proteção de Dados
@@ -71,7 +71,7 @@ retirar o consentimento a qualquer momento (veja a seção 9).</p>
 <ul>
   <li><strong>Seu nome de perfil e número do WhatsApp</strong>, para te
   identificar e conversar com você.</li>
-  <li><strong>O conteúdo das mensagens</strong> que você troca com a Doroteia,
+  <li><strong>O conteúdo das mensagens</strong> que você troca com a Dorote.ia,
   para entender seus pedidos e manter o contexto da conversa.</li>
   <li><strong>Contatos de confiança que você compartilha</strong>: guardamos
   apenas um <strong>código irreversível</strong> (hash) de cada número — não
@@ -104,12 +104,12 @@ números de telefone presentes na mensagem são substituídos por fichas
 reais</strong>.</p>
 
 <h2>6. Como funciona a rede (sem conversa direta)</h2>
-<p>A Doroteia é uma rede de <strong>indicações</strong>, não de mensagens:
+<p>A Dorote.ia é uma rede de <strong>indicações</strong>, não de mensagens:
 <strong>usuários não trocam mensagens entre si</strong> por aqui. O serviço apenas
 cruza indicações de confiança.</p>
 <ul>
   <li><strong>Descobribilidade:</strong> quem tiver o seu número e o adicionar à
-  central <strong>poderá saber que você usa a Doroteia</strong> e <strong>ver as
+  central <strong>poderá saber que você usa a Dorote.ia</strong> e <strong>ver as
   indicações que você fez</strong> — com o seu nome, se vocês forem conexão mútua
   (ambos aceitaram); de forma anônima, caso contrário.</li>
   <li>O <strong>telefone de um profissional que você indicou</strong> é
@@ -165,7 +165,7 @@ identidade</strong>, sem permitir identificar você.</p>
 <h2>11. Profissionais indicados</h2>
 <ul>
   <li><strong>Profissional Verificado:</strong> profissionais que entram pela
-  Doroteia, <strong>aceitam estes Termos</strong> e confirmam seu cadastro
+  Dorote.ia, <strong>aceitam estes Termos</strong> e confirmam seu cadastro
   (serviço, região). Recebem um selo de verificado e controlam o próprio perfil.</li>
   <li><strong>Referência pública (não verificada):</strong> um profissional pode
   ser indicado por um usuário a partir de <strong>contato profissional público</strong>
@@ -196,7 +196,7 @@ identidade</strong>, sem permitir identificar você.</p>
 próprio WhatsApp. A data no topo indica a versão vigente.</p>
 
 <footer>
-Doroteia — feito com 💛 para conectar pessoas de confiança.
+Dorote.ia — feito com 💛 para conectar pessoas de confiança.
 </footer>
 </body>
 </html>"""

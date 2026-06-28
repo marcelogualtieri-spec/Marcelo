@@ -356,7 +356,7 @@ def _parse_ts(valor):
 
 
 def buscar_avaliacao_pendente(membro):
-    """Devolve a indicacao pendente mais recente (com idade minima) pra Doroteia
+    """Devolve a indicacao pendente mais recente (com idade minima) pra Dorote.ia
     perguntar 'usou? como foi?'. Retorna dict {nome, servico, bairro, cidade} ou None."""
     try:
         pend = (supabase.table("indicacoes_recebidas").select("*")
@@ -416,7 +416,7 @@ def processar_contatos(membro, numeros_e164):
     """Salva os contatos como hashes no grafo e classifica em membros vs nao-membros.
 
     Retorna (total, membros_na_rede, nao_membros) onde:
-    - membros_na_rede: lista de nomes de perfil dos contatos ja na Doroteia
+    - membros_na_rede: lista de nomes de perfil dos contatos ja na Dorote.ia
     - nao_membros: lista de (indice_original, e164) dos que ainda nao sao membros
       (indice_original preserva a ficha [CONTATO_n] que a IA conhece)
     """
@@ -468,14 +468,14 @@ def obter_ou_criar_codigo(membro):
 
 
 def montar_link_convite(numero_bot, codigo=None):
-    """Link wa.me que abre a conversa com a Doroteia ja com uma saudacao escrita.
+    """Link wa.me que abre a conversa com a Dorote.ia ja com uma saudacao escrita.
 
     O codigo do convite e detalhe TECNICO e nao precisa aparecer pra quem recebe.
     - Convite a um contato especifico: a conexao ja acontece pelo numero (convite
       pendente registrado), entao a mensagem fica LIMPA, sem codigo (codigo=None).
     - Link generico de divulgacao: nao ha numero pra casar, entao ai sim o codigo
       vai junto (e o unico jeito de saber quem convidou)."""
-    mensagem = "Oi! Quero entrar na Doroteia 🙂"
+    mensagem = "Oi! Quero entrar na Dorote.ia 🙂"
     if codigo:
         mensagem += f" (convite: {codigo})"
     return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
@@ -492,7 +492,7 @@ def membro_por_codigo(codigo):
 
 
 def nome_do_convidante(invited_by_id):
-    """Nome de perfil de quem convidou — pra Doroteia dar boas-vindas calorosas
+    """Nome de perfil de quem convidou — pra Dorote.ia dar boas-vindas calorosas
     citando a pessoa e deixar a conexao transparente."""
     if not invited_by_id:
         return ""
@@ -720,8 +720,8 @@ def _ferr_buscar(membro, entrada):
                 f"{local}, mas de FORA da rede dela (NAO revele quem indicou), JA ORDENADAS "
                 "pelas mais bem avaliadas. Apresente mantendo o telefone EXATO, destacando a "
                 "avaliacao quando houver. AO FINAL, acrescente exatamente esta frase: "
-                "'Este profissional foi validado pela rede Doroteia. Se voce encontrar alguem "
-                "de confianca para esse servico, nao esqueca de registrar aqui para fortalecer "
+                "'Este profissional foi validado pela rede Dorote.ia. Se você encontrar alguém "
+                "de confiança para esse serviço, não esqueça de registrar aqui para fortalecer "
                 "a base! 💛':\n" + "\n".join(linhas))
 
     registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
@@ -823,13 +823,13 @@ def _ferr_adicionar_contatos(membro, numeros):
     # Quem ja e membro: anunciar com entusiasmo.
     if qtd_membros == 1:
         linhas.append(
-            f"OTIMA DESCOBERTA: {membros_na_rede[0]} JA usa a Doroteia! "
+            f"OTIMA DESCOBERTA: {membros_na_rede[0]} JA usa a Dorote.ia! "
             "Compartilhe com entusiasmo — elas estao conectadas."
         )
     elif qtd_membros > 1:
         nomes = ", ".join(membros_na_rede)
         linhas.append(
-            f"OTIMA DESCOBERTA: {qtd_membros} desses JA usam a Doroteia: {nomes}! "
+            f"OTIMA DESCOBERTA: {qtd_membros} desses JA usam a Dorote.ia: {nomes}! "
             "Compartilhe com entusiasmo — ela ja esta conectada a todas."
         )
 
@@ -855,7 +855,7 @@ def _ferr_adicionar_contatos(membro, numeros):
                            "mande esses contatos de novo pra gerar os links deles.)")
 
         linhas.append(
-            f"Ja preparei os convites para os {qtd_fora} que ainda nao usam a Doroteia. "
+            f"Ja preparei os convites para os {qtd_fora} que ainda nao usam a Dorote.ia. "
             "Entregue cada link pra pessoa certa, TROCANDO [CONTATO_n] pelo nome "
             "(voce sabe quem e cada ficha). Links (copie EXATOS):\n"
             + "\n".join(linhas_links) + aviso_extra
@@ -1001,17 +1001,17 @@ def _ferr_ver_rede(membro):
 
     if not conectados:
         return (f"Ela tem {total_contatos} contato(s) na rede (em codigo), mas nenhum "
-                "usa a Doroteia ainda. Pergunte se ela quer convidar alguns agora.")
+                "usa a Dorote.ia ainda. Pergunte se ela quer convidar alguns agora.")
 
     nomes = "\n".join(f"- {n}" for n in conectados)
     fora = total_contatos - len(conectados)
     extra = f" ({fora} ainda nao usa(m))" if fora else ""
-    return (f"{len(conectados)} pessoa(s) da rede dela ja usa(m) a Doroteia{extra}. "
+    return (f"{len(conectados)} pessoa(s) da rede dela ja usa(m) a Dorote.ia{extra}. "
             "Apresente com entusiasmo — essas pessoas ja estao conectadas a ela:\n" + nomes)
 
 
 def _ferr_ver_buscas(membro):
-    """Lista as ultimas buscas que a pessoa fez na Doroteia."""
+    """Lista as ultimas buscas que a pessoa fez na Dorote.ia."""
     try:
         buscas = (supabase.table("searches")
                   .select("servico, bairro, cidade, resultado")
@@ -1071,7 +1071,7 @@ def _ferr_avaliar(membro, entrada):
                     reverse=True)
     ind, prestador = candidatos[0]
 
-    # Pessoa nao chegou a usar: marca dispensada pra Doroteia parar de perguntar.
+    # Pessoa nao chegou a usar: marca dispensada pra Dorote.ia parar de perguntar.
     if usou is False:
         supabase.table("indicacoes_recebidas").update({
             "status": "dispensada",
@@ -1128,7 +1128,7 @@ def _ferr_enviar_botoes(entrada, interativa_enviada):
 
 
 def _notificar_convidante(novo_membro):
-    """Avisa quem convidou que seu contato acabou de entrar na Doroteia."""
+    """Avisa quem convidou que seu contato acabou de entrar na Dorote.ia."""
     try:
         convidante = buscar_membro_por_id(novo_membro.get("invited_by"))
         if not convidante or not convidante.get("consent"):
@@ -1136,7 +1136,7 @@ def _notificar_convidante(novo_membro):
         primeiro_nome = ((novo_membro.get("nome_perfil") or "").split() or [""])[0]
         nome_exibir = primeiro_nome or "Alguem que voce convidou"
         texto = (
-            f"Boa noticia! 🎉 *{nome_exibir}* acabou de entrar na Doroteia pelo seu convite. "
+            f"Boa noticia! 🎉 *{nome_exibir}* acabou de entrar na Dorote.ia pelo seu convite. "
             "Voces dois ja estao conectados na rede de confianca!"
         )
         phone_number_id = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
@@ -1148,7 +1148,7 @@ def _notificar_convidante(novo_membro):
 def construir_executor(membro, interativa_enviada):
     """Devolve a funcao que a IA usa pra disparar acoes. Mantem o consentimento
     como porteiro: sem consent, so 'registrar_consentimento' funciona."""
-    # enviar_botoes nao toca dados — e justamente como a Doroteia PEDE o consentimento.
+    # enviar_botoes nao toca dados — e justamente como a Dorote.ia PEDE o consentimento.
     # Bloquea-lo aqui criava um deadlock (modelo chamava botoes -> gate recusava ->
     # loop -> "me perdi"). Por isso fica liberado mesmo sem consent.
     LIVRES_SEM_CONSENT = ("registrar_consentimento", "enviar_botoes")
@@ -1213,7 +1213,7 @@ def _ferr_registrar_ajuda(membro, entrada):
     # Aviso a equipe (so funciona se a equipe tiver falado com o bot nas ultimas 24h).
     if SUPORTE_WA_ID:
         try:
-            aviso = (f"🆘 *Pedido de ajuda na Doroteia*\n"
+            aviso = (f"🆘 *Pedido de ajuda na Dorote.ia*\n"
                      f"De: {nome or 'sem nome'} ({membro.get('wa_id')})\n\n{mensagem}")
             enviar_mensagem_meta(SUPORTE_WA_ID, aviso,
                                  g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID)
@@ -1348,7 +1348,7 @@ def _enviar_nudge_contatos():
             primeiro_nome = ((membro.get("nome_perfil") or "").split() or [""])[0]
             saudacao = f"Oi, {primeiro_nome}!" if primeiro_nome else "Oi!"
             texto = (
-                f"{saudacao} 😊 Voce ainda nao tem contatos na sua rede da Doroteia. "
+                f"{saudacao} 😊 Voce ainda nao tem contatos na sua rede da Dorote.ia. "
                 "E ai que a magica acontece — quanto mais gente de confianca voce trouxer, "
                 "melhores as indicacoes que aparecem pra voce! "
                 "Manda alguns pelo clipe 📎 do WhatsApp, pode ser varios de uma vez. 💛"
@@ -1562,7 +1562,7 @@ def extrair_codigo_prestador(texto):
 
 
 def montar_link_prestador(numero_bot, servico):
-    mensagem = f"Ola! Quero fazer parte da Doroteia como profissional (prestador: {servico})"
+    mensagem = f"Ola! Quero fazer parte da Dorote.ia como profissional (prestador: {servico})"
     return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
 
 
@@ -1861,7 +1861,7 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
         criar_membro(wa_id, nome_perfil, invited_by)
         membro = buscar_membro(wa_id)
 
-    # Convite: enquanto a pessoa nao consentiu, a Doroteia da as boas-vindas
+    # Convite: enquanto a pessoa nao consentiu, a Dorote.ia da as boas-vindas
     # citando quem a convidou (a conexao ja esta feita via invited_by). Isso vale
     # mesmo se ela voltar depois sem ter consentido na primeira vez.
     if not membro.get("consent") and membro.get("invited_by"):
@@ -1888,7 +1888,7 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     if not primeiro_contato and rotear_menu(membro, texto_recebido, button_id):
         return
 
-    # Se houver uma indicacao antiga ainda sem nota, a Doroteia pode puxar o
+    # Se houver uma indicacao antiga ainda sem nota, a Dorote.ia pode puxar o
     # follow-up ("usou? como foi?") com naturalidade nesta conversa.
     membro["avaliacao_pendente"] = buscar_avaliacao_pendente(membro)
 
@@ -1934,7 +1934,7 @@ def redirecionar_link(codigo):
 
 @app.route("/", methods=["GET"])
 def home():
-    return "A Doroteia esta viva! 🎉"
+    return "A Dorote.ia esta viva! 🎉"
 
 
 if __name__ == "__main__":
