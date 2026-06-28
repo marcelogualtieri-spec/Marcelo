@@ -436,17 +436,11 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
     historico = list(membro.get("historico") or [])
     consentiu = bool(membro.get("consent"))
 
-    # PRIMEIRO CONTATO: manda a mensagem de boas-vindas FIXA (verbatim) + botoes de
-    # aceite, SEM passar pela IA — assim ela nao reescreve nem inventa nada.
+    # PRIMEIRO CONTATO: manda SO a mensagem de boas-vindas FIXA (verbatim), numa
+    # mensagem unica. A propria mensagem pede pra responder SIM ou SABER MAIS — entao
+    # nao mandamos botoes junto (evita duas mensagens de uma vez) e esperamos a resposta.
     if not consentiu and len(historico) == 0:
         enviar_texto(_limpar_markdown(BOAS_VINDAS))
-        executar_ferramenta("enviar_botoes", {
-            "texto": "👇 Posso comecar a te ajudar?",
-            "botoes": [
-                {"id": "consent_sim", "label": "SIM, aceito 💛"},
-                {"id": "consent_saber_mais", "label": "Saber mais"},
-            ],
-        }, numeros)
         salvar_historico([
             {"role": "user", "content": conteudo_usuario},
             {"role": "assistant", "content": BOAS_VINDAS},

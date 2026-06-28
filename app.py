@@ -1395,13 +1395,6 @@ def enviar_confirmar_exclusao():
          {"id": "apagar_nao", "label": "Cancelar"}])
 
 
-def enviar_botoes_consent(texto=None):
-    enviar_botoes_meta(
-        texto or "Pra comecar, preciso do seu aceite aos termos 💛",
-        [{"id": "consent_sim",        "label": "SIM, aceito 💛"},
-         {"id": "consent_saber_mais", "label": "Saber mais"}])
-
-
 def _resumo_dados_texto(membro):
     nome = (membro.get("nome_perfil") or "").strip() or "(sem nome)"
     n_contatos = contar("edges", membro["id"])
@@ -1435,7 +1428,7 @@ def rotear_menu(membro, texto, button_id):
     cmd = (button_id or re.sub(r"\s+", " ", (texto or "").strip().lower()))
     consentiu = bool(membro.get("consent"))
 
-    # -------- Antes do aceite --------
+    # -------- Antes do aceite (so TEXTO, uma mensagem por vez) --------
     if not consentiu:
         if cmd == "consent_sim" or cmd in ACEITES_TXT:
             registrar_consentimento(membro["wa_id"])
@@ -1446,11 +1439,11 @@ def rotear_menu(membro, texto, button_id):
                 "Que bom ter voce comigo! 💛 Anotei seu aceite.\n\nO que voce precisa agora?")
             return True
         if cmd == "consent_saber_mais" or "saber mais" in cmd:
-            resposta_whatsapp(t.SABER_MAIS)
-            enviar_botoes_consent()
+            resposta_whatsapp(t.SABER_MAIS)   # a propria mensagem ja pede o SIM
             return True
-        # Qualquer outra coisa antes do aceite: repete o pedido com botoes.
-        enviar_botoes_consent()
+        # Qualquer outra coisa antes do aceite: um lembrete curto, em texto.
+        resposta_whatsapp("Pra comecar, responda *SIM* para aceitar os termos, ou digite "
+                          "*SABER MAIS* se quiser entender melhor. 💛")
         return True
 
     # -------- Depois do aceite: navegacao --------
