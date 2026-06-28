@@ -61,6 +61,10 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrende
 CRON_SECRET            = os.environ.get("CRON_SECRET", "")
 WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
 
+# Numero (so digitos, com DDI) que recebe os pedidos de ajuda/suporte. Opcional:
+# sem ele, os pedidos so ficam registrados na tabela 'suporte' para a equipe ver.
+SUPORTE_WA_ID = re.sub(r"\D", "", os.environ.get("SUPORTE_WA_ID", ""))
+
 
 
 def assinatura_meta_valida():
@@ -1160,10 +1164,40 @@ def construir_executor(membro, interativa_enviada):
             return _ferr_excluir(membro, entrada)
         if nome == "avaliar_indicacao":
             return _ferr_avaliar(membro, entrada)
+        if nome == "registrar_ajuda":
+            return _ferr_registrar_ajuda(membro, entrada)
         if nome == "enviar_botoes":
             return _ferr_enviar_botoes(entrada, interativa_enviada)
         return "Ferramenta desconhecida."
     return executar
+
+
+def _ferr_registrar_ajuda(membro, entrada):
+    """Registra um pedido de ajuda e avisa a equipe (se houver numero configurado)."""
+    mensagem = (entrada.get("mensagem") or "").strip()
+    if not mensagem:
+        return "Faltou o relato. Pergunte com gentileza o que aconteceu."
+    nome = (membro.get("nome_perfil") or "").strip()
+    try:
+        supabase.table("suporte").insert({
+            "member_id": membro["id"], "wa_id": membro.get("wa_id"),
+            "nome": nome or None, "mensagem": mensagem,
+        }).execute()
+    except Exception:
+        traceback.print_exc()
+    # Aviso a equipe (so funciona se a equipe tiver falado com o bot nas ultimas 24h).
+    if SUPORTE_WA_ID:
+        try:
+            aviso = (f"🆘 *Pedido de ajuda na Doroteia*\n"
+                     f"De: {nome or 'sem nome'} ({membro.get('wa_id')})\n\n{mensagem}")
+            enviar_mensagem_meta(SUPORTE_WA_ID, aviso,
+                                 g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID)
+        except Exception:
+            traceback.print_exc()
+    return ("Pedido de ajuda registrado e encaminhado para a equipe. Responda com acolhimento "
+            "e tom proximo: diga que recebeu, que ja encaminhou para alguem da equipe e que, se "
+            "precisar de retorno, a equipe responde por aqui em breve. Ofereca o MENU pra "
+            "continuar enquanto isso. Nao prometa prazo exato.")
 
 
 # ===========================================================================
@@ -1399,12 +1433,38 @@ def enviar_submenu_dados():
     ])
 
 
-def enviar_confirmar_exclusao():
-    enviar_botoes_meta(
-        "Tem certeza de que quer apagar TUDO? Isso remove seu cadastro, sua rede e suas "
-        "indicações — e não dá para desfazer.",
-        [{"id": "apagar_sim", "label": "Sim, apagar"},
-         {"id": "apagar_nao", "label": "Cancelar"}])
+def _perfil_tipo(membro):
+    """'cliente', 'profissional' ou 'hibrido' — para diferenciar a saida."""
+    prest = provider_do_membro(membro["id"])
+    tem_prof = bool(prest and prest.get("status") in PRESTADOR_ATIVO_STATUS)
+    if not tem_prof:
+        return "cliente"
+    tem_cliente = contar("edges", membro["id"]) > 0 or contar("recommendations", membro["id"]) > 0
+    return "hibrido" if tem_cliente else "profissional"
+
+
+def enviar_confirmar_exclusao(membro):
+    tipo = _perfil_tipo(membro)
+    if tipo == "hibrido":
+        enviar_botoes_meta(t.SAIR_HIBRIDO, [
+            {"id": "apagar_sim",     "label": "✅ Sair de tudo"},
+            {"id": "sair_um_perfil", "label": "⚙️ Ficar com 1 perfil"},
+            {"id": "apagar_nao",     "label": "💛 Quero ficar"},
+        ])
+    else:
+        texto = t.SAIR_PROFISSIONAL if tipo == "profissional" else t.SAIR_CLIENTE
+        enviar_botoes_meta(texto, [
+            {"id": "apagar_sim", "label": "✅ Confirmar saída"},
+            {"id": "apagar_nao", "label": "💛 Quero ficar"},
+        ])
+
+
+def enviar_escolha_ficar_um_perfil():
+    enviar_botoes_meta("Qual perfil você quer manter?", [
+        {"id": "sair_so_cliente", "label": "🔍 Só Cliente"},
+        {"id": "sair_so_prof",    "label": "💼 Só Profissional"},
+        {"id": "apagar_nao",      "label": "🔙 Voltar"},
+    ])
 
 
 def _resumo_dados_texto(membro):
@@ -1500,7 +1560,7 @@ def enviar_menu_prestador():
 TOOLS_TERMINAIS = {
     "buscar_servico", "salvar_recomendacao", "adicionar_contatos", "convidar_pessoa",
     "gerar_link_convite", "ver_meus_dados", "ver_minhas_indicacoes",
-    "ver_minha_rede", "ver_minhas_buscas", "avaliar_indicacao",
+    "ver_minha_rede", "ver_minhas_buscas", "avaliar_indicacao", "registrar_ajuda",
 }
 
 ACEITES_TXT = {"sim", "aceito", "aceitar", "concordo", "pode ser", "bora", "ok",
@@ -1523,6 +1583,14 @@ def rotear_menu(membro, texto, button_id):
     # Os botoes de confirmacao vem PRIMEIRO; senao o gatilho generico de "apagar"
     # capturaria 'apagar_sim'/'apagar_nao' e a confirmacao entraria em loop.
     if cmd == "apagar_sim":
+        # Sair de tudo: tira o perfil profissional das buscas e apaga o cadastro.
+        prest = provider_do_membro(membro["id"])
+        if prest:
+            try:
+                supabase.table("providers").update(
+                    {"status": "removido", "member_id": None}).eq("id", prest["id"]).execute()
+            except Exception:
+                traceback.print_exc()
         excluir_membro(membro)
         resposta_whatsapp(t.ADEUS)
         return True
@@ -1531,8 +1599,29 @@ def rotear_menu(membro, texto, button_id):
         if consentiu:
             enviar_menu_principal()
         return True
+    if cmd == "sair_um_perfil":
+        enviar_escolha_ficar_um_perfil()
+        return True
+    if cmd == "sair_so_cliente":
+        prest = provider_do_membro(membro["id"])
+        if prest:
+            supabase.table("providers").update(
+                {"status": "removido"}).eq("id", prest["id"]).execute()
+        resposta_whatsapp("Pronto! 💛 Mantivemos apenas o seu perfil de cliente. "
+                          "Você não será mais recomendado como profissional.")
+        enviar_menu_principal()
+        return True
+    if cmd == "sair_so_prof":
+        try:
+            supabase.table("edges").delete().eq("member_id", membro["id"]).execute()
+        except Exception:
+            traceback.print_exc()
+        resposta_whatsapp("Pronto! 💼 Mantivemos apenas o seu perfil profissional. "
+                          "As suas conexões de cliente foram removidas.")
+        enviar_menu_prestador()
+        return True
     if cmd in ("sair", "dados_apagar") or re.search(r"\b(apagar|excluir|deletar)\b", cmd):
-        enviar_confirmar_exclusao()
+        enviar_confirmar_exclusao(membro)
         return True
 
     # -------- Prestador de servico: onboarding e perfil --------

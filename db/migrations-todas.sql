@@ -1,5 +1,5 @@
 -- ============================================================================
--- MIGRAÇÕES v2 → v10 — cole TUDO de uma vez no SQL Editor do Supabase
+-- MIGRAÇÕES v2 → v11 — cole TUDO de uma vez no SQL Editor do Supabase
 -- ----------------------------------------------------------------------------
 -- Execute ANTES do deploy do código novo. É seguro rodar mais de uma vez
 -- (tudo usa IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
@@ -14,6 +14,7 @@
 --   v8 -> nudge pós-onboarding para adicionar contatos
 --   v9 -> comunidades (etiquetar membros por grupo de WhatsApp)
 --   v10 -> perfil de prestador de serviço (cadastro ativo + consentimento)
+--   v11 -> canal de ajuda/suporte (encaminhar problema para a equipe)
 -- ============================================================================
 
 
@@ -171,3 +172,20 @@ alter table providers add column if not exists termos_versao     text;
 
 create index if not exists idx_providers_member on providers (member_id);
 create index if not exists idx_providers_status on providers (status);
+
+
+-- ============================================================================
+-- v11 — canal de ajuda/suporte (encaminhar problema para a equipe)
+-- ============================================================================
+
+create table if not exists suporte (
+    id         uuid primary key default gen_random_uuid(),
+    member_id  uuid references members(id) on delete set null,
+    wa_id      text,
+    nome       text,
+    mensagem   text not null,
+    status     text not null default 'aberto',
+    created_at timestamptz not null default now()
+);
+
+create index if not exists idx_suporte_status on suporte (status, created_at desc);

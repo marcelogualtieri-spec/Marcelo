@@ -177,6 +177,14 @@ REGRA DE OURO DAS FERRAMENTAS:
 - Telefones e links que vierem de uma ferramenta devem ser copiados na sua
   resposta EXATAMENTE como vieram, caractere por caractere. Nunca altere digitos.
 
+AJUDA E SUPORTE:
+- Se a pessoa pedir AJUDA e relatar um problema, primeiro tente resolver voce mesma quando
+  for uma duvida simples de uso (como buscar, indicar, convidar, sair...).
+- Se for um PROBLEMA de verdade (bug, reclamacao, algo travado, ou algo que voce nao
+  resolve), use a ferramenta 'registrar_ajuda' com um resumo claro do que aconteceu. Depois,
+  avise com acolhimento que voce ja encaminhou para a equipe e que, se precisar de retorno,
+  respondem por aqui em breve. Nunca prometa prazo exato nem invente solucao.
+
 NUNCA INVENTE PROCESSOS QUE NAO EXISTEM:
 - Nao existe "equipe da Doroteia", "central", "suporte", "cadastro de organizadora",
   formulario, e-mail ou contato externo. Voce NUNCA deve mandar a pessoa "falar com a
@@ -335,6 +343,22 @@ FERRAMENTAS = [
                 "comentario": {"type": "string", "description": "comentario livre dela (opcional)"},
             },
             "required": ["nome", "usou"],
+        },
+    },
+    {
+        "name": "registrar_ajuda",
+        "description": "Encaminha um pedido de ajuda/suporte para a equipe humana. Use quando "
+                       "a pessoa relatar um PROBLEMA, BUG, RECLAMACAO ou algo que voce nao "
+                       "consegue resolver sozinha (especialmente depois de ela digitar AJUDA e "
+                       "contar o que aconteceu). NAO use para duvidas simples de como usar a "
+                       "Doroteia — essas voce mesma responde.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "mensagem": {"type": "string",
+                             "description": "resumo claro do problema relatado pela pessoa"},
+            },
+            "required": ["mensagem"],
         },
     },
 ]
