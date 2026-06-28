@@ -107,3 +107,53 @@ def extrair_recomendacao(texto):
     except Exception as erro:
         print(f"[NLU] erro ao interpretar a recomendacao: {erro}")
         return {"nome": "", "telefone": "", "servico": "", "bairro": "", "cidade": "", "estado": ""}
+
+
+# ---------------------------------------------------------------------------
+# Fluxo deterministico de INDICACAO: separa, de um texto solto "como num grupo",
+# o servico, o bairro/regiao e o motivo (detalhe) da indicacao. O nome quase
+# sempre ja foi capturado antes, mas e lido se a pessoa o repetir (correcao).
+# ---------------------------------------------------------------------------
+_INSTRUCOES_IND = (
+    "Voce recebe uma mensagem em portugues do Brasil onde alguem esta INDICANDO um "
+    "profissional para uma rede de confianca. Extraia quatro campos (deixe vazio o que "
+    "nao aparecer):\n"
+    "- 'nome': nome do profissional. Normalmente NAO aparece nesta mensagem; so "
+    "preencha se estiver claro.\n"
+    "- 'servico': o que a pessoa faz, no singular e minusculo (ex: 'eletricista', "
+    "'manicure', 'professor de ingles').\n"
+    "- 'bairro': regiao de atendimento, como veio (ex: 'Pinheiros', 'cidade toda', "
+    "'nao sei').\n"
+    "- 'detalhe': o motivo/elogio da indicacao, resumido com as palavras da propria "
+    "pessoa (ex: 'fez os doces do batizado, caprichou e foi pontual')."
+)
+
+_ESQUEMA_IND = {
+    "type": "object",
+    "properties": {
+        "nome":    {"type": "string"},
+        "servico": {"type": "string"},
+        "bairro":  {"type": "string"},
+        "detalhe": {"type": "string"},
+    },
+    "required": ["nome", "servico", "bairro", "detalhe"],
+    "additionalProperties": False,
+}
+
+
+def extrair_indicacao(texto):
+    """Le um texto de indicacao e devolve {nome, servico, bairro, detalhe}.
+    Em caso de erro, devolve tudo vazio (o fluxo pede pra reenviar)."""
+    try:
+        resposta = _cliente.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=400,
+            system=_INSTRUCOES_IND,
+            messages=[{"role": "user", "content": texto}],
+            output_config={"format": {"type": "json_schema", "schema": _ESQUEMA_IND}},
+        )
+        bloco_texto = next(b for b in resposta.content if b.type == "text")
+        return json.loads(bloco_texto.text)
+    except Exception as erro:
+        print(f"[NLU] erro ao interpretar a indicacao: {erro}")
+        return {"nome": "", "servico": "", "bairro": "", "detalhe": ""}

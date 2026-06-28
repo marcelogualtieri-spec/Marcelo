@@ -28,6 +28,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from privacidade import calcular_contact_hash, normalizar_e164
 import cerebro
+import nlu
 import textos as t
 import termos
 
@@ -144,10 +145,12 @@ def marcar_lido_digitando(message_id, phone_number_id):
         print(f"[META] indicador de digitando falhou: {e!r}")
 
 
-def _post_interativa(corpo_interativo):
-    """Envia mensagem interativa (botoes) pela Cloud API."""
-    to = g.get("to")
-    phone_number_id = g.get("phone_number_id")
+def _post_interativa(corpo_interativo, to=None, phone_number_id=None):
+    """Envia mensagem interativa (botoes) pela Cloud API.
+    Sem `to`/`phone_number_id`, usa o contexto da conversa atual (g). Com eles,
+    envia para outra pessoa (ex.: avisar quem indicou)."""
+    to = to or g.get("to")
+    phone_number_id = phone_number_id or g.get("phone_number_id")
     if not (WHATSAPP_TOKEN and phone_number_id and to):
         return
     url = f"{GRAPH_API}/{phone_number_id}/messages"
@@ -169,7 +172,7 @@ def _post_interativa(corpo_interativo):
         print(f"[META] falha ao enviar interativa: {e!r}")
 
 
-def enviar_botoes_meta(texto, botoes):
+def enviar_botoes_meta(texto, botoes, to=None, phone_number_id=None):
     """Envia mensagem com até 3 botões clicáveis via Cloud API.
     botoes: [{"id": str, "label": str}]"""
     print(f"[RESP-BTN] {texto[:60]!r}")
@@ -182,7 +185,7 @@ def enviar_botoes_meta(texto, botoes):
                 for b in botoes[:3]
             ]
         },
-    })
+    }, to=to, phone_number_id=phone_number_id)
 
 
 def _e164(bruto):
@@ -316,6 +319,36 @@ def registrar_busca(servico, bairro, cidade, resultado, member_id=None):
 
 def excluir_membro(membro):
     supabase.table("members").delete().eq("id", membro["id"]).execute()
+
+
+# --- Estado de fluxo (multi-passo, deterministico) --------------------------
+# Guardado como JSON na coluna members.estado. Ex.: o cliente indicando um
+# profissional passa por contato -> detalhes -> validacao antes de gerar o link.
+def _fluxo_get(membro):
+    bruto = membro.get("estado")
+    if not bruto:
+        return {}
+    try:
+        dados = json.loads(bruto)
+        return dados if isinstance(dados, dict) else {}
+    except Exception:
+        return {}
+
+
+def _fluxo_set(membro, dados):
+    membro["estado"] = json.dumps(dados, ensure_ascii=False)
+    try:
+        supabase.table("members").update({"estado": membro["estado"]}).eq("id", membro["id"]).execute()
+    except Exception:
+        traceback.print_exc()
+
+
+def _fluxo_limpar(membro):
+    membro["estado"] = None
+    try:
+        supabase.table("members").update({"estado": None}).eq("id", membro["id"]).execute()
+    except Exception:
+        traceback.print_exc()
 
 
 # ===========================================================================
@@ -629,8 +662,10 @@ def executar_busca(pedidor, servico, bairro, cidade):
         prestador = buscar_provider(rec["provider_id"])
         if prestador is None:
             continue
-        # Profissional que pediu para sair ou pausou nao aparece nas buscas.
-        if prestador.get("status") in ("removido", "pausado"):
+        # Regra de ouro: so aparece quem ESTA ATIVO — ou seja, quem entrou,
+        # consentiu e completou o perfil. Quem foi apenas indicado ('convidado'),
+        # esta em onboarding, pausou ou saiu nao aparece nas buscas.
+        if prestador.get("status") != "ativo":
             continue
 
         pid = prestador["id"]
@@ -774,43 +809,46 @@ def _enviar_alertas_busca_vermelha(recomendador, servico, cidade):
         traceback.print_exc()
 
 
-def _ferr_recomendar(membro, entrada, numeros):
-    nome     = (entrada.get("nome")    or "").strip() or "Prestador"
+def _ferr_recomendar(membro, entrada, numeros, interativa_enviada):
+    """Regra de ouro: o profissional precisa CONSENTIR antes de ser indicado.
+
+    Por isso a IA NAO grava mais uma indicacao 'ao vivo'. Ela so abre o fluxo
+    deterministico (guiado por botoes): valida os dados com o cliente e, no fim,
+    gera um link de convite para o profissional entrar e aceitar. A indicacao so
+    passa a valer quando o profissional entra e o cliente confirma."""
+    nome     = (entrada.get("nome")    or "").strip()
     servico  = (entrada.get("servico") or "").strip().lower()
     bairro   = (entrada.get("bairro")  or "").strip()
-    cidade   = (entrada.get("cidade")  or "").strip()
-    estado   = (entrada.get("estado")  or "").strip()
+    detalhe  = (entrada.get("nota") or entrada.get("detalhe") or "").strip()
     telefone = _resolver_ficha(entrada.get("telefone"), numeros)
 
+    # Sem telefone valido: comeca pedindo o contato.
     if not telefone:
-        return "Nao recebi um telefone valido do prestador. Peca o numero (com DDD) ou o contato."
-    if not (servico and cidade):
-        return "Faltou servico ou cidade do prestador. Pergunte o que faltar."
+        _fluxo_set(membro, {"fluxo": "indicar", "passo": "contato",
+                            "nome": nome, "servico": servico,
+                            "bairro": bairro, "detalhe": detalhe})
+        enviar_botoes_meta(t.INDICAR_INICIO, [{"id": "menu", "label": "🏠 Menu"}])
+        interativa_enviada[0] = True
+        return "Fluxo de indicacao iniciado (pedindo o contato). Nao escreva mais nada."
 
-    prestador = supabase.table("providers").insert({
-        "nome": nome, "telefone": telefone, "servico": servico,
-        "bairro": bairro, "cidade": cidade, "estado": estado,
-    }).execute().data[0]
-    supabase.table("recommendations").insert({
-        "member_id": membro["id"], "provider_id": prestador["id"],
-        "servico": servico, "bairro": bairro, "cidade": cidade,
-    }).execute()
+    nome = nome or "essa pessoa"
+    fluxo = {"fluxo": "indicar", "nome": nome, "telefone": telefone,
+             "servico": servico, "bairro": bairro or "não informado", "detalhe": detalhe}
 
-    _enviar_alertas_busca_vermelha(membro, servico, cidade)
+    # Falta servico ou motivo: pede os detalhes num texto so.
+    if not (servico and detalhe):
+        fluxo["passo"] = "detalhes"
+        _fluxo_set(membro, fluxo)
+        enviar_botoes_meta(t.INDICAR_DETALHES.format(nome=nome), [{"id": "menu", "label": "🏠 Menu"}])
+        interativa_enviada[0] = True
+        return "Fluxo de indicacao iniciado (pedindo detalhes). Nao escreva mais nada."
 
-    # Link para convidar o proprio prestador a confirmar o cadastro (Fase 3).
-    numero_bot = g.get("display_phone_number") or ""
-    link_prest = encurtar_link(montar_link_prestador(numero_bot, servico)) if numero_bot else ""
-
-    local = ", ".join(p for p in [bairro, cidade] if p)
-    base = (f"Recomendacao de {nome} ({servico} em {local}) registrada com sucesso. "
-            "Agradeca a pessoa com carinho e explique que a indicacao dela vai aparecer (com o "
-            "nome dela) pra quem da rede dela precisar desse servico.")
-    if link_prest:
-        base += ("\n\nDepois, ofereca (de forma leve, sem obrigar) o link abaixo para ela "
-                 f"enviar a {nome} e convida-lo(a) a confirmar o cadastro como profissional. "
-                 "Mostre o link EXATAMENTE como veio, sozinho na linha:\n" + link_prest)
-    return base
+    # Tem tudo: valida antes de gerar o link.
+    fluxo["passo"] = "validar"
+    _fluxo_set(membro, fluxo)
+    _enviar_validacao_indicacao(membro, fluxo)
+    interativa_enviada[0] = True
+    return "Validacao da indicacao enviada por botoes. Nao escreva mais nada."
 
 
 def _ferr_adicionar_contatos(membro, numeros):
@@ -1174,7 +1212,7 @@ def construir_executor(membro, interativa_enviada):
         if nome == "buscar_servico":
             return _ferr_buscar(membro, entrada)
         if nome == "salvar_recomendacao":
-            return _ferr_recomendar(membro, entrada, numeros)
+            return _ferr_recomendar(membro, entrada, numeros, interativa_enviada)
         if nome == "adicionar_contatos":
             return _ferr_adicionar_contatos(membro, numeros)
         if nome == "convidar_pessoa":
@@ -1668,7 +1706,171 @@ MENU_TRIGGERS = {"menu", "inicio", "voltar", "home", "🏠 menu", "oi", "ola", "
 PRESTADOR_ATIVO_STATUS = {"aguardando_perfil", "ativo", "pausado"}
 
 
-def rotear_menu(membro, texto, button_id):
+# ---------------------------------------------------------------------------
+# FLUXO: CLIENTE INDICA UM PROFISSIONAL (regra de ouro — consentimento primeiro)
+# ---------------------------------------------------------------------------
+def _enviar_validacao_indicacao(membro, fluxo):
+    enviar_botoes_meta(
+        t.INDICAR_VALIDAR.format(
+            nome=fluxo.get("nome", ""), servico=fluxo.get("servico", "") or "—",
+            bairro=fluxo.get("bairro", "") or "—", detalhe=fluxo.get("detalhe", "") or "—"),
+        [{"id": "ind_certo",    "label": "✅ Está certo"},
+         {"id": "ind_corrigir", "label": "✏️ Corrigir"}])
+
+
+def _passo_indicar(membro, fluxo, texto, button_id, contatos, cmd):
+    """Conduz um passo do fluxo de indicacao. Retorna True se ja respondeu."""
+    passo = fluxo.get("passo")
+
+    # Passo 1 — receber o CONTATO (card pelo clipe ou nome+telefone digitado).
+    if passo == "contato":
+        nome, telefone = "", ""
+        if contatos:
+            telefone, nome = contatos[0][0], (contatos[0][1] or "")
+        if not telefone and texto:
+            achado = re.search(r"(\+?\d[\d\s().\-]{7,}\d)", texto)
+            if achado:
+                telefone = _e164(achado.group(1))
+                nome = texto.replace(achado.group(1), " ").strip(" -·,.\n\t")
+            if not telefone:
+                dados = nlu.extrair_recomendacao(texto)
+                telefone = _e164(dados.get("telefone", ""))
+                nome = (dados.get("nome") or nome).strip()
+        if not telefone:
+            enviar_botoes_meta(t.INDICAR_PEDIR_TELEFONE, [{"id": "menu", "label": "🏠 Menu"}])
+            return True
+        nome = (nome or fluxo.get("nome") or "").strip() or "essa pessoa"
+        fluxo.update({"passo": "detalhes", "nome": nome, "telefone": telefone})
+        _fluxo_set(membro, fluxo)
+        enviar_botoes_meta(t.INDICAR_DETALHES.format(nome=nome), [{"id": "menu", "label": "🏠 Menu"}])
+        return True
+
+    # Passo 2 — receber SERVICO + BAIRRO + MOTIVO num texto so.
+    if passo == "detalhes":
+        if not (texto or "").strip():
+            enviar_botoes_meta(
+                t.INDICAR_DETALHES.format(nome=fluxo.get("nome", "essa pessoa")),
+                [{"id": "menu", "label": "🏠 Menu"}])
+            return True
+        dados = nlu.extrair_indicacao(texto)
+        # O nome só é sobrescrito se a pessoa o repetiu (ex.: numa correção).
+        if (dados.get("nome") or "").strip():
+            fluxo["nome"] = dados["nome"].strip()
+        fluxo["servico"] = (dados.get("servico") or fluxo.get("servico") or texto).strip()
+        fluxo["bairro"]  = (dados.get("bairro") or fluxo.get("bairro") or "não informado").strip()
+        fluxo["detalhe"] = (dados.get("detalhe") or texto).strip()
+        fluxo["passo"] = "validar"
+        _fluxo_set(membro, fluxo)
+        _enviar_validacao_indicacao(membro, fluxo)
+        return True
+
+    # Passo 3 — validação (botões Está certo / Corrigir).
+    if passo == "validar":
+        if cmd == "ind_corrigir":
+            fluxo["passo"] = "detalhes"
+            _fluxo_set(membro, fluxo)
+            resposta_whatsapp(t.INDICAR_CORRIGIR.format(
+                nome=fluxo.get("nome", ""), servico=fluxo.get("servico", ""),
+                bairro=fluxo.get("bairro", ""), detalhe=fluxo.get("detalhe", "")))
+            return True
+        if cmd == "ind_certo":
+            _finalizar_indicacao(membro, fluxo)
+            return True
+        _enviar_validacao_indicacao(membro, fluxo)
+        return True
+
+    # Estado desconhecido: encerra o fluxo com segurança.
+    _fluxo_limpar(membro)
+    return False
+
+
+def _finalizar_indicacao(membro, fluxo):
+    """Cria o profissional como 'convidado', registra o convite pendente e gera o
+    link para o cliente encaminhar. A indicacao só vira recomendação quando o
+    profissional entra, aceita e o cliente confirma."""
+    telefone = fluxo.get("telefone", "")
+    nome     = (fluxo.get("nome") or "").strip() or "Profissional"
+    servico  = (fluxo.get("servico") or "").strip().lower()
+    bairro   = (fluxo.get("bairro") or "").strip() or "não informado"
+    detalhe  = (fluxo.get("detalhe") or "").strip()
+    try:
+        existente = (supabase.table("providers").select("*")
+                     .eq("telefone", telefone).limit(1).execute().data)
+        if existente:
+            prov = existente[0]
+            # Não mexe em quem já entrou/é ativo; só completa um registro 'convidado'.
+            if prov.get("status") in (None, "", "convidado", "removido"):
+                supabase.table("providers").update({
+                    "nome": nome, "servico": servico, "bairro": bairro,
+                    "cidade": "São Paulo", "descricao": detalhe, "status": "convidado",
+                }).eq("id", prov["id"]).execute()
+        else:
+            supabase.table("providers").insert({
+                "nome": nome, "telefone": telefone, "servico": servico or "serviço",
+                "bairro": bairro, "cidade": "São Paulo", "descricao": detalhe,
+                "status": "convidado",
+            }).execute()
+        # Liga o profissional a quem indicou assim que ele entrar pelo número.
+        registrar_convite_pendente(membro, telefone)
+    except Exception:
+        traceback.print_exc()
+
+    _fluxo_limpar(membro)
+    numero_bot = g.get("display_phone_number") or ""
+    link = encurtar_link(montar_link_prestador(numero_bot, servico or "serviço")) if numero_bot else ""
+    resposta_whatsapp(t.INDICAR_LINK.format(nome=nome, link=link or "(link indisponível no momento)"))
+    enviar_menu_principal()
+
+
+def _notificar_indicante(provider_membro, prest):
+    """Avisa quem indicou que o profissional entrou e pede a confirmação final."""
+    try:
+        cliente = buscar_membro_por_id(provider_membro.get("invited_by"))
+        if not cliente or not cliente.get("consent"):
+            return
+        nome = ((prest.get("nome") or "").strip()
+                or (provider_membro.get("nome_perfil") or "").strip()
+                or "a pessoa que você indicou")
+        phone_number_id = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+        enviar_botoes_meta(
+            t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome),
+            [{"id": f"ind_ok:{provider_membro['id']}", "label": "✅ Sim, confirmo"},
+             {"id": f"ind_no:{provider_membro['id']}", "label": "❌ Não conheço"}],
+            to=cliente["wa_id"], phone_number_id=phone_number_id)
+    except Exception:
+        traceback.print_exc()
+
+
+def _confirmar_indicacao(cliente, provider_member_id, confirmou):
+    """Cliente respondeu se conhece o profissional que indicou. Só agora (no 'sim')
+    a recomendação passa a valer na rede."""
+    prov = provider_do_membro(provider_member_id) if provider_member_id else None
+    nome = (prov or {}).get("nome") or "essa pessoa"
+    if not confirmou:
+        resposta_whatsapp(t.INDICAR_NEGADA.format(nome=nome))
+        enviar_menu_principal()
+        return
+    if not prov:
+        resposta_whatsapp("Não encontrei mais essa indicação por aqui. 💛")
+        enviar_menu_principal()
+        return
+    try:
+        ja = (supabase.table("recommendations").select("id")
+              .eq("member_id", cliente["id"]).eq("provider_id", prov["id"]).limit(1).execute().data)
+        if not ja:
+            supabase.table("recommendations").insert({
+                "member_id": cliente["id"], "provider_id": prov["id"],
+                "servico": prov.get("servico") or "serviço",
+                "bairro": prov.get("bairro") or "não informado",
+                "cidade": prov.get("cidade") or "São Paulo",
+            }).execute()
+    except Exception:
+        traceback.print_exc()
+    resposta_whatsapp(t.INDICAR_CONFIRMADA.format(nome=nome))
+    enviar_menu_principal()
+
+
+def rotear_menu(membro, texto, button_id, contatos=None):
     """Trata a navegacao deterministica (botoes/menus/comandos fixos).
     Retorna True se ja respondeu (nao precisa chamar a IA)."""
     cmd = (button_id or re.sub(r"\s+", " ", (texto or "").strip().lower()))
@@ -1719,6 +1921,24 @@ def rotear_menu(membro, texto, button_id):
         enviar_confirmar_exclusao(membro)
         return True
 
+    # -------- Confirmacao final da indicacao (cliente avisado que o prof. entrou) --------
+    if cmd.startswith("ind_ok:"):
+        _confirmar_indicacao(membro, cmd.split(":", 1)[1], True)
+        return True
+    if cmd.startswith("ind_no:"):
+        _confirmar_indicacao(membro, cmd.split(":", 1)[1], False)
+        return True
+
+    # -------- Fluxo ativo: o cliente esta INDICANDO um profissional --------
+    fluxo = _fluxo_get(membro)
+    if consentiu and fluxo.get("fluxo") == "indicar":
+        if cmd in ("menu", "voltar", "cancelar", "inicio") or button_id in ("menu", "voltar", "cancelar"):
+            _fluxo_limpar(membro)
+            enviar_menu_principal()
+            return True
+        if _passo_indicar(membro, fluxo, texto, button_id, contatos, cmd):
+            return True
+
     # -------- Prestador de servico: onboarding e perfil --------
     prest = provider_do_membro(membro["id"])
     if prest:
@@ -1731,6 +1951,10 @@ def rotear_menu(membro, texto, button_id):
             }).eq("id", prest["id"]).execute()
             if not membro.get("consent"):
                 registrar_consentimento(membro["wa_id"]); membro["consent"] = True
+            # Se este profissional foi INDICADO por alguem (regra de ouro), avisa
+            # quem indicou para a confirmacao final "vocês se conhecem?".
+            if membro.get("invited_by") and (prest.get("descricao") or "").strip():
+                _notificar_indicante(membro, prest)
             resposta_whatsapp(t.PRESTADOR_REFINAMENTO)
             return True
         if cmd == "prest_ajustar":
@@ -1856,12 +2080,14 @@ def rotear_menu(membro, texto, button_id):
                 {"id": "buscar_geral", "label": "🔍 Buscar rede geral"},
             ])
         else:
-            resposta_whatsapp("Me conta o que você precisa e em qual cidade. 🙂\n"
-                              "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.")
+            enviar_botoes_meta("Me conta o que você precisa e em qual cidade. 🙂\n"
+                               "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.",
+                               [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "buscar_geral":
-        resposta_whatsapp("Me conta o que você precisa e em qual cidade. 🙂\n"
-                          "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.")
+        enviar_botoes_meta("Me conta o que você precisa e em qual cidade. 🙂\n"
+                           "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.",
+                           [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "gerar_link":
         gerar_e_enviar_link_convite(membro)
@@ -1886,12 +2112,15 @@ def rotear_menu(membro, texto, button_id):
         return True
 
     if cmd == "rede_indicar":
-        resposta_whatsapp("Quem você quer recomendar? 💛\nEnvie o contato pelo clipe 📎 "
-                          "(ou escreva: nome, telefone, serviço e cidade).")
+        _fluxo_set(membro, {"fluxo": "indicar", "passo": "contato"})
+        enviar_botoes_meta(t.INDICAR_INICIO, [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "rede_convidar":
-        resposta_whatsapp("Compartilhe pelo clipe 📎 o contato de quem você quer convidar — "
-                          "ou peça *meu link* para divulgar para várias pessoas.")
+        enviar_botoes_meta(
+            "Compartilhe pelo clipe 📎 o contato de quem você quer convidar — "
+            "ou toque abaixo para gerar um link e divulgar para várias pessoas. 💛",
+            [{"id": "gerar_link", "label": "🔗 Gerar meu link"},
+             {"id": "menu",       "label": "🏠 Menu"}])
         return True
 
     if cmd == "dados_ver":
@@ -1942,7 +2171,7 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
 
     # NAVEGACAO DETERMINISTICA: botoes/menus/comandos sao tratados aqui, sem IA,
     # pra ela nao inventar fluxos. So o texto livre de captura vai pra IA.
-    if not primeiro_contato and rotear_menu(membro, texto_recebido, button_id):
+    if not primeiro_contato and rotear_menu(membro, texto_recebido, button_id, contatos_compartilhados):
         return
 
     # Se houver uma indicacao antiga ainda sem nota, a Dorote.ia pode puxar o

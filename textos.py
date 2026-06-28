@@ -93,6 +93,68 @@ PRECISA_CONSENTIR = (
 CONSENTIMENTO_OK = "Que bom ter voce comigo{voc}! 💛 Anotei seu ok.\n\n"
 
 
+# --- Fluxo: o CLIENTE indica um profissional --------------------------------
+# Regra de ouro: o profissional só é indicado depois de CONSENTIR. Ao final, a
+# Dorote.ia gera um link de convite; a indicação só passa a valer quando o
+# profissional entra, aceita os termos e o cliente confirma que se conhecem.
+INDICAR_INICIO = (
+    "Que bom! Quem você quer indicar? 💛\n\n"
+    "Toque no clipe 📎 ou no ➕ e envie o contato dessa pessoa.\n\n"
+    "Se preferir, escreva aqui o nome e o celular — assim: João, (11) 99999-8888. 💛"
+)
+
+INDICAR_PEDIR_TELEFONE = (
+    "Quase lá! 💛 Só me falta o celular dessa pessoa, com DDD.\n"
+    "Ex.: (11) 99999-8888 — ou toque no clipe 📎 e compartilhe o contato."
+)
+
+INDICAR_DETALHES = (
+    "Anotei: *{nome}*! 💛\n\n"
+    "Agora me conta em uma mensagem, como se estivesse indicando num grupo:\n\n"
+    "🔧 O que essa pessoa faz? (ex.: eletricista, manicure, aulas de inglês)\n\n"
+    "📍 Em que parte de São Paulo atende? (um bairro, vários, a cidade toda — ou \"não sei\")\n\n"
+    "💬 Por que você indica? Isso ajuda muito quem procura. "
+    "(ex.: \"fez os doces do batizado, caprichou e foi pontual\")\n\n"
+    "Pode escrever do seu jeito 💛"
+)
+
+INDICAR_VALIDAR = (
+    "Confere pra mim? 💛\n\n"
+    "👤 {nome}\n"
+    "🔧 {servico}\n"
+    "📍 {bairro}\n"
+    "💬 \"{detalhe}\""
+)
+
+INDICAR_CORRIGIR = (
+    "Sem problema 💛 Aqui está o que anotei — me reenvie corrigido, em uma mensagem:\n\n"
+    "{nome} · {servico} · {bairro} · {detalhe}"
+)
+
+INDICAR_LINK = (
+    "Prontinho! 💛 Este é o link de convite para *{nome}* entrar na Dorote.ia:\n\n"
+    "{link}\n\n"
+    "É só encaminhar para essa pessoa. Quando ela entrar e aceitar, vou te chamar "
+    "para confirmar que vocês se conhecem — aí a sua indicação passa a valer na rede. 💛"
+)
+
+# Mensagem enviada AO CLIENTE quando a pessoa indicada entra e aceita os termos.
+INDICAR_CONFIRMA_CLIENTE = (
+    "Boa notícia! 💛 *{nome}*, que você indicou, entrou na Dorote.ia.\n\n"
+    "Vocês se conhecem e você confia no trabalho dessa pessoa?"
+)
+
+INDICAR_CONFIRMADA = (
+    "Perfeito! 💛 A sua indicação de *{nome}* agora vale na rede. Quando alguém da sua "
+    "rede precisar desse serviço, a sua recomendação aparece com o seu nome."
+)
+
+INDICAR_NEGADA = (
+    "Tudo bem, obrigada por avisar! 💛 Não vou registrar essa indicação, e o contato "
+    "dessa pessoa não fica ligado a você."
+)
+
+
 # --- Contatos (telas 7.2 / 7.3) ------------------------------------------
 PEDIR_CONTATOS = (
     "Agora vamos te deixar bem servido(a) 🙌\n\n"
