@@ -925,10 +925,10 @@ def _ferr_ver_dados(membro):
         "Dados guardados sobre a pessoa (apresente de forma clara e tranquila):\n"
         f"- Nome: {membro.get('nome_perfil') or '(sem nome)'}\n"
         f"- Consentiu: {'sim' if membro.get('consent') else 'nao'}\n"
-        f"- Contatos na rede dela (em codigo, nunca o numero): {contar('edges', membro['id'])}\n"
+        f"- Contatos na rede dela (guardados com seguranca, sem expor o numero): {contar('edges', membro['id'])}\n"
         f"- Indicacoes que ela fez: {contar('recommendations', membro['id'])}\n"
-        "Reforce que os contatos ficam so em codigo embaralhado, e lembre que ela pode pedir "
-        "pra apagar tudo quando quiser."
+        "Reforce, de forma simples e proxima, que os numeros dos contatos ficam protegidos e "
+        "nunca sao compartilhados, e lembre que ela pode pedir pra apagar tudo quando quiser."
     )
 
 
@@ -1000,8 +1000,8 @@ def _ferr_ver_rede(membro):
             conectados.append(nome or "alguem")
 
     if not conectados:
-        return (f"Ela tem {total_contatos} contato(s) na rede (em codigo), mas nenhum "
-                "usa a Dorote.ia ainda. Pergunte se ela quer convidar alguns agora.")
+        return (f"Ela tem {total_contatos} contato(s) na rede (guardados com seguranca), mas "
+                "nenhum usa a Dorote.ia ainda. Pergunte se ela quer convidar alguns agora.")
 
     nomes = "\n".join(f"- {n}" for n in conectados)
     fora = total_contatos - len(conectados)
@@ -1543,11 +1543,11 @@ def _resumo_dados_texto(membro):
     linhas = [
         "📋 *Seus dados aqui comigo:*",
         f"- Nome: {nome}",
-        f"- Contatos na sua rede (em código, nunca o número): {n_contatos}",
+        f"- Contatos na sua rede (guardados com segurança, sem expor o número): {n_contatos}",
         f"- Indicações que você fez: {n_indic}",
     ]
     link = os.environ.get("TERMOS_URL") or (PUBLIC_BASE_URL + "/termos")
-    linhas.append("\n🔒 Nunca guardo o número dos seus contatos, só um código embaralhado.")
+    linhas.append("\n🔒 Os números dos seus contatos ficam protegidos e nunca são compartilhados.")
     linhas.append("Termos e privacidade:\n" + link)
     return "\n".join(linhas)
 

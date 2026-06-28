@@ -50,10 +50,11 @@ seus dados, em conformidade com a <strong>Lei Geral de Proteção de Dados
 
 <div class="box">
 <strong>Resumo honesto:</strong> guardamos só o seu nome e os contatos que
-<em>você</em> escolher conectar. Os contatos são guardados de forma
-embaralhada (não vemos os números). Nunca repassamos o telefone de ninguém,
-exceto o do profissional que foi indicado — que é justamente o objetivo. Você
-pode apagar tudo a qualquer momento digitando <code>SAIR</code> no chat.
+<em>você</em> escolher conectar. Os contatos ficam protegidos com segurança e
+não ficam visíveis — não vemos os números. Nunca repassamos o telefone de
+ninguém, exceto o do profissional que foi indicado — que é justamente o
+objetivo. Você pode apagar tudo a qualquer momento digitando <code>SAIR</code>
+no chat.
 </div>
 
 <h2>1. Quem é o responsável (Controlador)</h2>
