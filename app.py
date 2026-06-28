@@ -16,6 +16,7 @@ import secrets
 import string
 import traceback
 import time
+import threading
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 from urllib.request import urlopen, Request
@@ -115,6 +116,28 @@ def resposta_whatsapp(texto):
     """Envia texto pela Cloud API usando o contexto da mensagem atual (g)."""
     print(f"[RESP] {texto[:80]!r}")
     enviar_mensagem_meta(g.get("to"), texto, g.get("phone_number_id"))
+
+
+def marcar_lido_digitando(message_id, phone_number_id):
+    """Marca a mensagem como LIDA e mostra 'digitando...' pra pessoa nao achar que o
+    chat travou. O indicador some sozinho em ~25s ou quando a resposta e enviada."""
+    if not (WHATSAPP_TOKEN and phone_number_id and message_id):
+        return
+    url = f"{GRAPH_API}/{phone_number_id}/messages"
+    corpo = json.dumps({
+        "messaging_product": "whatsapp",
+        "status": "read",
+        "message_id": message_id,
+        "typing_indicator": {"type": "text"},
+    }).encode("utf-8")
+    req = Request(url, data=corpo, method="POST")
+    req.add_header("Authorization", f"Bearer {WHATSAPP_TOKEN}")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urlopen(req, timeout=10) as r:
+            r.read()
+    except Exception as e:
+        print(f"[META] indicador de digitando falhou: {e!r}")
 
 
 def _post_interativa(corpo_interativo):
@@ -1362,14 +1385,43 @@ def verificar_webhook():
     return Response("Token de verificacao invalido", status=403)
 
 
+# Dedup: ids de mensagens ja processadas (a Meta as vezes reentrega o mesmo
+# webhook, o que gerava resposta duplicada).
+_MSGS_VISTAS = set()
+_MSGS_VISTAS_MAX = 500
+
+
+def _ja_processada(msg_id):
+    if not msg_id:
+        return False
+    if msg_id in _MSGS_VISTAS:
+        return True
+    _MSGS_VISTAS.add(msg_id)
+    if len(_MSGS_VISTAS) > _MSGS_VISTAS_MAX:
+        for antigo in list(_MSGS_VISTAS)[:_MSGS_VISTAS_MAX // 2]:
+            _MSGS_VISTAS.discard(antigo)
+    return False
+
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
     if not assinatura_meta_valida():
         print("[SEGURANCA] mensagem rejeitada: assinatura invalida.")
         return Response("Assinatura invalida", status=403)
     dados = request.get_json(silent=True) or {}
-    processar_eventos(dados)
+    # Responde 200 IMEDIATAMENTE e processa em segundo plano. Assim a Meta nao
+    # reenvia o webhook (causa das mensagens duplicadas) e a pessoa nao fica esperando
+    # o servidor "acordar" pra dar o aceite.
+    threading.Thread(target=_processar_em_background, args=(dados,), daemon=True).start()
     return Response("OK", status=200)
+
+
+def _processar_em_background(dados):
+    with app.app_context():
+        try:
+            processar_eventos(dados)
+        except Exception:
+            traceback.print_exc()
 
 
 def processar_eventos(dados):
@@ -1385,6 +1437,8 @@ def processar_eventos(dados):
                 nomes[c.get("wa_id")] = (c.get("profile") or {}).get("name", "")
 
             for msg in value.get("messages", []):
+                if _ja_processada(msg.get("id")):
+                    continue
                 origem = msg.get("from", "")
                 nome_perfil = nomes.get(origem, "")
                 texto, contatos = conteudo_da_mensagem(msg)
@@ -1394,6 +1448,9 @@ def processar_eventos(dados):
                 g.to = origem
                 g.phone_number_id = phone_number_id
                 g.display_phone_number = display
+
+                # Mostra "digitando..." na hora, pra nao parecer que travou.
+                marcar_lido_digitando(msg.get("id"), phone_number_id)
 
                 wa_id = _e164(origem)
                 print(f"Mensagem de {wa_id} ({nome_perfil}): {texto!r}"
