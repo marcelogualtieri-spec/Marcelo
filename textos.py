@@ -224,6 +224,41 @@ ADEUS = (
     "Se um dia quiser voltar, é só me mandar um oi que a gente recomeça. 👋"
 )
 
+# --- Pos-consentimento e menus do cliente novo ---------------------------
+CLIENTE_ATIVO = (
+    "Tudo pronto! O seu cadastro na Doroteia está ativo. 💛\n\n"
+    "Você já faz parte da nossa central de indicações de confiança. Como a nossa rede "
+    "cresce através das conexões, o que deseja fazer primeiro?"
+)
+
+BUSCAR_SEM_REDE = (
+    "🔍 *Buscar profissional*\n\n"
+    "Como você ainda está montando a sua rede, ainda não tenho indicações diretas dos "
+    "seus contatos de confiança. Você tem duas opções:\n\n"
+    "1️⃣ *Rede geral:* posso buscar recomendações anônimas na central Doroteia.\n"
+    "2️⃣ *Monte a sua rede:* convide pessoas de confiança. Assim que elas entrarem e "
+    "aceitarem a conexão, as indicações delas aparecem automaticamente para você.\n\n"
+    "O que deseja fazer?"
+)
+
+PRESTADOR_QUERO_SER = (
+    "💼 *Quero ser um profissional indicado*\n\n"
+    "Que ótimo! Para que você seja recomendado, é fundamental que clientes reais "
+    "registrem recomendações sobre o seu trabalho. Para começar, aceite os termos de uso "
+    "profissional e configure o seu perfil."
+)
+
+PRESTADOR_QUERO_SER_OK = (
+    "Perfeito, perfil profissional iniciado! 🚀\n\n"
+    "Me conte, num texto só:\n"
+    "1️⃣ Qual *serviço* você presta (ex.: encanador, pediatra)\n"
+    "2️⃣ *Região* de atendimento\n"
+    "3️⃣ *Diferenciais* (formas de pagamento, redes sociais...)\n"
+    "4️⃣ Como você *trabalha*\n\n"
+    "Quando terminar, é só digitar *MENU*."
+)
+
+
 # --- Prestador de servico (Fase 3) ---------------------------------------
 PRESTADOR_ACOLHIDA = (
     "Olá! 💼 Um contato que confia no seu trabalho indicou você para fazer parte da "

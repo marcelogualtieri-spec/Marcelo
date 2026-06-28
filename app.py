@@ -719,8 +719,10 @@ def _ferr_buscar(membro, entrada):
         return ("RESULTADO=amarelo - ha indicacoes boas em "
                 f"{local}, mas de FORA da rede dela (NAO revele quem indicou), JA ORDENADAS "
                 "pelas mais bem avaliadas. Apresente mantendo o telefone EXATO, destacando a "
-                "avaliacao quando houver, e comente que, se ela trouxer mais gente de "
-                "confianca, essas indicacoes passam a aparecer com nome:\n" + "\n".join(linhas))
+                "avaliacao quando houver. AO FINAL, acrescente exatamente esta frase: "
+                "'Este profissional foi validado pela rede Doroteia. Se voce encontrar alguem "
+                "de confianca para esse servico, nao esqueca de registrar aqui para fortalecer "
+                "a base! 💛':\n" + "\n".join(linhas))
 
     registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
     return (f"RESULTADO=vermelho - ninguem indicou {servico} em {local} ainda. Acolha a "
@@ -1467,27 +1469,37 @@ def processar_eventos(dados):
 # ===========================================================================
 
 def enviar_menu_principal(texto=None):
-    enviar_botoes_meta(texto or "O que você precisa agora? 💛", [
-        {"id": "buscar", "label": "🔍 Buscar"},
-        {"id": "rede",   "label": "🤝 Minha rede"},
-        {"id": "dados",  "label": "🔒 Meus dados"},
+    enviar_botoes_meta(texto or "O que você deseja fazer? 💛", [
+        {"id": "rede_indicar",  "label": "⭐ Recomendar"},
+        {"id": "rede_convidar", "label": "👥 Convidar"},
+        {"id": "outras_opcoes", "label": "☰ Outras opções"},
     ])
 
 
-def enviar_submenu_rede():
-    enviar_botoes_meta("Sua rede de confiança 🤝\nO que você quer fazer?", [
-        {"id": "rede_indicar",  "label": "➕ Indicar"},
-        {"id": "rede_convidar", "label": "📨 Convidar"},
-        {"id": "menu",          "label": "🏠 Menu"},
+def enviar_outras_opcoes():
+    enviar_botoes_meta("Outras opções 💛", [
+        {"id": "buscar",        "label": "🔍 Buscar"},
+        {"id": "quero_ser_prof", "label": "💼 Ser profissional"},
+        {"id": "dados",         "label": "⚙️ Minha conta"},
     ])
 
 
 def enviar_submenu_dados():
-    enviar_botoes_meta("Seus dados e privacidade 🔒", [
-        {"id": "dados_ver",    "label": "📋 Ver dados"},
-        {"id": "dados_apagar", "label": "🗑️ Apagar tudo"},
+    enviar_botoes_meta("Minha conta ⚙️", [
+        {"id": "dados_ver",    "label": "📋 Ver meus dados"},
+        {"id": "dados_apagar", "label": "🗑️ Sair / apagar"},
         {"id": "menu",         "label": "🏠 Menu"},
     ])
+
+
+def gerar_e_enviar_link_convite(membro):
+    """Gera (deterministico) o link de convite generico e manda pra pessoa."""
+    numero_bot = g.get("display_phone_number") or ""
+    codigo = obter_ou_criar_codigo(membro)
+    link = encurtar_link(montar_link_convite(numero_bot, codigo))
+    resposta_whatsapp(
+        "Aqui está o seu link de convite! 💛 Mande para quantas pessoas de confiança quiser — "
+        "quem entrar por ele já fica ligado a você.\n\n" + link)
 
 
 def _perfil_tipo(membro):
@@ -1739,8 +1751,7 @@ def rotear_menu(membro, texto, button_id):
             membro["consent"] = True
             if membro.get("invited_by"):
                 _notificar_convidante(membro)
-            enviar_menu_principal(
-                "Que bom ter você comigo! 💛 Anotei seu aceite.\n\nO que você precisa agora?")
+            enviar_menu_principal(t.CLIENTE_ATIVO)
             return True
         if cmd == "consent_saber_mais" or "saber mais" in cmd:
             resposta_whatsapp(t.SABER_MAIS)   # a própria mensagem já pede o SIM
@@ -1764,17 +1775,61 @@ def rotear_menu(membro, texto, button_id):
     if cmd == "perfil_profissional":
         enviar_menu_prestador(); return True
 
-    if cmd == "buscar":
-        resposta_whatsapp("Me conta o que você precisa e em qual cidade. 🙂\n"
-                          "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.")
-        return True
-    if cmd == "rede":
-        enviar_submenu_rede(); return True
+    if cmd == "outras_opcoes":
+        enviar_outras_opcoes(); return True
     if cmd == "dados":
         enviar_submenu_dados(); return True
 
+    if cmd == "buscar":
+        # Cliente novo (sem rede ainda): explica e oferece montar a rede ou rede geral.
+        if contar("edges", membro["id"]) == 0:
+            enviar_botoes_meta(t.BUSCAR_SEM_REDE, [
+                {"id": "gerar_link",  "label": "🔗 Gerar meu link"},
+                {"id": "buscar_geral", "label": "🔍 Buscar rede geral"},
+            ])
+        else:
+            resposta_whatsapp("Me conta o que você precisa e em qual cidade. 🙂\n"
+                              "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.")
+        return True
+    if cmd == "buscar_geral":
+        resposta_whatsapp("Me conta o que você precisa e em qual cidade. 🙂\n"
+                          "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.")
+        return True
+    if cmd == "gerar_link":
+        gerar_e_enviar_link_convite(membro)
+        enviar_menu_principal(); return True
+
+    if cmd == "quero_ser_prof":
+        if prest:   # ja tem perfil profissional
+            resposta_whatsapp("Você já tem um perfil profissional aqui! 💼")
+            enviar_menu_prestador()
+            return True
+        enviar_botoes_meta(t.PRESTADOR_QUERO_SER, [
+            {"id": "prest_self", "label": "✅ Aceito e configuro"},
+            {"id": "menu",       "label": "🔙 Voltar"},
+        ])
+        return True
+    if cmd == "prest_self":
+        if prest:
+            enviar_menu_prestador()
+            return True
+        agora = datetime.now(timezone.utc).isoformat()
+        try:
+            telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
+            supabase.table("providers").insert({
+                "member_id": membro["id"],
+                "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
+                "telefone": telefone, "servico": "", "cidade": "",
+                "status": "aguardando_perfil",
+                "termos_aceitos_em": agora, "termos_versao": termos.DATA_VIGENCIA,
+            }).execute()
+        except Exception:
+            traceback.print_exc()
+        resposta_whatsapp(t.PRESTADOR_QUERO_SER_OK)
+        return True
+
     if cmd == "rede_indicar":
-        resposta_whatsapp("Quem você quer indicar? 💛\nEnvie o contato pelo clipe 📎 "
+        resposta_whatsapp("Quem você quer recomendar? 💛\nEnvie o contato pelo clipe 📎 "
                           "(ou escreva: nome, telefone, serviço e cidade).")
         return True
     if cmd == "rede_convidar":
