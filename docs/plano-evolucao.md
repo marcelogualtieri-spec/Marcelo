@@ -169,3 +169,30 @@ codificado no link:
   `regiao`, `diferenciais`, `descricao`.
 - `members`: flags conforme necessário.
 - Reaproveita `edges`, `short_links`, códigos de convite e o cron já existentes.
+
+---
+
+## 9. Já implementado (além do que foi listado)
+
+- **Fase 3 (prestador):** onboarding por link, aceite com registro de consentimento
+  (data/hora + versão dos Termos), refinamento de perfil, perfil dual (Cliente x
+  Profissional 💼), pausar/remover. Busca ignora `removido`/`pausado`. (migration v10)
+- **Saída diferenciada por perfil:** Cliente, Profissional ou Híbrido (sair de tudo ou
+  ficar só com um perfil), com a dica de AJUDA.
+- **Canal de AJUDA → equipe:** ferramenta `registrar_ajuda` — a IA resolve dúvidas
+  simples e encaminha problemas para a equipe (tabela `suporte`, migration v11; aviso
+  opcional em `SUPORTE_WA_ID`).
+- **Robustez do chat:** webhook responde na hora e processa em segundo plano (corrige
+  mensagens duplicadas causadas por reentrega da Meta), dedup por id de mensagem, e
+  indicador de **"digitando..."** + marcar como lida assim que a mensagem chega.
+
+## 10. Próximos (dependem das fases 1/2/4)
+
+- **Mensagem "sem recomendações" com botões** ("posso perguntar pra sua rede?",
+  "perguntar na rede geral anônimo") — depende do **broadcast** para a rede (Fase 4,
+  ligado aos templates de 24h). Hoje a busca vermelha já registra e avisa quando surge
+  uma indicação depois.
+- **"Minha conta" com histórico por opção** (agenda com conexões ativas, agenda com
+  conexões pendentes, profissionais indicados por mim, indicações que recebi) — "conexões
+  ativas/pendentes" dependem do modelo de **conexões mútuas** (Fases 1/2). As partes que
+  já existem (indicações feitas, buscas, rede) podem entrar antes.
