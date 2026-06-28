@@ -1580,18 +1580,18 @@ def iniciar_onboarding_prestador(membro, servico):
         if existente:
             prov = existente[0]
             supabase.table("providers").update(dados).eq("id", prov["id"]).execute()
-            servico_final = servico or prov.get("servico") or "seu servico"
+            servico_final = servico or prov.get("servico") or "seu serviço"
         else:
             dados.update({
                 "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
                 "telefone": telefone, "servico": servico or "", "cidade": "",
             })
             supabase.table("providers").insert(dados).execute()
-            servico_final = servico or "seu servico"
+            servico_final = servico or "seu serviço"
         enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_final), [
             {"id": "prest_aceito",  "label": "✅ Aceito e confirmo"},
-            {"id": "prest_ajustar", "label": "✏️ Ajustar servico"},
-            {"id": "prest_nao",     "label": "⛔ Nao desejo"},
+            {"id": "prest_ajustar", "label": "✏️ Ajustar serviço"},
+            {"id": "prest_nao",     "label": "⛔ Não desejo"},
         ])
     except Exception:
         traceback.print_exc()
@@ -1725,10 +1725,10 @@ def rotear_menu(membro, texto, button_id):
             if prest.get("status") == "onboarding":
                 servico_novo = (texto or "").strip().lower()
                 supabase.table("providers").update({"servico": servico_novo}).eq("id", prest["id"]).execute()
-                enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_novo or "seu servico"), [
+                enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_novo or "seu serviço"), [
                     {"id": "prest_aceito",  "label": "✅ Aceito e confirmo"},
-                    {"id": "prest_ajustar", "label": "✏️ Ajustar servico"},
-                    {"id": "prest_nao",     "label": "⛔ Nao desejo"},
+                    {"id": "prest_ajustar", "label": "✏️ Ajustar serviço"},
+                    {"id": "prest_nao",     "label": "⛔ Não desejo"},
                 ])
                 return True
 
