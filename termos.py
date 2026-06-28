@@ -88,7 +88,7 @@ retirar o consentimento a qualquer momento (veja a seção 9).</p>
 <ul>
   <li>Buscar e apresentar indicações de confiança para os serviços que você pede.</li>
   <li>Mostrar o seu nome como quem indicou <strong>apenas</strong> para pessoas
-  conectadas a você (seus contatos ou membros da mesma comunidade) — e vice-versa.</li>
+  conectadas a você (conexões mútuas) — e vice-versa.</li>
   <li>Conectar pessoas de confiança e fortalecer a rede.</li>
   <li>Lembrar você de avaliar um serviço que usou e avisar quando surgir uma
   indicação que você procurava.</li>
@@ -103,14 +103,22 @@ números de telefone presentes na mensagem são substituídos por fichas
 (ex.: <code>[CONTATO_1]</code>): <strong>a IA não recebe números de telefone
 reais</strong>.</p>
 
-<h2>6. Compartilhamento</h2>
+<h2>6. Como funciona a rede (sem conversa direta)</h2>
+<p>A Doroteia é uma rede de <strong>indicações</strong>, não de mensagens:
+<strong>usuários não trocam mensagens entre si</strong> por aqui. O serviço apenas
+cruza indicações de confiança.</p>
 <ul>
-  <li>Seu <strong>nome</strong> como recomendante é visível apenas para pessoas
-  conectadas a você.</li>
+  <li><strong>Descobribilidade:</strong> quem tiver o seu número e o adicionar à
+  central <strong>poderá saber que você usa a Doroteia</strong> e <strong>ver as
+  indicações que você fez</strong> — com o seu nome, se vocês forem conexão mútua
+  (ambos aceitaram); de forma anônima, caso contrário.</li>
   <li>O <strong>telefone de um profissional que você indicou</strong> é
-  compartilhado com quem busca aquele serviço na sua rede — esse é o propósito
-  do serviço.</li>
-  <li>Seu <strong>telefone pessoal nunca é repassado</strong> a outros usuários.</li>
+  compartilhado com quem busca aquele serviço na sua rede — esse é o propósito do
+  serviço.</li>
+  <li>Seu <strong>telefone pessoal nunca é repassado</strong> a outros usuários,
+  e ninguém consegue te mandar mensagem por aqui.</li>
+  <li><strong>Bloqueio:</strong> você pode bloquear qualquer pessoa a qualquer
+  momento para que ela não veja suas indicações nem se conecte com você.</li>
 </ul>
 
 <h2>7. Segurança</h2>
@@ -154,10 +162,36 @@ apagamos seu cadastro, suas conexões, indicações e avaliações. Registros
 estatísticos podem ser mantidos de forma <strong>desvinculada da sua
 identidade</strong>, sem permitir identificar você.</p>
 
-<h2>11. Menores de idade</h2>
+<h2>11. Profissionais indicados</h2>
+<ul>
+  <li><strong>Profissional Verificado:</strong> profissionais que entram pela
+  Doroteia, <strong>aceitam estes Termos</strong> e confirmam seu cadastro
+  (serviço, região). Recebem um selo de verificado e controlam o próprio perfil.</li>
+  <li><strong>Referência pública (não verificada):</strong> um profissional pode
+  ser indicado por um usuário a partir de <strong>contato profissional público</strong>
+  (ex.: telefone de consultório divulgado publicamente) ou antes de aderir à rede.
+  Nesse caso o tratamento se baseia no <strong>interesse legítimo</strong> e no uso de
+  <strong>dado tornado público</strong>, e a indicação é exibida como "não verificada".</li>
+  <li><strong>Direito de saída do profissional:</strong> qualquer profissional —
+  verificado ou indicado como referência pública — pode <strong>pausar ou remover
+  seu cadastro a qualquer momento</strong>, mesmo sem nunca ter aderido, falando com
+  o Encarregado (seção 1) ou pelo próprio chat.</li>
+</ul>
+
+<h2>12. Contribuição e gratuidade</h2>
+<ul>
+  <li><strong>Buscar é gratuito</strong> na versão simples: quem pede uma indicação
+  não paga por isso.</li>
+  <li>A rede só funciona se for <strong>alimentada</strong>. Por isso pode haver
+  <strong>regras de contribuição</strong> (por exemplo, adicionar contatos de
+  confiança ou registrar indicações) para liberar ou ampliar certos recursos. Essas
+  regras são informadas no app quando se aplicam.</li>
+</ul>
+
+<h2>13. Menores de idade</h2>
 <p>O serviço não é destinado a menores de 18 anos.</p>
 
-<h2>12. Alterações nestes Termos</h2>
+<h2>14. Alterações nestes Termos</h2>
 <p>Podemos atualizar estes Termos. Mudanças relevantes serão comunicadas pelo
 próprio WhatsApp. A data no topo indica a versão vigente.</p>
 
