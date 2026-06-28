@@ -1470,9 +1470,9 @@ def processar_eventos(dados):
 
 def enviar_menu_principal(texto=None):
     enviar_botoes_meta(texto or "O que você deseja fazer? 💛", [
-        {"id": "rede_indicar",  "label": "⭐ Recomendar"},
-        {"id": "rede_convidar", "label": "👥 Convidar"},
-        {"id": "outras_opcoes", "label": "☰ Outras opções"},
+        {"id": "rede_indicar",  "label": "Recomendar"},
+        {"id": "rede_convidar", "label": "Convidar quem confio"},
+        {"id": "outras_opcoes", "label": "Outras Opções"},
     ])
 
 

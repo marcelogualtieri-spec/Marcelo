@@ -227,8 +227,8 @@ ADEUS = (
 # --- Pos-consentimento e menus do cliente novo ---------------------------
 CLIENTE_ATIVO = (
     "Tudo pronto! O seu cadastro na Dorote.ia está ativo. 💛\n\n"
-    "Você já faz parte da nossa central de indicações de confiança. Como a nossa rede "
-    "cresce através das conexões, o que deseja fazer primeiro?"
+    "Você faz parte da central de indicações de confiança. Como a nossa rede cresce "
+    "através das conexões, o que deseja fazer primeiro?"
 )
 
 BUSCAR_SEM_REDE = (
