@@ -224,6 +224,48 @@ ADEUS = (
     "Se um dia quiser voltar, é só me mandar um oi que a gente recomeça. 👋"
 )
 
+# --- Prestador de servico (Fase 3) ---------------------------------------
+PRESTADOR_ACOLHIDA = (
+    "Olá! 💼 Um contato que confia no seu trabalho indicou você para fazer parte da "
+    "Doroteia.\n\n"
+    "A Doroteia é uma central que conecta quem precisa de um serviço a pessoas "
+    "especialistas — como você em *{servico}*. Quando alguém da rede precisar e receber "
+    "a sua indicação, o seu contato vai só para essa pessoa. Ninguém te manda mensagem "
+    "por aqui.\n\n"
+    "Para ativar o seu cadastro, preciso da sua autorização para usar o seu contato e a "
+    "categoria do serviço, conforme os Termos de Uso. Os seus dados serão usados apenas "
+    "para conectar você a quem busca o seu trabalho.\n\n"
+    "Deseja prosseguir?"
+)
+
+PRESTADOR_AJUSTAR = (
+    "Claro! Qual é a categoria certa do seu serviço? "
+    "Ex.: encanador, eletricista, pediatra, professor de inglês..."
+)
+
+PRESTADOR_NAO = (
+    "Tudo bem, sem problema! 💛 Não vou ativar o seu cadastro e o seu contato não será "
+    "repassado a ninguém pela rede. Se mudar de ideia, é só voltar por aqui."
+)
+
+PRESTADOR_REFINAMENTO = (
+    "Perfeito, cadastro ativo! 🚀 Agora você faz parte da nossa rede de confiança.\n\n"
+    "Para que os pedidos certos cheguem até você, me conte um pouco mais (pode enviar "
+    "tudo em um único texto):\n"
+    "1️⃣ *Região de atendimento* — toda São Paulo ou bairros específicos?\n"
+    "2️⃣ *Diferenciais* — o que destaca o seu trabalho? Formas de pagamento, redes "
+    "sociais...\n"
+    "3️⃣ *Como você trabalha* — conte um pouco sobre o seu atendimento.\n\n"
+    "Quando terminar, é só digitar *MENU* para ver as opções."
+)
+
+PRESTADOR_PERFIL_OK = (
+    "Prontinho, perfil atualizado! 💼💛 Já está tudo certo para você ser recomendado.\n"
+    "A qualquer momento, digite *MENU* para ajustar o seu perfil ou alternar entre as "
+    "visões de cliente e profissional."
+)
+
+
 # --- Rede de seguranca (qualquer erro inesperado) ------------------------
 ERRO_GENERICO = (
     "Opa, tivemos um probleminha aqui do meu lado 😅\n"

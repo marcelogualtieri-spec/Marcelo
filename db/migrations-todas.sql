@@ -1,5 +1,5 @@
 -- ============================================================================
--- MIGRAÇÕES v2 → v9 — cole TUDO de uma vez no SQL Editor do Supabase
+-- MIGRAÇÕES v2 → v10 — cole TUDO de uma vez no SQL Editor do Supabase
 -- ----------------------------------------------------------------------------
 -- Execute ANTES do deploy do código novo. É seguro rodar mais de uma vez
 -- (tudo usa IF NOT EXISTS / ADD COLUMN IF NOT EXISTS).
@@ -13,6 +13,7 @@
 --   v7 -> alerta quando busca vermelha recebe nova indicação
 --   v8 -> nudge pós-onboarding para adicionar contatos
 --   v9 -> comunidades (etiquetar membros por grupo de WhatsApp)
+--   v10 -> perfil de prestador de serviço (cadastro ativo + consentimento)
 -- ============================================================================
 
 
@@ -154,3 +155,19 @@ create index if not exists idx_comunidade_membros_member
     on comunidade_membros (member_id);
 create index if not exists idx_comunidade_membros_comunidade
     on comunidade_membros (comunidade_id);
+
+
+-- ============================================================================
+-- v10 — perfil de prestador de serviço (cadastro ativo + consentimento)
+-- ============================================================================
+
+alter table providers add column if not exists member_id uuid references members(id) on delete set null;
+alter table providers add column if not exists status text not null default 'convidado';
+alter table providers add column if not exists regiao            text;
+alter table providers add column if not exists diferenciais      text;
+alter table providers add column if not exists descricao         text;
+alter table providers add column if not exists termos_aceitos_em timestamptz;
+alter table providers add column if not exists termos_versao     text;
+
+create index if not exists idx_providers_member on providers (member_id);
+create index if not exists idx_providers_status on providers (status);

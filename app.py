@@ -598,6 +598,9 @@ def executar_busca(pedidor, servico, bairro, cidade):
         prestador = buscar_provider(rec["provider_id"])
         if prestador is None:
             continue
+        # Profissional que pediu para sair ou pausou nao aparece nas buscas.
+        if prestador.get("status") in ("removido", "pausado"):
+            continue
 
         pid = prestador["id"]
         if existe_vinculo(pedidor, recomendador):
@@ -762,10 +765,19 @@ def _ferr_recomendar(membro, entrada, numeros):
 
     _enviar_alertas_busca_vermelha(membro, servico, cidade)
 
+    # Link para convidar o proprio prestador a confirmar o cadastro (Fase 3).
+    numero_bot = g.get("display_phone_number") or ""
+    link_prest = encurtar_link(montar_link_prestador(numero_bot, servico)) if numero_bot else ""
+
     local = ", ".join(p for p in [bairro, cidade] if p)
-    return (f"Recomendacao de {nome} ({servico} em {local}) registrada com sucesso. "
+    base = (f"Recomendacao de {nome} ({servico} em {local}) registrada com sucesso. "
             "Agradeca a pessoa com carinho e explique que a indicacao dela vai aparecer (com o "
             "nome dela) pra quem da rede dela precisar desse servico.")
+    if link_prest:
+        base += ("\n\nDepois, ofereca (de forma leve, sem obrigar) o link abaixo para ela "
+                 f"enviar a {nome} e convida-lo(a) a confirmar o cadastro como profissional. "
+                 "Mostre o link EXATAMENTE como veio, sozinho na linha:\n" + link_prest)
+    return base
 
 
 def _ferr_adicionar_contatos(membro, numeros):
@@ -1411,6 +1423,79 @@ def _resumo_dados_texto(membro):
     return "\n".join(linhas)
 
 
+# ---------------------------------------------------------------------------
+# PRESTADOR DE SERVICO (Fase 3) — onboarding e perfil profissional
+# ---------------------------------------------------------------------------
+def extrair_codigo_prestador(texto):
+    """Le o servico de um link de prestador: '(prestador: encanador)' -> 'encanador'."""
+    achado = re.search(r"prestador:\s*([\w \-]{2,40})", texto or "", re.IGNORECASE)
+    return achado.group(1).strip().lower() if achado else None
+
+
+def montar_link_prestador(numero_bot, servico):
+    mensagem = f"Ola! Quero fazer parte da Doroteia como profissional (prestador: {servico})"
+    return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
+
+
+def provider_do_membro(member_id):
+    """Perfil de prestador do membro (o mais recente em onboarding/ativo), ou None."""
+    try:
+        res = (supabase.table("providers").select("*")
+               .eq("member_id", member_id)
+               .in_("status", ["onboarding", "aguardando_perfil", "ativo", "pausado"])
+               .order("created_at", desc=True).limit(1).execute().data)
+        return res[0] if res else None
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
+def iniciar_onboarding_prestador(membro, servico):
+    """Vincula (ou cria) um cadastro de prestador ao membro e pede o aceite."""
+    try:
+        telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
+        # Reaproveita um registro ja indicado com esse telefone, se houver.
+        existente = (supabase.table("providers").select("*")
+                     .eq("telefone", telefone).limit(1).execute().data)
+        dados = {"member_id": membro["id"], "status": "onboarding"}
+        if servico:
+            dados["servico"] = servico
+        if existente:
+            prov = existente[0]
+            supabase.table("providers").update(dados).eq("id", prov["id"]).execute()
+            servico_final = servico or prov.get("servico") or "seu servico"
+        else:
+            dados.update({
+                "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
+                "telefone": telefone, "servico": servico or "", "cidade": "",
+            })
+            supabase.table("providers").insert(dados).execute()
+            servico_final = servico or "seu servico"
+        enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_final), [
+            {"id": "prest_aceito",  "label": "✅ Aceito e confirmo"},
+            {"id": "prest_ajustar", "label": "✏️ Ajustar servico"},
+            {"id": "prest_nao",     "label": "⛔ Nao desejo"},
+        ])
+    except Exception:
+        traceback.print_exc()
+        resposta_whatsapp(t.ERRO_GENERICO)
+
+
+def enviar_escolha_perfil():
+    enviar_botoes_meta("Olá! Como você deseja interagir comigo hoje?", [
+        {"id": "perfil_cliente",      "label": "🔍 Cliente"},
+        {"id": "perfil_profissional", "label": "💼 Profissional"},
+    ])
+
+
+def enviar_menu_prestador():
+    enviar_botoes_meta("💼 Visão Profissional. Como posso ajudar com o seu cadastro hoje?", [
+        {"id": "prest_editar", "label": "✏️ Editar perfil"},
+        {"id": "prest_pausar", "label": "⏸️ Pausar/Ativar"},
+        {"id": "menu",         "label": "🏠 Menu"},
+    ])
+
+
 # Acoes da IA que CONCLUEM um pedido — depois delas mostramos o menu principal.
 TOOLS_TERMINAIS = {
     "buscar_servico", "salvar_recomendacao", "adicionar_contatos", "convidar_pessoa",
@@ -1420,6 +1505,12 @@ TOOLS_TERMINAIS = {
 
 ACEITES_TXT = {"sim", "aceito", "aceitar", "concordo", "pode ser", "bora", "ok",
                "topo", "claro", "aceito os termos"}
+
+MENU_TRIGGERS = {"menu", "inicio", "voltar", "home", "🏠 menu", "oi", "ola", "olá",
+                 "oie", "opa", "bom dia", "boa tarde", "boa noite", "menu principal"}
+
+# Status de prestador que ja contam como "tem perfil profissional" (mostra visao dupla).
+PRESTADOR_ATIVO_STATUS = {"aguardando_perfil", "ativo", "pausado"}
 
 
 def rotear_menu(membro, texto, button_id):
@@ -1444,6 +1535,57 @@ def rotear_menu(membro, texto, button_id):
         enviar_confirmar_exclusao()
         return True
 
+    # -------- Prestador de servico: onboarding e perfil --------
+    prest = provider_do_membro(membro["id"])
+    if prest:
+        if cmd == "prest_aceito":
+            agora = datetime.now(timezone.utc).isoformat()
+            supabase.table("providers").update({
+                "status": "aguardando_perfil",
+                "termos_aceitos_em": agora,
+                "termos_versao": termos.DATA_VIGENCIA,
+            }).eq("id", prest["id"]).execute()
+            if not membro.get("consent"):
+                registrar_consentimento(membro["wa_id"]); membro["consent"] = True
+            resposta_whatsapp(t.PRESTADOR_REFINAMENTO)
+            return True
+        if cmd == "prest_ajustar":
+            resposta_whatsapp(t.PRESTADOR_AJUSTAR)
+            return True
+        if cmd == "prest_nao":
+            supabase.table("providers").update({"status": "removido"}).eq("id", prest["id"]).execute()
+            resposta_whatsapp(t.PRESTADOR_NAO)
+            return True
+        if cmd == "prest_editar":
+            supabase.table("providers").update({"status": "aguardando_perfil"}).eq("id", prest["id"]).execute()
+            resposta_whatsapp(t.PRESTADOR_REFINAMENTO)
+            return True
+        if cmd == "prest_pausar":
+            novo = "ativo" if prest.get("status") == "pausado" else "pausado"
+            supabase.table("providers").update({"status": novo}).eq("id", prest["id"]).execute()
+            resposta_whatsapp(
+                "Cadastro *pausado* — você não receberá indicações por ora. Quando quiser "
+                "voltar, é só clicar de novo. 💛" if novo == "pausado" else
+                "Cadastro *reativado*! 💼 Você voltou a aparecer para quem busca o seu serviço.")
+            return True
+        # Texto livre durante o onboarding (nao e botao nem comando de menu):
+        if not button_id and cmd not in MENU_TRIGGERS:
+            if prest.get("status") == "aguardando_perfil":
+                supabase.table("providers").update({
+                    "descricao": (texto or "").strip(), "status": "ativo",
+                }).eq("id", prest["id"]).execute()
+                resposta_whatsapp(t.PRESTADOR_PERFIL_OK)
+                return True
+            if prest.get("status") == "onboarding":
+                servico_novo = (texto or "").strip().lower()
+                supabase.table("providers").update({"servico": servico_novo}).eq("id", prest["id"]).execute()
+                enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_novo or "seu servico"), [
+                    {"id": "prest_aceito",  "label": "✅ Aceito e confirmo"},
+                    {"id": "prest_ajustar", "label": "✏️ Ajustar servico"},
+                    {"id": "prest_nao",     "label": "⛔ Nao desejo"},
+                ])
+                return True
+
     # -------- Antes do aceite (so TEXTO, uma mensagem por vez) --------
     if not consentiu:
         if cmd == "consent_sim" or cmd in ACEITES_TXT:
@@ -1463,9 +1605,18 @@ def rotear_menu(membro, texto, button_id):
         return True
 
     # -------- Depois do aceite: navegacao --------
-    if cmd in ("menu", "inicio", "voltar", "home", "🏠 menu", "oi", "ola", "olá",
-               "oie", "opa", "bom dia", "boa tarde", "boa noite", "menu principal"):
+    # Quem tambem tem perfil profissional escolhe a visao (Cliente x Profissional).
+    tem_perfil_prof = bool(prest and prest.get("status") in PRESTADOR_ATIVO_STATUS)
+    if cmd in MENU_TRIGGERS:
+        if tem_perfil_prof:
+            enviar_escolha_perfil()
+        else:
+            enviar_menu_principal()
+        return True
+    if cmd == "perfil_cliente":
         enviar_menu_principal(); return True
+    if cmd == "perfil_profissional":
+        enviar_menu_prestador(); return True
 
     if cmd == "buscar":
         resposta_whatsapp("Me conta o que você precisa e em qual cidade. 🙂\n"
@@ -1515,12 +1666,21 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     if not membro.get("consent") and membro.get("invited_by"):
         membro["convidado_por_nome"] = nome_do_convidante(membro["invited_by"])
 
+    # PRESTADOR: chegou por um link de prestador -> inicia o onboarding de profissional
+    # (tem prioridade sobre o fluxo de cliente). Vale para membro novo ou que ja existe.
+    slug_prest = extrair_codigo_prestador(texto_recebido)
+    if slug_prest is not None:
+        iniciar_onboarding_prestador(membro, slug_prest)
+        return
+
     # Limpa o codigo tecnico do convite do texto antes de mandar pra IA.
     texto_recebido = limpar_texto_convite(texto_recebido)
 
-    # PRIMEIRO CONTATO (sem consent e sem historico): o cerebro manda a mensagem de
-    # boas-vindas fixa + botoes de aceite. Nao passa pelo roteador de menu.
-    primeiro_contato = not membro.get("consent") and not (membro.get("historico"))
+    # PRIMEIRO CONTATO (sem consent, sem historico e sem onboarding de prestador):
+    # o cerebro manda a mensagem de boas-vindas fixa. Nao passa pelo roteador de menu.
+    # (O 2o teste so faz a consulta extra quando a pessoa ainda nao consentiu.)
+    primeiro_contato = (not membro.get("consent") and not membro.get("historico")
+                        and not provider_do_membro(membro["id"]))
 
     # NAVEGACAO DETERMINISTICA: botoes/menus/comandos sao tratados aqui, sem IA,
     # pra ela nao inventar fluxos. So o texto livre de captura vai pra IA.
