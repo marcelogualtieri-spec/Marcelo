@@ -188,6 +188,24 @@ def enviar_botoes_meta(texto, botoes, to=None, phone_number_id=None):
     }, to=to, phone_number_id=phone_number_id)
 
 
+def enviar_lista_meta(texto, botao, rows, to=None, phone_number_id=None):
+    """Envia uma 'list message' (até 10 itens) via Cloud API — usada quando há mais
+    de 3 opções, ou quando o documento pede lista (Outras opções / Minha conta).
+    rows: [{"id": str, "title": str, "description": str (opcional)}]."""
+    print(f"[RESP-LIST] {texto[:60]!r}")
+    linhas = []
+    for r in rows[:10]:
+        linha = {"id": r["id"], "title": r["title"][:24]}
+        if r.get("description"):
+            linha["description"] = r["description"][:72]
+        linhas.append(linha)
+    _post_interativa({
+        "type": "list",
+        "body": {"text": texto},
+        "action": {"button": botao[:20], "sections": [{"rows": linhas}]},
+    }, to=to, phone_number_id=phone_number_id)
+
+
 def _e164(bruto):
     """Normaliza um numero pro formato +55... (E.164).
 
@@ -1542,18 +1560,24 @@ def enviar_menu_principal(texto=None):
 
 
 def enviar_outras_opcoes():
-    enviar_botoes_meta("Outras opções 💛", [
-        {"id": "buscar",        "label": "🔍 Buscar"},
-        {"id": "quero_ser_prof", "label": "💼 Ser profissional"},
-        {"id": "dados",         "label": "⚙️ Minha conta"},
+    enviar_lista_meta("Outras opções 💛", "Ver opções", [
+        {"id": "buscar",         "title": "🔍 Buscar",
+         "description": "Achar um profissional de confiança"},
+        {"id": "quero_ser_prof", "title": "💼 Ser profissional",
+         "description": "Criar o seu perfil para ser recomendado"},
+        {"id": "dados",          "title": "⚙️ Minha conta",
+         "description": "Ver seus dados ou sair"},
     ])
 
 
 def enviar_submenu_dados():
-    enviar_botoes_meta("Minha conta ⚙️", [
-        {"id": "dados_ver",    "label": "📋 Ver meus dados"},
-        {"id": "dados_apagar", "label": "🗑️ Sair / apagar"},
-        {"id": "menu",         "label": "🏠 Menu"},
+    enviar_lista_meta("Minha conta ⚙️", "Abrir", [
+        {"id": "dados_ver",    "title": "📋 Ver meus dados",
+         "description": "Nome, rede e indicações que você fez"},
+        {"id": "dados_apagar", "title": "🗑️ Sair / apagar",
+         "description": "Encerrar a sua conta"},
+        {"id": "menu",         "title": "🏠 Menu",
+         "description": "Voltar ao início"},
     ])
 
 
