@@ -1744,6 +1744,18 @@ def _criar_perfil_profissional_self(membro):
 
 def iniciar_onboarding_prestador(membro, servico):
     """Vincula (ou cria) um cadastro de prestador ao membro e pede o aceite."""
+    # Quem foi indicado e ABRE o link pode JA ser membro (testes, ou já era cliente).
+    # Nesse caso o vínculo com quem indicou não foi feito na criação — aplica aqui o
+    # convite pendente, senão a pergunta "vocês se conhecem?" nunca dispara.
+    if not membro.get("invited_by"):
+        try:
+            inv = aplicar_convite_pendente(membro["wa_id"])
+            if inv:
+                supabase.table("members").update(
+                    {"invited_by": inv}).eq("id", membro["id"]).execute()
+                membro["invited_by"] = inv
+        except Exception:
+            traceback.print_exc()
     try:
         telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
         # Reaproveita um registro ja indicado com esse telefone, se houver.
@@ -2340,9 +2352,10 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             }).eq("id", prest["id"]).execute()
             if not membro.get("consent"):
                 registrar_consentimento(membro["wa_id"]); membro["consent"] = True
-            # Se este profissional foi INDICADO por alguem (regra de ouro), abre a
-            # conexao mutua e pergunta aos DOIS lados se se conhecem.
-            if membro.get("invited_by") and (prest.get("descricao") or "").strip():
+            # Se este profissional foi INDICADO por alguem (chegou pelo link, então
+            # invited_by aponta para quem indicou), abre a conexão mútua e pergunta
+            # aos DOIS lados se se conhecem.
+            if membro.get("invited_by"):
                 _abrir_conexao_indicacao(membro, prest)
             resposta_whatsapp(t.PRESTADOR_REFINAMENTO)
             return True
