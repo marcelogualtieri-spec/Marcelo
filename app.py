@@ -717,8 +717,11 @@ def executar_busca(pedidor, servico, bairro, cidade):
         if recomendador is None or not recomendador.get("consent"):
             continue
 
-        if conexao_validada_entre(pedidor["id"], recomendador["id"]):
-            nome_rec = (recomendador.get("nome_perfil") or "").strip() or "alguem que voce conhece"
+        eh_propria = recomendador["id"] == pedidor["id"]
+        if eh_propria or conexao_validada_entre(pedidor["id"], recomendador["id"]):
+            # A própria indicação da pessoa, ou de uma conexão mútua validada → 🟢 com nome.
+            nome_rec = ("você" if eh_propria
+                        else (recomendador.get("nome_perfil") or "").strip() or "alguem que voce conhece")
             d = por_provider_rede.setdefault(pid, {"prestador": prestador, "quem_indicou": []})
             if nome_rec not in d["quem_indicou"]:
                 d["quem_indicou"].append(nome_rec)
