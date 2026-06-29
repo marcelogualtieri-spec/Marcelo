@@ -771,6 +771,67 @@ def _resolver_ficha(valor, numeros):
     return normalizar_e164(valor or "") or None
 
 
+def _sinais_anonimos(pedidor, servico, bairro, limite=3):
+    """Sinais anônimos de indicação PENDENTE (§6b): profissionais que alguém da rede
+    da pessoa indicou, mas que ainda NÃO entraram (status 'convidado'). Sem nome e sem
+    telefone — o contato só libera quando a pessoa indicada entra e aceita. Respeita
+    k-anonimato. Devolve [{servico, bairro}]."""
+    if _qtd_rede(pedidor) < K_ANONIMATO:
+        return []
+    try:
+        q = (supabase.table("providers").select("*")
+             .eq("status", "convidado").ilike("servico", servico))
+        if bairro:
+            q = q.ilike("bairro", bairro)
+        provs = q.execute().data or []
+    except Exception:
+        traceback.print_exc()
+        return []
+
+    sinais, vistos = [], set()
+    for p in provs:
+        tel = (p.get("telefone") or "").strip()
+        if not tel or p["id"] in vistos:
+            continue
+        try:
+            h = calcular_contact_hash(tel)
+            inviters = (supabase.table("pending_invites").select("inviter_id")
+                        .eq("contact_hash", h).execute().data) or []
+        except Exception:
+            traceback.print_exc()
+            continue
+        inviter_ids = {r["inviter_id"] for r in inviters if r.get("inviter_id")}
+        inviter_ids.discard(pedidor["id"])  # nao sinaliza a propria indicacao
+        # Sinal só vale se quem indicou for da rede da pessoa que busca.
+        da_rede = False
+        for iid in inviter_ids:
+            rec = buscar_membro_por_id(iid)
+            if rec and _na_rede_pendente(pedidor, rec):
+                da_rede = True
+                break
+        if da_rede:
+            vistos.add(p["id"])
+            sinais.append({"servico": p.get("servico") or servico,
+                           "bairro": p.get("bairro") or bairro or ""})
+        if len(sinais) >= limite:
+            break
+    return sinais
+
+
+def _texto_sinais(sinais):
+    """Instrução para a IA mencionar os sinais anônimos ao final (sem nome/telefone)."""
+    if not sinais:
+        return ""
+    linhas = []
+    for s in sinais:
+        reg = f" na regiao de {s['bairro']}" if s.get("bairro") else ""
+        linhas.append(f"- alguem da sua rede indicou um(a) {s['servico']}{reg}, "
+                      "que ainda nao entrou na Dorote.ia")
+    return ("\n\nSINAIS ANONIMOS DE INDICACAO PENDENTE — mencione ao final, SEM nome e SEM "
+            "telefone (o contato so libera quando essa pessoa entrar e aceitar). Convide com "
+            "leveza a pessoa a chamar quem indicou pra essa pessoa entrar:\n" + "\n".join(linhas))
+
+
 def _ferr_buscar(membro, entrada):
     servico = (entrada.get("servico") or "").strip().lower()
     bairro  = (entrada.get("bairro")  or "").strip()
@@ -780,6 +841,7 @@ def _ferr_buscar(membro, entrada):
 
     com_nome, rede_pendente, sem_nome = executar_busca(membro, servico, bairro, cidade)
     local = ", ".join(p for p in [bairro, cidade] if p)
+    sinais_txt = _texto_sinais(_sinais_anonimos(membro, servico, bairro))
 
     def _selo(p):
         # Mostra a reputacao pra IA poder destacar os bem avaliados.
@@ -804,7 +866,7 @@ def _ferr_buscar(membro, entrada):
                 f"{local}, JA ORDENADAS pelas mais bem avaliadas. Apresente com alegria, "
                 "citando quem indicou (quando mais de uma pessoa indicou o mesmo, destaque "
                 "isso — e prova social forte). Mantenha nome e telefone EXATOS:\n"
-                + "\n".join(linhas))
+                + "\n".join(linhas) + sinais_txt)
     if rede_pendente:
         registrar_busca(servico, bairro, cidade, "amarelo_rede", membro["id"])
         for p in rede_pendente:
@@ -815,7 +877,7 @@ def _ferr_buscar(membro, entrada):
                 f"ainda nao foi confirmada pelos dois lados, em {local}. NAO revele quem "
                 "indicou (anonimo) — diga apenas que e 'alguem da sua rede'. JA ORDENADAS "
                 "pelas mais bem avaliadas. Mantenha nome e telefone EXATOS; destaque a "
-                "avaliacao quando houver:\n" + "\n".join(linhas))
+                "avaliacao quando houver:\n" + "\n".join(linhas) + sinais_txt)
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
         for p in sem_nome:
@@ -828,9 +890,13 @@ def _ferr_buscar(membro, entrada):
                 "avaliacao quando houver. AO FINAL, acrescente exatamente esta frase: "
                 "'Este profissional foi validado pela rede Dorote.ia. Se você encontrar alguém "
                 "de confiança para esse serviço, não esqueça de registrar aqui para fortalecer "
-                "a base! 💛':\n" + "\n".join(linhas))
+                "a base! 💛':\n" + "\n".join(linhas) + sinais_txt)
 
     registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
+    if sinais_txt:
+        return (f"RESULTADO=vermelho_com_sinal - ninguem LIBERADO ainda para {servico} em "
+                f"{local}, mas ha indicacao pendente da rede dela. Acolha e foque no sinal "
+                "abaixo, convidando a chamar essa pessoa pra entrar." + sinais_txt)
     return (f"RESULTADO=vermelho - ninguem indicou {servico} em {local} ainda. Acolha a "
             "pessoa e incentive-a a recomendar alguem que conheca ou a convidar amigos pra "
             "fortalecer a rede.")
