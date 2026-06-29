@@ -652,13 +652,44 @@ def existe_vinculo(pedidor, recomendador):
     return conexao_validada_entre(pedidor["id"], recomendador["id"])
 
 
-def executar_busca(pedidor, servico, bairro, cidade):
-    """Roda a busca real e devolve (com_nome, sem_nome).
+# k-anonimato: o nível 🟡 (rede pendente, anônimo) só aparece se a pessoa tiver ao
+# menos esta quantidade de contatos na rede — senão dá pra adivinhar quem indicou.
+K_ANONIMATO = 5
 
-    com_nome: [(prestador, [nomes_de_quem_indicou])]  -> rede direta (verde)
-              Um mesmo prestador pode ter sido indicado por varias pessoas da
-              rede; todos os nomes sao agregados pra mostrar prova social real.
-    sem_nome: [prestador]                             -> fora da rede (amarelo)
+
+def _qtd_rede(pedidor):
+    """Quantos contatos a pessoa tem na rede (tamanho da agenda de confiança)."""
+    try:
+        return len((supabase.table("edges").select("id")
+                    .eq("member_id", pedidor["id"]).execute().data) or [])
+    except Exception:
+        traceback.print_exc()
+        return 0
+
+
+def _na_rede_pendente(pedidor, recomendador):
+    """True se a pessoa ADICIONOU quem indicou (agenda) ou há conexão PENDENTE entre
+    os dois — ou seja, é da rede dela, mas a conexão ainda não foi confirmada (🟡)."""
+    h = hash_de_membro(recomendador)
+    try:
+        if h and (supabase.table("edges").select("id").eq("member_id", pedidor["id"])
+                  .eq("contact_hash", h).limit(1).execute().data):
+            return True
+        for a, b in ((pedidor["id"], recomendador["id"]), (recomendador["id"], pedidor["id"])):
+            if (supabase.table("conexoes").select("id").eq("status", "pendente")
+                    .eq("member_a", a).eq("member_b", b).limit(1).execute().data):
+                return True
+    except Exception:
+        traceback.print_exc()
+    return False
+
+
+def executar_busca(pedidor, servico, bairro, cidade):
+    """Roda a busca e devolve (com_nome, rede_pendente, sem_nome) — os 3 níveis (§6):
+    🟢 com_nome      [(prestador, [nomes])] -> conexão mútua validada (mostra o nome).
+    🟡 rede_pendente [prestador]            -> da rede dela, mas conexão não confirmada
+                                              (anônimo; só com k-anonimato ≥ K_ANONIMATO).
+    ⚪ sem_nome      [prestador]            -> rede geral / anonimizada (anônimo).
     """
     query = supabase.table("recommendations").select("*").ilike("servico", servico)
     if bairro:
@@ -667,48 +698,50 @@ def executar_busca(pedidor, servico, bairro, cidade):
         query = query.ilike("cidade", cidade)
     recs = query.execute().data
 
-    por_provider_rede = {}  # pid -> {"prestador", "quem_indicou": [nomes]}
-    por_provider_fora = {}  # pid -> prestador (fora da rede, sem nome)
+    por_provider_rede = {}      # 🟢 pid -> {"prestador", "quem_indicou": [nomes]}
+    por_provider_pendente = {}  # 🟡 pid -> prestador
+    por_provider_fora = {}      # ⚪ pid -> prestador
 
     for rec in recs:
         prestador = buscar_provider(rec["provider_id"])
-        if prestador is None:
-            continue
-        # Regra de ouro: so aparece quem ESTA ATIVO — ou seja, quem entrou,
-        # consentiu e completou o perfil. Quem foi apenas indicado ('convidado'),
-        # esta em onboarding, pausou ou saiu nao aparece nas buscas.
-        if prestador.get("status") != "ativo":
+        if prestador is None or prestador.get("status") != "ativo":
             continue
         pid = prestador["id"]
 
-        # Indicação ANONIMIZADA (quem indicou saiu — member_id NULL): a recomendação
-        # continua valendo, mas como ⚪ rede geral, sem nome (LGPD §4.5).
+        # Indicação ANONIMIZADA (quem indicou saiu — member_id NULL): ⚪ rede geral.
         if rec.get("member_id") is None:
-            if pid not in por_provider_fora:
-                por_provider_fora[pid] = prestador
+            por_provider_fora.setdefault(pid, prestador)
             continue
 
         recomendador = buscar_membro_por_id(rec["member_id"])
         if recomendador is None or not recomendador.get("consent"):
             continue
 
-        if existe_vinculo(pedidor, recomendador):
+        if conexao_validada_entre(pedidor["id"], recomendador["id"]):
             nome_rec = (recomendador.get("nome_perfil") or "").strip() or "alguem que voce conhece"
-            if pid not in por_provider_rede:
-                por_provider_rede[pid] = {"prestador": prestador, "quem_indicou": []}
-            if nome_rec not in por_provider_rede[pid]["quem_indicou"]:
-                por_provider_rede[pid]["quem_indicou"].append(nome_rec)
+            d = por_provider_rede.setdefault(pid, {"prestador": prestador, "quem_indicou": []})
+            if nome_rec not in d["quem_indicou"]:
+                d["quem_indicou"].append(nome_rec)
+        elif _na_rede_pendente(pedidor, recomendador):
+            por_provider_pendente.setdefault(pid, prestador)
         else:
-            if pid not in por_provider_fora:
-                por_provider_fora[pid] = prestador
+            por_provider_fora.setdefault(pid, prestador)
 
-    # Prestadores da rede nao entram no amarelo, mesmo com indicacoes externas.
+    # k-anonimato: sem rede grande o bastante, 🟡 vira ⚪ (anônimo geral).
+    if _qtd_rede(pedidor) < K_ANONIMATO:
+        for pid, p in por_provider_pendente.items():
+            por_provider_fora.setdefault(pid, p)
+        por_provider_pendente = {}
+
     com_nome = [(d["prestador"], d["quem_indicou"]) for d in por_provider_rede.values()]
-    sem_nome = [p for pid, p in por_provider_fora.items() if pid not in por_provider_rede]
+    pendente = [p for pid, p in por_provider_pendente.items() if pid not in por_provider_rede]
+    sem_nome = [p for pid, p in por_provider_fora.items()
+                if pid not in por_provider_rede and pid not in por_provider_pendente]
 
     com_nome.sort(key=lambda par: _relevancia(par[0]), reverse=True)
+    pendente.sort(key=_relevancia, reverse=True)
     sem_nome.sort(key=_relevancia, reverse=True)
-    return com_nome, sem_nome
+    return com_nome, pendente, sem_nome
 
 
 def _formatar_indicadores(nomes):
@@ -745,7 +778,7 @@ def _ferr_buscar(membro, entrada):
     if not (servico and cidade):
         return "Faltou servico ou cidade. Pergunte o que faltar com naturalidade."
 
-    com_nome, sem_nome = executar_busca(membro, servico, bairro, cidade)
+    com_nome, rede_pendente, sem_nome = executar_busca(membro, servico, bairro, cidade)
     local = ", ".join(p for p in [bairro, cidade] if p)
 
     def _selo(p):
@@ -772,6 +805,17 @@ def _ferr_buscar(membro, entrada):
                 "citando quem indicou (quando mais de uma pessoa indicou o mesmo, destaque "
                 "isso — e prova social forte). Mantenha nome e telefone EXATOS:\n"
                 + "\n".join(linhas))
+    if rede_pendente:
+        registrar_busca(servico, bairro, cidade, "amarelo_rede", membro["id"])
+        for p in rede_pendente:
+            registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']}{_selo(p)}"
+                  for p in rede_pendente]
+        return ("RESULTADO=amarelo_rede - indicacoes de gente da REDE dela, mas a conexao "
+                f"ainda nao foi confirmada pelos dois lados, em {local}. NAO revele quem "
+                "indicou (anonimo) — diga apenas que e 'alguem da sua rede'. JA ORDENADAS "
+                "pelas mais bem avaliadas. Mantenha nome e telefone EXATOS; destaque a "
+                "avaliacao quando houver:\n" + "\n".join(linhas))
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
         for p in sem_nome:
