@@ -647,21 +647,9 @@ def hash_de_membro(membro):
 
 
 def existe_vinculo(pedidor, recomendador):
-    if pedidor.get("invited_by") and pedidor["invited_by"] == recomendador["id"]:
-        return True
-    if recomendador.get("invited_by") and recomendador["invited_by"] == pedidor["id"]:
-        return True
-
-    hash_p = hash_de_membro(pedidor)
-    hash_r = hash_de_membro(recomendador)
-    if hash_p is None or hash_r is None:
-        return False
-
-    if supabase.table("edges").select("id").eq("member_id", pedidor["id"]).eq("contact_hash", hash_r).limit(1).execute().data:
-        return True
-    if supabase.table("edges").select("id").eq("member_id", recomendador["id"]).eq("contact_hash", hash_p).limit(1).execute().data:
-        return True
-    return False
+    """🟢 só com CONEXÃO MÚTUA VALIDADA (os dois confirmaram que se conhecem — §6).
+    Convite/agenda sozinhos NÃO bastam: isso é a rede pendente (🟡), tratada à parte."""
+    return conexao_validada_entre(pedidor["id"], recomendador["id"])
 
 
 def executar_busca(pedidor, servico, bairro, cidade):
@@ -1164,20 +1152,27 @@ def _ferr_enviar_botoes(entrada, interativa_enviada):
     return "ok - mensagem com botoes enviada. Sua resposta de texto final deve ser VAZIA."
 
 
-def _notificar_convidante(novo_membro):
-    """Avisa quem convidou que seu contato acabou de entrar na Dorote.ia."""
+def _abrir_conexao_cliente(novo_membro):
+    """Quando alguém entra por um convite de CLIENTE: abre a conexão mútua com quem
+    convidou e pergunta aos DOIS lados se se conhecem (§6/§7.4). A conexão só vira
+    🟢 quando os dois confirmam."""
     try:
         convidante = buscar_membro_por_id(novo_membro.get("invited_by"))
         if not convidante or not convidante.get("consent"):
             return
-        primeiro_nome = ((novo_membro.get("nome_perfil") or "").split() or [""])[0]
-        nome_exibir = primeiro_nome or "Alguem que voce convidou"
-        texto = (
-            f"Boa notícia! 🎉 *{nome_exibir}* acabou de entrar na Dorote.ia pelo seu convite. "
-            "Agora vocês estão na mesma rede de confiança! 💛"
-        )
-        phone_number_id = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
-        enviar_mensagem_meta(convidante["wa_id"], texto, phone_number_id)
+        con = criar_conexao_pendente(convidante["id"], novo_membro["id"], "cliente")
+        if not con:
+            return
+        pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+        # Pergunta a quem convidou.
+        _pedir_confirmacao_conexao(
+            convidante, con,
+            t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=_nome_curto(novo_membro)),
+            to=convidante["wa_id"], phone_number_id=pn)
+        # Pergunta a quem entrou (na conversa atual).
+        _pedir_confirmacao_conexao(
+            novo_membro, con,
+            t.CONEXAO_PERGUNTA_ENTROU.format(nome=_nome_curto(convidante)))
     except Exception:
         traceback.print_exc()
 
@@ -1197,7 +1192,7 @@ def construir_executor(membro, interativa_enviada):
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
             if membro.get("invited_by"):
-                _notificar_convidante(membro)
+                _abrir_conexao_cliente(membro)
             return (
                 "Consentimento registrado. Responda em NO MAXIMO 3 linhas: "
                 "uma frase de boas-vindas calorosa (cite quem convidou se souber), "
@@ -1705,6 +1700,24 @@ BOTOES_INDICAR = {"ind_certo", "ind_corrigir"}
 # ---------------------------------------------------------------------------
 # FLUXO: CLIENTE INDICA UM PROFISSIONAL (regra de ouro — consentimento primeiro)
 # ---------------------------------------------------------------------------
+# Anti-spam (§10): teto de indicações/convites por pessoa por dia.
+LIMITE_INDICACOES_DIA = 20
+
+
+def _limite_indicacoes_atingido(membro):
+    """True se a pessoa já passou do teto diário de indicações/convites (anti-spam).
+    Contamos os convites pendentes criados nas últimas 24h (cada indicação/convite
+    registra um)."""
+    try:
+        desde = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        n = len((supabase.table("pending_invites").select("id")
+                 .eq("inviter_id", membro["id"]).gte("created_at", desde).execute().data) or [])
+        return n >= LIMITE_INDICACOES_DIA
+    except Exception:
+        traceback.print_exc()
+        return False
+
+
 def _eh_proprio_numero(membro, telefone):
     """True se o telefone informado for o numero da propria pessoa — ninguem indica
     a si mesmo como profissional (usa a opcao 'Quero ser profissional')."""
@@ -1811,6 +1824,11 @@ def _finalizar_indicacao(membro, fluxo):
         _fluxo_limpar(membro)
         _avisar_indicacao_si_mesmo()
         return
+    # Anti-spam (§10): respeita o teto diário.
+    if _limite_indicacoes_atingido(membro):
+        _fluxo_limpar(membro)
+        enviar_botoes_meta(t.LIMITE_INDICACOES, [{"id": "menu", "label": "🏠 Menu"}])
+        return
     try:
         existente = (supabase.table("providers").select("*")
                      .eq("telefone", telefone).limit(1).execute().data)
@@ -1840,52 +1858,179 @@ def _finalizar_indicacao(membro, fluxo):
     enviar_menu_principal()
 
 
-def _notificar_indicante(provider_membro, prest):
-    """Avisa quem indicou que o profissional entrou e pede a confirmação final."""
+# ---------------------------------------------------------------------------
+# CONEXÕES MÚTUAS (os DOIS lados confirmam que se conhecem — §6/§7.5)
+# ---------------------------------------------------------------------------
+def _nome_curto(membro):
+    return ((membro.get("nome_perfil") or "").split() or ["Alguém"])[0]
+
+
+def criar_conexao_pendente(member_a, member_b, origem, provider_id=None):
+    """Cria (ou reaproveita) a conexão pendente entre A (convidou/indicou) e B (entrou)."""
+    if not member_a or not member_b or member_a == member_b:
+        return None
     try:
-        cliente = buscar_membro_por_id(provider_membro.get("invited_by"))
-        if not cliente or not cliente.get("consent"):
+        existe = (supabase.table("conexoes").select("*")
+                  .eq("member_a", member_a).eq("member_b", member_b).limit(1).execute().data)
+        if existe:
+            con = existe[0]
+            if provider_id and not con.get("provider_id"):
+                supabase.table("conexoes").update({"provider_id": provider_id}).eq("id", con["id"]).execute()
+                con["provider_id"] = provider_id
+            return con
+        dados = {"member_a": member_a, "member_b": member_b, "origem": origem}
+        if provider_id:
+            dados["provider_id"] = provider_id
+        res = supabase.table("conexoes").insert(dados).execute()
+        return res.data[0] if getattr(res, "data", None) else None
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
+def buscar_conexao(con_id):
+    try:
+        rows = supabase.table("conexoes").select("*").eq("id", con_id).limit(1).execute().data
+        return rows[0] if rows else None
+    except Exception:
+        traceback.print_exc()
+        return None
+
+
+def conexao_validada_entre(id1, id2):
+    """True se há conexão VALIDADA (mútua) entre os dois membros, em qualquer ordem."""
+    try:
+        for a, b in ((id1, id2), (id2, id1)):
+            r = (supabase.table("conexoes").select("id").eq("status", "validada")
+                 .eq("member_a", a).eq("member_b", b).limit(1).execute().data)
+            if r:
+                return True
+    except Exception:
+        traceback.print_exc()
+    return False
+
+
+def conexoes_pendentes_de(membro):
+    """Conexões pendentes em que ESTE membro ainda não confirmou o seu lado."""
+    out = []
+    try:
+        a = (supabase.table("conexoes").select("*").eq("member_a", membro["id"])
+             .eq("status", "pendente").eq("a_confirmou", False).execute().data) or []
+        b = (supabase.table("conexoes").select("*").eq("member_b", membro["id"])
+             .eq("status", "pendente").eq("b_confirmou", False).execute().data) or []
+        out = a + b
+    except Exception:
+        traceback.print_exc()
+    return out
+
+
+def _pedir_confirmacao_conexao(destino_membro, con, texto, to=None, phone_number_id=None):
+    """Envia a pergunta 'vocês se conhecem?' com botões que carregam o id da conexão."""
+    enviar_botoes_meta(
+        texto,
+        [{"id": f"conf_sim:{con['id']}", "label": "✅ Sim, confirmo"},
+         {"id": f"conf_nao:{con['id']}", "label": "❌ Não conheço"}],
+        to=to, phone_number_id=phone_number_id)
+
+
+def _outro_lado(con, membro):
+    """Devolve o membro do OUTRO lado da conexão."""
+    outro_id = con["member_b"] if con["member_a"] == membro["id"] else con["member_a"]
+    return buscar_membro_por_id(outro_id)
+
+
+def _efeitos_conexao_validada(con):
+    """Quando os dois confirmam: se for indicação de profissional, a recomendação
+    de A sobre o profissional passa a valer (🟢). Para 'cliente', a própria conexão
+    validada já serve de vínculo (a busca consulta isso)."""
+    if con.get("origem") == "profissional" and con.get("provider_id"):
+        prov = buscar_provider(con["provider_id"])
+        if not prov:
             return
-        nome = ((prest.get("nome") or "").strip()
-                or (provider_membro.get("nome_perfil") or "").strip()
-                or "a pessoa que você indicou")
-        phone_number_id = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
-        enviar_botoes_meta(
-            t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome),
-            [{"id": f"ind_ok:{provider_membro['id']}", "label": "✅ Sim, confirmo"},
-             {"id": f"ind_no:{provider_membro['id']}", "label": "❌ Não conheço"}],
-            to=cliente["wa_id"], phone_number_id=phone_number_id)
-    except Exception:
-        traceback.print_exc()
+        try:
+            ja = (supabase.table("recommendations").select("id")
+                  .eq("member_id", con["member_a"]).eq("provider_id", prov["id"])
+                  .limit(1).execute().data)
+            if not ja:
+                supabase.table("recommendations").insert({
+                    "member_id": con["member_a"], "provider_id": prov["id"],
+                    "servico": prov.get("servico") or "serviço",
+                    "bairro": prov.get("bairro") or "não informado",
+                    "cidade": prov.get("cidade") or "São Paulo",
+                }).execute()
+        except Exception:
+            traceback.print_exc()
 
 
-def _confirmar_indicacao(cliente, provider_member_id, confirmou):
-    """Cliente respondeu se conhece o profissional que indicou. Só agora (no 'sim')
-    a recomendação passa a valer na rede."""
-    prov = provider_do_membro(provider_member_id) if provider_member_id else None
-    nome = (prov or {}).get("nome") or "essa pessoa"
-    if not confirmou:
-        resposta_whatsapp(t.INDICAR_NEGADA.format(nome=nome))
-        enviar_menu_principal()
+def _aplicar_confirmacao_conexao(membro, con, confirmou):
+    """Registra o sim/não do lado de quem respondeu. Quando os DOIS confirmam, a
+    conexão vira validada e dispara os efeitos."""
+    if con["member_a"] == membro["id"]:
+        lado = "a_confirmou"
+    elif con["member_b"] == membro["id"]:
+        lado = "b_confirmou"
+    else:
         return
-    if not prov:
-        resposta_whatsapp("Não encontrei mais essa indicação por aqui. 💛")
+    agora = datetime.now(timezone.utc).isoformat()
+    if not confirmou:
+        try:
+            supabase.table("conexoes").update(
+                {"status": "recusada", "updated_at": agora}).eq("id", con["id"]).execute()
+        except Exception:
+            traceback.print_exc()
+        resposta_whatsapp(t.CONEXAO_RECUSADA)
         enviar_menu_principal()
         return
     try:
-        ja = (supabase.table("recommendations").select("id")
-              .eq("member_id", cliente["id"]).eq("provider_id", prov["id"]).limit(1).execute().data)
-        if not ja:
-            supabase.table("recommendations").insert({
-                "member_id": cliente["id"], "provider_id": prov["id"],
-                "servico": prov.get("servico") or "serviço",
-                "bairro": prov.get("bairro") or "não informado",
-                "cidade": prov.get("cidade") or "São Paulo",
-            }).execute()
+        supabase.table("conexoes").update({lado: True, "updated_at": agora}).eq("id", con["id"]).execute()
     except Exception:
         traceback.print_exc()
-    resposta_whatsapp(t.INDICAR_CONFIRMADA.format(nome=nome))
+    con[lado] = True
+    if con.get("a_confirmou") and con.get("b_confirmou"):
+        try:
+            supabase.table("conexoes").update(
+                {"status": "validada", "updated_at": agora}).eq("id", con["id"]).execute()
+        except Exception:
+            traceback.print_exc()
+        _efeitos_conexao_validada(con)
+        resposta_whatsapp(t.CONEXAO_VALIDADA)
+    else:
+        resposta_whatsapp(t.CONEXAO_AGUARDA_OUTRO)
     enviar_menu_principal()
+
+
+def _tratar_botao_conexao(membro, cmd):
+    """Trata conf_sim:/conf_nao: — retorna True se tratou."""
+    if cmd.startswith("conf_sim:") or cmd.startswith("conf_nao:"):
+        con = buscar_conexao(cmd.split(":", 1)[1])
+        if not con or con.get("status") != "pendente":
+            resposta_whatsapp("Essa confirmação já foi resolvida. 💛")
+            enviar_menu_principal()
+            return True
+        _aplicar_confirmacao_conexao(membro, con, cmd.startswith("conf_sim:"))
+        return True
+    return False
+
+
+def _abrir_conexao_indicacao(provider_membro, prest):
+    """No aceite do profissional INDICADO: cria a conexão pendente com quem indicou
+    e pergunta aos DOIS lados se se conhecem (§6/§7.5)."""
+    cliente = buscar_membro_por_id(provider_membro.get("invited_by"))
+    if not cliente or not cliente.get("consent"):
+        return
+    con = criar_conexao_pendente(cliente["id"], provider_membro["id"],
+                                 "profissional", provider_id=prest.get("id"))
+    if not con:
+        return
+    pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+    nome_prof = (prest.get("nome") or _nome_curto(provider_membro))
+    # Pergunta a quem indicou (cliente).
+    _pedir_confirmacao_conexao(cliente, con,
+                               t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome_prof),
+                               to=cliente["wa_id"], phone_number_id=pn)
+    # Pergunta ao profissional (lado que acabou de entrar) — na conversa atual.
+    _pedir_confirmacao_conexao(provider_membro, con,
+                               t.CONEXAO_PERGUNTA_PROF.format(nome=_nome_curto(cliente)))
 
 
 # ---------------------------------------------------------------------------
@@ -2044,13 +2189,10 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         enviar_confirmar_exclusao(membro)
         return True
 
-    # -------- Confirmacao final da indicacao (cliente avisado que o prof. entrou) --------
-    if cmd.startswith("ind_ok:"):
-        _confirmar_indicacao(membro, cmd.split(":", 1)[1], True)
-        return True
-    if cmd.startswith("ind_no:"):
-        _confirmar_indicacao(membro, cmd.split(":", 1)[1], False)
-        return True
+    # -------- Confirmacao de conexao mutua (vocês se conhecem?) --------
+    if cmd.startswith("conf_sim:") or cmd.startswith("conf_nao:"):
+        if _tratar_botao_conexao(membro, cmd):
+            return True
 
     # -------- Avaliacao por botoes (stateless) --------
     if cmd.startswith("aval_usei:") or cmd.startswith("aval_ainda:") or cmd.startswith("aval_nota:"):
@@ -2085,10 +2227,10 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             }).eq("id", prest["id"]).execute()
             if not membro.get("consent"):
                 registrar_consentimento(membro["wa_id"]); membro["consent"] = True
-            # Se este profissional foi INDICADO por alguem (regra de ouro), avisa
-            # quem indicou para a confirmacao final "vocês se conhecem?".
+            # Se este profissional foi INDICADO por alguem (regra de ouro), abre a
+            # conexao mutua e pergunta aos DOIS lados se se conhecem.
             if membro.get("invited_by") and (prest.get("descricao") or "").strip():
-                _notificar_indicante(membro, prest)
+                _abrir_conexao_indicacao(membro, prest)
             resposta_whatsapp(t.PRESTADOR_REFINAMENTO)
             return True
         if cmd == "prest_ajustar":
@@ -2140,7 +2282,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
             if membro.get("invited_by"):
-                _notificar_convidante(membro)
+                _abrir_conexao_cliente(membro)
             enviar_menu_principal(t.CLIENTE_ATIVO)
             return True
         # SABER MAIS: explica com calma e abre os 3 caminhos por botao.
@@ -2179,7 +2321,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
             if membro.get("invited_by"):
-                _notificar_convidante(membro)
+                _abrir_conexao_cliente(membro)
             _criar_perfil_profissional_self(membro)
             resposta_whatsapp(t.PRESTADOR_QUERO_SER_OK)
             return True
@@ -2196,8 +2338,22 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     # Quem tambem tem perfil profissional escolhe a visao (Cliente x Profissional).
     tem_perfil_prof = bool(prest and prest.get("status") in PRESTADOR_ATIVO_STATUS)
     if cmd in MENU_TRIGGERS:
-        # Ao reabrir o chat, se houver uma indicacao usada ainda sem nota, pergunta
-        # ANTES do menu (a avaliacao e por botoes — a IA nunca da nota). §7.5/§9.9.
+        # Ao reabrir o chat (fora das 24h não dá pra avisar proativo — §7.5), mostra
+        # ANTES do menu o que ficou pendente: 1º confirmação de conexão, depois nota.
+        cons_pend = conexoes_pendentes_de(membro)
+        if cons_pend:
+            con = cons_pend[0]
+            outro = _outro_lado(con, membro)
+            nome = _nome_curto(outro) if outro else "essa pessoa"
+            if con.get("origem") == "profissional" and con.get("member_b") == membro["id"]:
+                texto = t.CONEXAO_PERGUNTA_PROF.format(nome=nome)
+            elif con.get("member_a") == membro["id"]:
+                texto = t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=nome)
+            else:
+                texto = t.CONEXAO_PERGUNTA_ENTROU.format(nome=nome)
+            _pedir_confirmacao_conexao(membro, con, texto)
+            return True
+        # Indicacao usada ainda sem nota: avaliacao por botoes (a IA nunca da nota).
         pendente = _avaliacao_pendente_ind(membro)
         if pendente:
             _enviar_pergunta_avaliacao(membro, pendente[0], pendente[1])
@@ -2259,6 +2415,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         return True
 
     if cmd == "rede_indicar":
+        if _limite_indicacoes_atingido(membro):
+            enviar_botoes_meta(t.LIMITE_INDICACOES, [{"id": "menu", "label": "🏠 Menu"}])
+            return True
         _fluxo_set(membro, {"fluxo": "indicar", "passo": "contato"})
         enviar_botoes_meta(t.INDICAR_INICIO, [{"id": "menu", "label": "🏠 Menu"}])
         return True

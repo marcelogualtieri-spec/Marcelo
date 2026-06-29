@@ -176,6 +176,46 @@ AVALIAR_AINDA = (
 )
 
 
+# --- Conexão mútua (os dois confirmam que se conhecem — §6/§7.5) -------------
+# Pergunta enviada a QUEM CONVIDOU quando a pessoa convidada entra.
+CONEXAO_PERGUNTA_CONVIDOU = (
+    "Boa notícia! 💛 *{nome}*, que você convidou, entrou na Dorote.ia.\n\n"
+    "Vocês se conhecem?"
+)
+
+# Pergunta enviada a QUEM ENTROU (pelo convite de cliente).
+CONEXAO_PERGUNTA_ENTROU = (
+    "*{nome}* convidou você para a Dorote.ia 💛\n\n"
+    "Vocês se conhecem?"
+)
+
+# Pergunta enviada a QUEM FOI INDICADO como profissional (o outro lado da indicação).
+CONEXAO_PERGUNTA_PROF = (
+    "*{nome}* indicou o seu trabalho aqui na Dorote.ia 💛\n\n"
+    "Vocês se conhecem?"
+)
+
+CONEXAO_VALIDADA = (
+    "Pronto! 💛 Vocês confirmaram que se conhecem. Agora as indicações de vocês "
+    "aparecem com o nome um do outro para a rede de confiança."
+)
+
+CONEXAO_AGUARDA_OUTRO = (
+    "Obrigada! 💛 Assim que a outra pessoa também confirmar, a conexão de vocês fica "
+    "completa."
+)
+
+CONEXAO_RECUSADA = (
+    "Tudo bem, obrigada por avisar! 💛 Não vou registrar essa conexão."
+)
+
+# Limite diário de indicações/convites atingido (§10 — anti-spam).
+LIMITE_INDICACOES = (
+    "Você já fez muitas indicações hoje 💛 Para manter a rede saudável, dá uma pausinha "
+    "e continue amanhã. Obrigada por fortalecer a confiança por aqui!"
+)
+
+
 # Regra: ninguém indica o próprio número como profissional.
 INDICAR_SI_MESMO = (
     "Esse é o seu próprio contato 😊\n\n"

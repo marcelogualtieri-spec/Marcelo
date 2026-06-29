@@ -189,3 +189,34 @@ create table if not exists suporte (
 );
 
 create index if not exists idx_suporte_status on suporte (status, created_at desc);
+
+
+-- ============================================================================
+-- v12 — SAIR anonimiza as indicações (não apaga) — LGPD §4.5
+-- ============================================================================
+alter table recommendations alter column member_id drop not null;
+alter table recommendations drop constraint if exists recommendations_member_id_fkey;
+alter table recommendations
+    add constraint recommendations_member_id_fkey
+    foreign key (member_id) references members(id) on delete set null;
+
+
+-- ============================================================================
+-- v13 — conexões mútuas (os dois lados confirmam que se conhecem) §6/§7.5
+-- ============================================================================
+create table if not exists conexoes (
+    id          uuid primary key default gen_random_uuid(),
+    member_a    uuid references members(id) on delete cascade,
+    member_b    uuid references members(id) on delete cascade,
+    origem      text not null,
+    provider_id uuid references providers(id) on delete set null,
+    a_confirmou boolean not null default false,
+    b_confirmou boolean not null default false,
+    status      text not null default 'pendente',
+    created_at  timestamptz not null default now(),
+    updated_at  timestamptz,
+    unique (member_a, member_b)
+);
+create index if not exists idx_conexoes_a on conexoes (member_a, status);
+create index if not exists idx_conexoes_b on conexoes (member_b, status);
+alter table conexoes enable row level security;
