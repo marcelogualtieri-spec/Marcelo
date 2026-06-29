@@ -1821,6 +1821,94 @@ PRESTADOR_ATIVO_STATUS = {"aguardando_perfil", "ativo", "pausado"}
 # Botoes que pertencem ao fluxo de indicacao (qualquer outro botao sai do fluxo).
 BOTOES_INDICAR = {"ind_certo", "ind_corrigir"}
 
+# Botoes do fluxo de perfil profissional (qualquer outro sai do fluxo).
+BOTOES_PERFIL = {"perfil_ok", "perfil_corrigir"}
+
+
+def _enviar_pedido_perfil():
+    """Pede a descrição do trabalho (texto livre) com um botão de escape."""
+    enviar_botoes_meta(t.PRESTADOR_QUERO_SER_OK, [{"id": "outras_opcoes", "label": "☰ Outras opções"}])
+
+
+def _enviar_validacao_perfil(membro, fluxo):
+    enviar_botoes_meta(
+        t.PRESTADOR_VALIDAR.format(
+            categoria=fluxo.get("categoria") or "—",
+            subcategoria=fluxo.get("subcategoria") or "—",
+            regiao=fluxo.get("regiao") or "—",
+            diferenciais=fluxo.get("diferenciais") or "—",
+            contato=fluxo.get("contato") or "—"),
+        [{"id": "perfil_ok",       "label": "✅ Confirmar"},
+         {"id": "perfil_corrigir", "label": "✏️ Corrigir"},
+         {"id": "outras_opcoes",   "label": "☰ Outras opções"}])
+
+
+def _iniciar_validacao_perfil(membro, provider_id, texto):
+    """Lê a descrição do profissional, organiza em campos (categoria/subcategoria/
+    região/diferenciais/contato) e mostra para validação por botões."""
+    dados = nlu.extrair_perfil_profissional(texto)
+    fluxo = {"fluxo": "perfil_prof", "provider_id": provider_id,
+             "raw": (texto or "").strip(),
+             "categoria":    (dados.get("categoria") or "").strip(),
+             "subcategoria": (dados.get("subcategoria") or "").strip(),
+             "regiao":       (dados.get("regiao") or "").strip(),
+             "diferenciais": (dados.get("diferenciais") or "").strip(),
+             "contato":      (dados.get("contato") or "").strip()}
+    _fluxo_set(membro, fluxo)
+    _enviar_validacao_perfil(membro, fluxo)
+
+
+def _salvar_perfil(membro, fluxo):
+    """Grava o perfil validado e ativa o cadastro do profissional."""
+    pid = fluxo.get("provider_id")
+    categoria = (fluxo.get("categoria") or "").strip()
+    regiao    = (fluxo.get("regiao") or "").strip()
+    servico   = (categoria or "serviço").lower()
+    # descricao rica preserva o texto original (com subcategoria e contato).
+    partes = []
+    if fluxo.get("subcategoria"):
+        partes.append(f"Especialidade: {fluxo['subcategoria']}")
+    if fluxo.get("contato"):
+        partes.append(f"Contato/pagamento: {fluxo['contato']}")
+    if fluxo.get("raw"):
+        partes.append(fluxo["raw"])
+    descricao = "\n".join(partes)
+    try:
+        supabase.table("providers").update({
+            "servico": servico,
+            "regiao": regiao,
+            "bairro": regiao or "São Paulo",
+            "cidade": "São Paulo",
+            "diferenciais": (fluxo.get("diferenciais") or "").strip(),
+            "descricao": descricao,
+            "status": "ativo",
+        }).eq("id", pid).execute()
+    except Exception:
+        traceback.print_exc()
+    _fluxo_limpar(membro)
+    try:
+        tem_reco = bool(supabase.table("recommendations").select("id")
+                        .eq("provider_id", pid).limit(1).execute().data)
+    except Exception:
+        tem_reco = False
+    resposta_whatsapp(t.PRESTADOR_PERFIL_OK if tem_reco else t.PRESTADOR_PERFIL_INVISIVEL)
+
+
+def _passo_perfil(membro, fluxo, texto, button_id, cmd):
+    """Conduz um passo do fluxo de perfil profissional. Retorna True se respondeu."""
+    if cmd == "perfil_ok":
+        _salvar_perfil(membro, fluxo)
+        return True
+    if cmd == "perfil_corrigir":
+        resposta_whatsapp(t.PRESTADOR_CORRIGIR)
+        return True
+    if (texto or "").strip():
+        # Reenviou a descrição (correção ou complemento): organiza e valida de novo.
+        _iniciar_validacao_perfil(membro, fluxo.get("provider_id"), texto)
+        return True
+    _enviar_validacao_perfil(membro, fluxo)
+    return True
+
 
 # ---------------------------------------------------------------------------
 # FLUXO: CLIENTE INDICA UM PROFISSIONAL (regra de ouro — consentimento primeiro)
@@ -2340,6 +2428,18 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             # encerra o fluxo e deixa o tratamento normal abaixo cuidar do botao.
             _fluxo_limpar(membro)
 
+    # -------- Fluxo ativo: PERFIL profissional (validação por botões) --------
+    if consentiu and fluxo.get("fluxo") == "perfil_prof":
+        if button_id in BOTOES_PERFIL or not button_id:
+            if cmd in ("menu", "voltar", "cancelar", "inicio"):
+                _fluxo_limpar(membro)
+                enviar_menu_principal()
+                return True
+            if _passo_perfil(membro, fluxo, texto, button_id, cmd):
+                return True
+        else:
+            _fluxo_limpar(membro)
+
     # -------- Prestador de servico: onboarding e perfil --------
     prest = provider_do_membro(membro["id"])
     if prest:
@@ -2357,7 +2457,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             # aos DOIS lados se se conhecem.
             if membro.get("invited_by"):
                 _abrir_conexao_indicacao(membro, prest)
-            resposta_whatsapp(t.PRESTADOR_REFINAMENTO)
+            _enviar_pedido_perfil()
             return True
         if cmd == "prest_ajustar":
             resposta_whatsapp(t.PRESTADOR_AJUSTAR)
@@ -2368,7 +2468,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             return True
         if cmd == "prest_editar":
             supabase.table("providers").update({"status": "aguardando_perfil"}).eq("id", prest["id"]).execute()
-            resposta_whatsapp(t.PRESTADOR_REFINAMENTO)
+            _enviar_pedido_perfil()
             return True
         if cmd == "prest_pausar":
             novo = "ativo" if prest.get("status") == "pausado" else "pausado"
@@ -2381,15 +2481,8 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         # Texto livre durante o onboarding (nao e botao nem comando de menu):
         if not button_id and cmd not in MENU_TRIGGERS:
             if prest.get("status") == "aguardando_perfil":
-                supabase.table("providers").update({
-                    "descricao": (texto or "").strip(), "status": "ativo",
-                }).eq("id", prest["id"]).execute()
-                # Conta do banco (§7.8): sem recomendação, o perfil fica invisível
-                # na busca — então a mensagem é honesta sobre isso (§5.1 / Mensagem 6).
-                tem_reco = bool(supabase.table("recommendations").select("id")
-                                .eq("provider_id", prest["id"]).limit(1).execute().data)
-                resposta_whatsapp(t.PRESTADOR_PERFIL_OK if tem_reco
-                                  else t.PRESTADOR_PERFIL_INVISIVEL)
+                # Organiza a descrição em campos e mostra para validação por botões.
+                _iniciar_validacao_perfil(membro, prest["id"], texto)
                 return True
             if prest.get("status") == "onboarding":
                 servico_novo = (texto or "").strip().lower()
@@ -2449,7 +2542,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             if membro.get("invited_by"):
                 _abrir_conexao_cliente(membro)
             _criar_perfil_profissional_self(membro)
-            resposta_whatsapp(t.PRESTADOR_QUERO_SER_OK)
+            _enviar_pedido_perfil()
             return True
         # Deixar para depois.
         if cmd == "adiar":
@@ -2537,7 +2630,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             enviar_menu_prestador()
             return True
         _criar_perfil_profissional_self(membro)
-        resposta_whatsapp(t.PRESTADOR_QUERO_SER_OK)
+        _enviar_pedido_perfil()
         return True
 
     if cmd == "rede_indicar":
@@ -2621,6 +2714,14 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     # Depois de uma acao concluida pela IA, oferece o menu — pra nunca ficar solto.
     if membro.get("consent") and not interativa_enviada[0] and (usados & TOOLS_TERMINAIS):
         enviar_menu_principal()
+
+
+@app.route("/ping", methods=["GET"])
+def ping():
+    """Endpoint leve de keep-alive — um monitor (ex.: UptimeRobot) batendo aqui a
+    cada ~10 min impede a instância gratuita do Render de 'dormir' e cortar a
+    lentidão do primeiro retorno."""
+    return Response("ok", mimetype="text/plain")
 
 
 @app.route("/termos", methods=["GET"])

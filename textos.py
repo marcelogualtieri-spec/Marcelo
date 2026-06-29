@@ -425,14 +425,35 @@ PRESTADOR_QUERO_SER = (
     "profissional e configure o seu perfil."
 )
 
+# Pedido do perfil (mesmo texto para autocadastro e para quem foi indicado).
+# Enviado com um botão de escape (Outras opções). A pessoa manda tudo num texto só;
+# a Dorote.ia organiza e valida com botões antes de gravar.
 PRESTADOR_QUERO_SER_OK = (
-    "Perfeito, perfil profissional iniciado! 🚀\n\n"
-    "Me conte, num texto só:\n"
-    "1️⃣ Qual *serviço* você presta (ex.: encanador, pediatra)\n"
-    "2️⃣ *Região* de atendimento\n"
-    "3️⃣ *Diferenciais* (formas de pagamento, redes sociais...)\n"
-    "4️⃣ Como você *trabalha*\n\n"
-    "Quando terminar, é só digitar *MENU*."
+    "Perfil profissional iniciado! 🚀\n\n"
+    "Me conta tudo numa mensagem só, do seu jeito, mas com as informações básicas:\n\n"
+    "1️⃣ O que você faz (ex.: encanador, confeiteira, professor de inglês)\n\n"
+    "2️⃣ Onde atende (sua região, bairros, a cidade toda, ou online pro Brasil inteiro)\n\n"
+    "3️⃣ Seus diferenciais (no que é forte, rapidez, especialidades)\n\n"
+    "4️⃣ Como te encontrar e pagar (Pix, cartão, Instagram, site, endereço completo…)\n\n"
+    "Ex.: _Conserto de geladeira e máquina de lavar. Atendo a zona leste de SP. Vou no "
+    "mesmo dia e dou 3 meses de garantia. Pix, cartão ou dinheiro. @geladeirafacil, Rua "
+    "Magnólia 123, Jardim das Flores, São Paulo._"
+)
+
+# Resumo organizado do que a Dorote.ia entendeu (validação com botões).
+PRESTADOR_VALIDAR = (
+    "Deixa eu ver se entendi 💛 É assim que o seu perfil vai ficar:\n\n"
+    "🔧 O que você faz: {categoria}\n"
+    "🔖 Especialidade: {subcategoria}\n"
+    "📍 Onde atende: {regiao}\n"
+    "✨ Diferenciais: {diferenciais}\n"
+    "📇 Contato e pagamento: {contato}\n\n"
+    "Está certo? Você pode confirmar, corrigir ou ver outras opções."
+)
+
+PRESTADOR_CORRIGIR = (
+    "Sem problema 💛 Me mande de novo, numa mensagem só, com o que faltou ou o que mudou — "
+    "eu organizo tudo de novo pra você conferir."
 )
 
 

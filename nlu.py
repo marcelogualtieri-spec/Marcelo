@@ -157,3 +157,55 @@ def extrair_indicacao(texto):
     except Exception as erro:
         print(f"[NLU] erro ao interpretar a indicacao: {erro}")
         return {"nome": "", "servico": "", "bairro": "", "detalhe": ""}
+
+
+# ---------------------------------------------------------------------------
+# Perfil PROFISSIONAL: a pessoa descreve o proprio trabalho num texto so e a
+# Claude organiza em campos (categoria/subcategoria/regiao/diferenciais/contato),
+# que o codigo valida com botoes antes de gravar.
+# ---------------------------------------------------------------------------
+_INSTRUCOES_PERFIL = (
+    "Voce recebe a descricao que um PROFISSIONAL fez do proprio trabalho (PT-BR). "
+    "Organize em campos, sem inventar nada que nao esteja no texto:\n"
+    "- 'categoria': a categoria principal do servico, no singular e minuscula "
+    "(ex.: 'eletricista', 'confeiteira', 'professor de ingles', 'tecnico de geladeira').\n"
+    "- 'subcategoria': a especialidade/detalhe, se houver (ex.: 'bolos de casamento', "
+    "'maquina de lavar', 'ingles para criancas'). Vazio se nao houver.\n"
+    "- 'regiao': onde atende (ex.: 'zona leste de Sao Paulo', 'Pinheiros', 'cidade toda', "
+    "'online'). Vazio se nao houver.\n"
+    "- 'diferenciais': no que e forte — rapidez, garantia, especialidades, experiencia. "
+    "Vazio se nao houver.\n"
+    "- 'contato': formas de pagamento e de contato (Pix, cartao, dinheiro, Instagram, site, "
+    "endereco). Vazio se nao houver."
+)
+
+_ESQUEMA_PERFIL = {
+    "type": "object",
+    "properties": {
+        "categoria":    {"type": "string"},
+        "subcategoria": {"type": "string"},
+        "regiao":       {"type": "string"},
+        "diferenciais": {"type": "string"},
+        "contato":      {"type": "string"},
+    },
+    "required": ["categoria", "subcategoria", "regiao", "diferenciais", "contato"],
+    "additionalProperties": False,
+}
+
+
+def extrair_perfil_profissional(texto):
+    """Le a descricao do profissional e devolve os campos organizados.
+    Em caso de erro, devolve tudo vazio (o fluxo pede pra reenviar)."""
+    try:
+        resposta = _cliente.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=500,
+            system=_INSTRUCOES_PERFIL,
+            messages=[{"role": "user", "content": texto}],
+            output_config={"format": {"type": "json_schema", "schema": _ESQUEMA_PERFIL}},
+        )
+        bloco_texto = next(b for b in resposta.content if b.type == "text")
+        return json.loads(bloco_texto.text)
+    except Exception as erro:
+        print(f"[NLU] erro ao interpretar o perfil: {erro}")
+        return {"categoria": "", "subcategoria": "", "regiao": "", "diferenciais": "", "contato": ""}
