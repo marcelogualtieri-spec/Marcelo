@@ -63,6 +63,11 @@
 - ✅ Variáveis de ambiente configuradas no Render (`WHATSAPP_PHONE_NUMBER_ID`, `CRON_SECRET`, etc.)
 - ✅ `CRON_SECRET` configurado no GitHub Secrets
 - ✅ Migrações v2–v9 rodadas no Supabase
+- ⬜ **Migração v10** (perfil de prestador) rodada no Supabase
+- ⬜ **Migração v11** (tabela `suporte` / canal AJUDA) rodada no Supabase
+- ⬜ **Migração v12** (SAIR anonimiza as indicações — LGPD §4.5) rodada no Supabase
+- ⬜ **Migração v13** (tabela `conexoes` — conexão mútua) rodada no Supabase
+- ⬜ Controlador (razão social/CNPJ) e Encarregado (DPO) preenchidos em `termos.py`
 - ✅ Revisão do DPO (LGPD) concluída
 
 ---

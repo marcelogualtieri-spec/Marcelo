@@ -44,7 +44,9 @@ privacidade de todos.
    — pelo clipe 📎 ou digitando.
 6. **Convidar / montar a rede:** gera um link para trazer pessoas de confiança. Quanto
    maior a rede, melhores as indicações.
-7. **Sair:** digitar **SAIR** a qualquer momento apaga os dados (com confirmação).
+7. **Sair:** digitar **SAIR** a qualquer momento apaga o cadastro e o nome (com
+   confirmação). As indicações já feitas **não são apagadas** — ficam anônimas
+   (⚪ rede geral), para a rede não perder a recomendação.
 
 ## 4. O coração do produto — os 3 níveis de confiança da indicação
 
@@ -99,7 +101,9 @@ legítimo + dado tornado público para "referências públicas" de profissionais
 
 **Direitos do titular (LGPD art. 18):** acesso, correção, eliminação, portabilidade,
 informação sobre compartilhamento e revogação do consentimento. Na prática: digitar
-**SAIR** apaga tudo (com confirmação); o resto é pedido no chat ou ao Encarregado.
+**SAIR** apaga o cadastro e o nome (com confirmação) e **anonimiza** as indicações já
+feitas (elas continuam ajudando a rede, sem o nome de quem indicou); o resto é pedido
+no chat ou ao Encarregado.
 
 **Operadores / transferência internacional (art. 33):** Meta (WhatsApp Cloud API),
 Anthropic (IA), Supabase (banco), Render (hospedagem) — podem processar dados fora do
@@ -159,17 +163,23 @@ Brasil, com salvaguardas.
 
 ## 11. Estado atual e roadmap
 
-**Já funciona:** onboarding + consentimento; busca verde/anônimo/sem-resultado;
-recomendar; convidar/montar rede por link; avaliação de indicações (1–5); fluxo de
-prestador (onboarding, perfil, pausar/remover, perfil dual); saída diferenciada por
-perfil; canal de AJUDA; robustez do chat (sem duplicatas, "digitando...").
+**Já funciona:** onboarding + consentimento; **busca nos 3 níveis** (🟢 conexão mútua
+validada / 🟡 da rede pendente, anônimo / ⚪ rede geral) com **k-anonimato (≥5)** e
+**sinais anônimos** de indicação pendente; **conexão mútua** (os dois confirmam "vocês se
+conhecem?"); indicar profissional (com a regra de ouro do consentimento) e convidar/montar
+rede por link (links distintos para cliente e para profissional); **avaliação por botões**
+(1–5; a IA nunca dá nota); fluxo de prestador (onboarding, perfil, pausar/remover, perfil
+dual; invisível na busca até a 1ª recomendação); **SAIR que anonimiza** as indicações;
+confirmação pendente mostrada **ao reabrir o chat**; **anti-spam** (20/dia); canal de AJUDA;
+robustez do chat (sem duplicatas, "digitando..."). Migrações: v11, v12, v13.
 
 **Próximas fases:**
-- **Fase 1–2:** conexões mútuas (aceite por link, recusar, bloquear) e os 3 níveis
-  completos na busca, com a regra de k-anonimato.
-- **Fase 4:** notificações e resumo diário (dependem de resolver os Templates de 24h).
-- **Painel "Minha conta":** histórico por categoria (conexões ativas/pendentes,
+- **Bloqueio** de pessoas e **recusar conexão** com gestão na "Minha conta".
+- **Notificações e resumo diário** (dependem de resolver os Templates de 24h da Meta).
+- **Painel "Minha conta"** com histórico por categoria (conexões ativas/pendentes,
   profissionais indicados por mim, indicações que recebi).
+- Antes de divulgar: preencher **controlador** (razão social/CNPJ) e **Encarregado (DPO)**
+  nos Termos.
 
 ## 12. Pedidos comuns que este briefing habilita
 

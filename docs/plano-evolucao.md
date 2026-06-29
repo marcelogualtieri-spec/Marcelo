@@ -196,3 +196,41 @@ codificado no link:
   conexões pendentes, profissionais indicados por mim, indicações que recebi) — "conexões
   ativas/pendentes" dependem do modelo de **conexões mútuas** (Fases 1/2). As partes que
   já existem (indicações feitas, buscas, rede) podem entrar antes.
+
+---
+
+## 11. Alinhamento ao CLAUDE.md (fonte de verdade) — IMPLEMENTADO
+
+> O `CLAUDE.md` na raiz é a fonte de verdade dos fluxos. As 7 fases abaixo foram
+> implementadas para alinhar o código a ele. Migrações a rodar no Supabase:
+> **v11** (suporte), **v12** (SAIR anonimiza), **v13** (conexões mútuas).
+
+- **Fase 1 — Copy + prompts.** Mensagens alinhadas ao texto exato da seção 8 do CLAUDE.md;
+  piloto = São Paulo (pergunta bairro/região, **nunca "qual cidade"**); linguagem neutra
+  de gênero; guarda no prompt contra a IA inventar nota/estrelas.
+- **Fase 2 — Visibilidade do profissional.** Só aparece na busca quem está `ativo` **e tem
+  ≥1 recomendação real**. Autocadastro fica invisível até a 1ª recomendação (Mensagem 6).
+- **Fase 3 — Avaliação determinística.** A IA **não dá nota** (ferramenta `avaliar_indicacao`
+  removida). Fluxo por botões "Usei / Ainda não" → lista ⭐1–5 (stateless, id da indicação
+  no botão). Pergunta na reabertura do chat (≥48h) e no follow-up.
+- **Fase 4 — SAIR anonimiza (LGPD §4.5).** `recommendations.member_id` vira nullable +
+  `ON DELETE SET NULL` (**migration v12**). Ao sair, apaga cadastro/nome e as indicações
+  continuam, anônimas (⚪ rede geral). Copy do SAIR honesta.
+- **Fase 5 — Confirmação pendente fora das 24h.** Sem proativo: ao **reabrir o chat**, antes
+  do menu, mostra o que ficou pendente (1º confirmação de conexão, 2º nota).
+- **Fase 6 — Conexão mútua + 3 níveis + k-anonimato.** Tabela **`conexoes`** (**migration
+  v13**): 🟢 só com **os dois** confirmando ("vocês se conhecem?"); `existe_vinculo` passa a
+  exigir conexão validada. Busca em 3 níveis: 🟢 validada (com nome) / 🟡 da rede mas não
+  confirmada (anônimo, **k≥5**) / ⚪ rede geral. **Sinais anônimos** de indicação pendente
+  (profissional `convidado` indicado por gente da rede, sem nome/telefone, k≥5).
+- **Fase 7 — List messages.** "Outras opções" e "Minha conta" viram *list message* (§7.1).
+- **Anti-spam (§10).** Teto de **20 indicações/convites por pessoa por dia**.
+
+### Pendências / decisões registradas
+- **Suposições:** k-anonimato = 5; "região" = texto livre da pessoa (sem mapa de zonas);
+  nota 1–5 por list message; anti-spam conta convites pendentes nas últimas 24h.
+- **Exigirão Template (fora das 24h):** avisar proativamente quem indicou/convidou que a
+  pessoa entrou, follow-up de avaliação e digests. No piloto, resolvido por "mostrar ao
+  reabrir o chat" (Fase 5).
+- **Antes de divulgar:** preencher controlador (razão social/CNPJ) e Encarregado (DPO) nos
+  Termos (`termos.py`).
