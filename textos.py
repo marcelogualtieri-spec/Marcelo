@@ -154,6 +154,13 @@ INDICAR_NEGADA = (
     "dessa pessoa não fica ligado a você."
 )
 
+# Regra: ninguém indica o próprio número como profissional.
+INDICAR_SI_MESMO = (
+    "Esse é o seu próprio contato 😊\n\n"
+    "Para aparecer como profissional, use a opção *Quero ser profissional*. "
+    "Para indicar, me envie o contato de *outra* pessoa em quem você confia. 💛"
+)
+
 
 # --- Contatos (telas 7.2 / 7.3) ------------------------------------------
 PEDIR_CONTATOS = (
@@ -254,11 +261,24 @@ CONVITE_EXTRAS = (
     "quando eles entrarem, voces se reconhecem aqui. 💛)"
 )
 
-# A mensagem que VOCE vai enviar pra pessoa (ela recebe isso).
+# Mensagem 2 — texto pronto para encaminhar (o que a outra pessoa recebe).
+# Sai pré-escrito na conversa com a pessoa convidada (dinâmica do clipe 📎 / link wa.me).
 CONVITE_MENSAGEM_AMIGO = (
-    "Oi! 💛 Te indico a Dorote.ia: um cantinho no WhatsApp que recomenda "
-    "indicacoes de confianca - medico, escola, encanador, o que voce precisar. "
-    "Pra entrar (e ja ficar ligado comigo), e so abrir aqui: {link}"
+    "Oi! 💛 Tô usando a Dorote.ia, uma central de indicações de confiança no WhatsApp. "
+    "Serve pra achar gente boa — dentista, eletricista, reforço escolar... — indicada por "
+    "quem a gente conhece, sem a bagunça dos grupos.\n\n"
+    "Entra pelo meu convite pra gente trocar indicações:\n\n{link}"
+)
+
+# Mensagem 1 — o que a Dorote.ia entrega para quem está convidando (perfil CLIENTE
+# trazendo outra pessoa de confiança para a rede). Não confundir com indicar um
+# profissional (esse é outro fluxo, com outro link).
+CONVIDAR_CLIENTE_VOCE = (
+    "Boa! 💛 Quanto mais gente de confiança na sua rede, melhores as indicações que "
+    "você recebe.\n\n"
+    "Encaminhe este convite para quem você confia:\n\n{link}\n\n"
+    "Quando a pessoa entrar, vou perguntar se vocês se conhecem. Se os dois confirmarem, "
+    "começam a trocar indicações. 💛"
 )
 
 # O que a Dorote.ia te responde, com o link que abre a conversa com a pessoa.

@@ -831,6 +831,12 @@ def _ferr_recomendar(membro, entrada, numeros, interativa_enviada):
         interativa_enviada[0] = True
         return "Fluxo de indicacao iniciado (pedindo o contato). Nao escreva mais nada."
 
+    # Regra de ouro: ninguém indica a si mesmo como profissional.
+    if _eh_proprio_numero(membro, telefone):
+        _avisar_indicacao_si_mesmo()
+        interativa_enviada[0] = True
+        return "A pessoa tentou indicar o proprio numero. Nao registre. Mensagem ja enviada."
+
     nome = nome or "essa pessoa"
     fluxo = {"fluxo": "indicar", "nome": nome, "telefone": telefone,
              "servico": servico, "bairro": bairro or "não informado", "detalhe": detalhe}
@@ -1535,13 +1541,14 @@ def enviar_submenu_dados():
 
 
 def gerar_e_enviar_link_convite(membro):
-    """Gera (deterministico) o link de convite generico e manda pra pessoa."""
+    """Convite do perfil CLIENTE para trazer outra pessoa de confiança (outro cliente)
+    para a rede. Entrega as duas mensagens oficiais: a que a pessoa vê (com o link) e a
+    pronta para encaminhar. É um link diferente do de indicar um profissional."""
     numero_bot = g.get("display_phone_number") or ""
     codigo = obter_ou_criar_codigo(membro)
     link = encurtar_link(montar_link_convite(numero_bot, codigo))
-    resposta_whatsapp(
-        "Aqui está o seu link de convite! 💛 Mande para quantas pessoas de confiança quiser — "
-        "quem entrar por ele já fica ligado a você.\n\n" + link)
+    resposta_whatsapp(t.CONVIDAR_CLIENTE_VOCE.format(link=link))
+    resposta_whatsapp(t.CONVITE_MENSAGEM_AMIGO.format(link=link))
 
 
 def _perfil_tipo(membro):
@@ -1675,10 +1682,12 @@ def iniciar_onboarding_prestador(membro, servico):
 
 
 def enviar_escolha_perfil():
-    enviar_botoes_meta("Olá! Como você deseja interagir comigo hoje?", [
-        {"id": "perfil_cliente",      "label": "🔍 Cliente"},
-        {"id": "perfil_profissional", "label": "💼 Profissional"},
-    ])
+    enviar_botoes_meta(
+        "Você tem dois perfis aqui 💛 Com qual deles quer seguir agora?\n\n"
+        "🔍 *Como cliente* — buscar, indicar e convidar quem você confia.\n"
+        "💼 *Como profissional* — cuidar do seu cadastro para ser recomendado.",
+        [{"id": "perfil_cliente",      "label": "🔍 Como cliente"},
+         {"id": "perfil_profissional", "label": "💼 Profissional"}])
 
 
 def enviar_menu_prestador():
@@ -1705,10 +1714,27 @@ MENU_TRIGGERS = {"menu", "inicio", "voltar", "home", "🏠 menu", "oi", "ola", "
 # Status de prestador que ja contam como "tem perfil profissional" (mostra visao dupla).
 PRESTADOR_ATIVO_STATUS = {"aguardando_perfil", "ativo", "pausado"}
 
+# Botoes que pertencem ao fluxo de indicacao (qualquer outro botao sai do fluxo).
+BOTOES_INDICAR = {"ind_certo", "ind_corrigir"}
+
 
 # ---------------------------------------------------------------------------
 # FLUXO: CLIENTE INDICA UM PROFISSIONAL (regra de ouro — consentimento primeiro)
 # ---------------------------------------------------------------------------
+def _eh_proprio_numero(membro, telefone):
+    """True se o telefone informado for o numero da propria pessoa — ninguem indica
+    a si mesmo como profissional (usa a opcao 'Quero ser profissional')."""
+    proprio = normalizar_e164(membro.get("wa_id") or "")
+    return bool(telefone) and bool(proprio) and telefone == proprio
+
+
+def _avisar_indicacao_si_mesmo():
+    enviar_botoes_meta(t.INDICAR_SI_MESMO, [
+        {"id": "quero_ser_prof", "label": "💼 Ser profissional"},
+        {"id": "menu",           "label": "🏠 Menu"},
+    ])
+
+
 def _enviar_validacao_indicacao(membro, fluxo):
     enviar_botoes_meta(
         t.INDICAR_VALIDAR.format(
@@ -1738,6 +1764,9 @@ def _passo_indicar(membro, fluxo, texto, button_id, contatos, cmd):
                 nome = (dados.get("nome") or nome).strip()
         if not telefone:
             enviar_botoes_meta(t.INDICAR_PEDIR_TELEFONE, [{"id": "menu", "label": "🏠 Menu"}])
+            return True
+        if _eh_proprio_numero(membro, telefone):
+            _avisar_indicacao_si_mesmo()
             return True
         nome = (nome or fluxo.get("nome") or "").strip() or "essa pessoa"
         fluxo.update({"passo": "detalhes", "nome": nome, "telefone": telefone})
@@ -1793,6 +1822,11 @@ def _finalizar_indicacao(membro, fluxo):
     servico  = (fluxo.get("servico") or "").strip().lower()
     bairro   = (fluxo.get("bairro") or "").strip() or "não informado"
     detalhe  = (fluxo.get("detalhe") or "").strip()
+    # Regra de ouro: ninguém indica a si mesmo.
+    if _eh_proprio_numero(membro, telefone):
+        _fluxo_limpar(membro)
+        _avisar_indicacao_si_mesmo()
+        return
     try:
         existente = (supabase.table("providers").select("*")
                      .eq("telefone", telefone).limit(1).execute().data)
@@ -1932,12 +1966,18 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     # -------- Fluxo ativo: o cliente esta INDICANDO um profissional --------
     fluxo = _fluxo_get(membro)
     if consentiu and fluxo.get("fluxo") == "indicar":
-        if cmd in ("menu", "voltar", "cancelar", "inicio") or button_id in ("menu", "voltar", "cancelar"):
+        # Botoes proprios do fluxo seguem para o passo certo; texto idem.
+        if button_id in BOTOES_INDICAR or not button_id:
+            if cmd in ("menu", "voltar", "cancelar", "inicio"):
+                _fluxo_limpar(membro)
+                enviar_menu_principal()
+                return True
+            if _passo_indicar(membro, fluxo, texto, button_id, contatos, cmd):
+                return True
+        else:
+            # Clicou em outro botao de navegacao (menu, ser profissional, etc.):
+            # encerra o fluxo e deixa o tratamento normal abaixo cuidar do botao.
             _fluxo_limpar(membro)
-            enviar_menu_principal()
-            return True
-        if _passo_indicar(membro, fluxo, texto, button_id, contatos, cmd):
-            return True
 
     # -------- Prestador de servico: onboarding e perfil --------
     prest = provider_do_membro(membro["id"])
