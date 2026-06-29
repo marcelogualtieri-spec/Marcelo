@@ -411,9 +411,16 @@ PRESTADOR_REFINAMENTO = (
 )
 
 PRESTADOR_PERFIL_OK = (
-    "Prontinho, perfil atualizado! 💼💛 Já está tudo certo para você ser recomendado.\n"
-    "A qualquer momento, digite *MENU* para ajustar o seu perfil ou alternar entre as "
+    "Prontinho, perfil atualizado! 💼💛 Já está tudo certo.\n"
+    "A qualquer momento, toque em *MENU* para ajustar o seu perfil ou alternar entre as "
     "visões de cliente e profissional."
+)
+
+# Mensagem 6 (§8) — honesta: o perfil só aparece na busca depois da 1ª recomendação.
+PRESTADOR_PERFIL_INVISIVEL = (
+    "Seu perfil de profissional está criado 💛\n\n"
+    "Assim que a primeira pessoa recomendar o seu trabalho, você começa a aparecer para "
+    "a rede. É a recomendação de verdade que dá força ao seu perfil aqui."
 )
 
 

@@ -2022,7 +2022,12 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                 supabase.table("providers").update({
                     "descricao": (texto or "").strip(), "status": "ativo",
                 }).eq("id", prest["id"]).execute()
-                resposta_whatsapp(t.PRESTADOR_PERFIL_OK)
+                # Conta do banco (§7.8): sem recomendação, o perfil fica invisível
+                # na busca — então a mensagem é honesta sobre isso (§5.1 / Mensagem 6).
+                tem_reco = bool(supabase.table("recommendations").select("id")
+                                .eq("provider_id", prest["id"]).limit(1).execute().data)
+                resposta_whatsapp(t.PRESTADOR_PERFIL_OK if tem_reco
+                                  else t.PRESTADOR_PERFIL_INVISIVEL)
                 return True
             if prest.get("status") == "onboarding":
                 servico_novo = (texto or "").strip().lower()
