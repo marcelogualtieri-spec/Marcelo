@@ -155,6 +155,27 @@ INDICAR_NEGADA = (
     "dessa pessoa não fica ligado a você."
 )
 
+# --- Avaliação determinística (por botões — a IA nunca dá nota) --------------
+AVALIAR_USOU = (
+    "Uma perguntinha rápida 💛\n\n"
+    "Você chegou a usar a indicação de *{nome}* ({servico})?"
+)
+
+AVALIAR_NOTA = (
+    "Que bom! 💛 De 1 a 5, que nota você dá para *{nome}*?\n"
+    "Toque para escolher."
+)
+
+AVALIAR_OBRIGADA = (
+    "Obrigada! 💛 A sua nota ajuda essa indicação a chegar com mais força para quem "
+    "precisar do mesmo serviço."
+)
+
+AVALIAR_AINDA = (
+    "Sem problema! 💛 Quando você usar, é só me contar — quero saber como foi."
+)
+
+
 # Regra: ninguém indica o próprio número como profissional.
 INDICAR_SI_MESMO = (
     "Esse é o seu próprio contato 😊\n\n"

@@ -1130,74 +1130,28 @@ def _ferr_excluir(membro, entrada):
             "TUDO (e irreversivel). So chame esta ferramenta de novo com confirmado=true depois do sim.")
 
 
-def _ferr_avaliar(membro, entrada):
-    """Registra a avaliacao de uma indicacao que a pessoa recebeu. So vale pra
-    prestadores que JA foram mostrados a ela (integridade da rede de confianca)."""
-    nome = (entrada.get("nome") or "").strip()
-    usou = entrada.get("usou")
-    if not nome:
-        return "Faltou o nome do prestador que ela esta avaliando. Pergunte qual foi."
-
-    # Acha a indicacao recebida que casa com esse nome (pendente tem prioridade).
-    recebidas = (supabase.table("indicacoes_recebidas").select("*")
-                 .eq("member_id", membro["id"]).execute().data)
-    candidatos = []
-    for ind in recebidas:
-        prestador = buscar_provider(ind["provider_id"])
-        if prestador and nome.lower() in (prestador["nome"] or "").lower():
-            candidatos.append((ind, prestador))
-    if not candidatos:
-        return (f"Nao encontrei '{nome}' entre as indicacoes que voce ja mostrou a ela. "
-                "Pergunte com gentileza qual foi a indicacao (nome do prestador) que ela usou.")
-    # Prioriza pendente; se houver mais de um, pega o mais recente.
-    candidatos.sort(key=lambda c: (c[0]["status"] == "pendente", c[0].get("created_at") or ""),
-                    reverse=True)
-    ind, prestador = candidatos[0]
-
-    # Pessoa nao chegou a usar: marca dispensada pra Dorote.ia parar de perguntar.
-    if usou is False:
-        supabase.table("indicacoes_recebidas").update({
-            "status": "dispensada",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", ind["id"]).execute()
-        return (f"Ok, ela ainda nao usou {prestador['nome']}. Nao registre nota. Diga sem "
-                "problema que e so avisar quando usar, que voce quer saber como foi.")
-
-    # Usou: precisa de nota de 1 a 5.
-    nota = entrada.get("nota")
-    try:
-        nota = int(nota)
-    except (TypeError, ValueError):
-        nota = None
-    if nota is None or not (1 <= nota <= 5):
-        return ("Pra registrar, preciso de uma nota de 1 a 5 estrelas. Pergunte de forma leve "
-                f"que nota (1 a 5) ela da pra {prestador['nome']}.")
-
-    comentario = (entrada.get("comentario") or "").strip() or None
+def _gravar_avaliacao(membro, ind, prestador, nota):
+    """Grava a nota (1 a 5) que a PESSOA escolheu nos botoes — fluxo deterministico.
+    Upsert: uma avaliacao por pessoa por prestador (reavaliar atualiza)."""
     agora = datetime.now(timezone.utc).isoformat()
-
-    # Upsert: uma avaliacao por pessoa por prestador (reavaliar atualiza).
-    ja = (supabase.table("avaliacoes").select("id")
-          .eq("member_id", membro["id"]).eq("provider_id", prestador["id"])
-          .limit(1).execute().data)
-    if ja:
-        supabase.table("avaliacoes").update({
-            "nota": nota, "comentario": comentario, "updated_at": agora,
-        }).eq("id", ja[0]["id"]).execute()
-    else:
-        supabase.table("avaliacoes").insert({
-            "member_id": membro["id"], "provider_id": prestador["id"],
-            "nota": nota, "comentario": comentario,
-        }).execute()
-
-    supabase.table("indicacoes_recebidas").update({
-        "status": "avaliada", "updated_at": agora,
-    }).eq("id", ind["id"]).execute()
-    _recalcular_nota_provider(prestador["id"])
-
-    return (f"Avaliacao registrada: {nota}/5 para {prestador['nome']}. Agradeca de coracao e "
-            "explique que a nota dela ajuda essa indicacao a ganhar relevancia e chegar com "
-            "mais forca pra quem da rede precisar do mesmo servico.")
+    try:
+        ja = (supabase.table("avaliacoes").select("id")
+              .eq("member_id", membro["id"]).eq("provider_id", prestador["id"])
+              .limit(1).execute().data)
+        if ja:
+            supabase.table("avaliacoes").update({
+                "nota": nota, "updated_at": agora,
+            }).eq("id", ja[0]["id"]).execute()
+        else:
+            supabase.table("avaliacoes").insert({
+                "member_id": membro["id"], "provider_id": prestador["id"], "nota": nota,
+            }).execute()
+        supabase.table("indicacoes_recebidas").update({
+            "status": "avaliada", "updated_at": agora,
+        }).eq("id", ind["id"]).execute()
+        _recalcular_nota_provider(prestador["id"])
+    except Exception:
+        traceback.print_exc()
 
 
 def _ferr_enviar_botoes(entrada, interativa_enviada):
@@ -1270,8 +1224,6 @@ def construir_executor(membro, interativa_enviada):
             return _ferr_ver_buscas(membro)
         if nome == "excluir_meus_dados":
             return _ferr_excluir(membro, entrada)
-        if nome == "avaliar_indicacao":
-            return _ferr_avaliar(membro, entrada)
         if nome == "registrar_ajuda":
             return _ferr_registrar_ajuda(membro, entrada)
         if nome == "enviar_botoes":
@@ -1361,21 +1313,12 @@ def _enviar_follow_ups():
             if not prestador:
                 continue
 
-            primeiro_nome = ((membro.get("nome_perfil") or "").split() or [""])[0]
-            nome_prest = prestador["nome"]
-            servico = ind.get("servico") or prestador.get("servico") or ""
-            local_parts = [ind.get("bairro") or "", ind.get("cidade") or ""]
-            local = ", ".join(p for p in local_parts if p)
-
-            saudacao = f"Oi, {primeiro_nome}!" if primeiro_nome else "Oi!"
-            detalhe = f"{servico}{' em ' + local if local else ''}"
-            texto = (
-                f"{saudacao} 👋 Há alguns dias te indiquei *{nome_prest}*"
-                f"{' (' + detalhe + ')' if detalhe else ''}. "
-                "Você chegou a usar? Conta pra mim como foi 😊"
-            )
-
-            enviar_mensagem_meta(membro["wa_id"], texto, WHATSAPP_PHONE_NUMBER_ID)
+            # Pergunta por BOTOES (avaliação determinística, stateless). Dentro das
+            # 24h chega direto; fora delas só entra quando a pessoa reabre o chat
+            # (o gatilho de reabertura faz a mesma pergunta) — sem Template.
+            _enviar_pergunta_avaliacao(membro, ind, prestador,
+                                       to=membro["wa_id"],
+                                       phone_number_id=WHATSAPP_PHONE_NUMBER_ID)
 
             supabase.table("indicacoes_recebidas").update({
                 "follow_up_at": agora,
@@ -1743,7 +1686,7 @@ def enviar_menu_prestador():
 TOOLS_TERMINAIS = {
     "buscar_servico", "salvar_recomendacao", "adicionar_contatos", "convidar_pessoa",
     "gerar_link_convite", "ver_meus_dados", "ver_minhas_indicacoes",
-    "ver_minha_rede", "ver_minhas_buscas", "avaliar_indicacao", "registrar_ajuda",
+    "ver_minha_rede", "ver_minhas_buscas", "registrar_ajuda",
 }
 
 ACEITES_TXT = {"sim", "aceito", "aceitar", "concordo", "pode ser", "bora", "ok",
@@ -1945,6 +1888,111 @@ def _confirmar_indicacao(cliente, provider_member_id, confirmou):
     enviar_menu_principal()
 
 
+# ---------------------------------------------------------------------------
+# FLUXO: AVALIACAO POR BOTOES (a IA nunca da nota — §1/§9.9)
+# ---------------------------------------------------------------------------
+# Só perguntamos "usou?" ao reabrir o chat depois de tempo suficiente pra ser
+# plausível que a pessoa tenha usado a indicação (não logo após a busca).
+HORAS_MIN_AVALIAR_REABERTURA = 48
+
+
+def _avaliacao_pendente_ind(membro):
+    """Indicacao recebida pendente, com idade minima, pronta pra avaliar.
+    Retorna (ind_row, prestador) ou None."""
+    try:
+        pend = (supabase.table("indicacoes_recebidas").select("*")
+                .eq("member_id", membro["id"]).eq("status", "pendente")
+                .order("created_at", desc=True).limit(5).execute().data)
+    except Exception:
+        traceback.print_exc()
+        return None
+    agora = datetime.now(timezone.utc)
+    for ind in pend:
+        criada = _parse_ts(ind.get("created_at"))
+        if criada is None:
+            continue
+        if (agora - criada).total_seconds() / 3600 < HORAS_MIN_AVALIAR_REABERTURA:
+            continue
+        prestador = buscar_provider(ind["provider_id"])
+        if prestador is None:
+            continue
+        return ind, prestador
+    return None
+
+
+_NOTAS_ROWS_BASE = [
+    ("5", "⭐⭐⭐⭐⭐ 5", "Excelente"),
+    ("4", "⭐⭐⭐⭐ 4", "Muito bom"),
+    ("3", "⭐⭐⭐ 3", "Bom"),
+    ("2", "⭐⭐ 2", "Regular"),
+    ("1", "⭐ 1", "Fraco"),
+]
+
+
+def _enviar_pergunta_avaliacao(membro, ind, prestador, to=None, phone_number_id=None):
+    """Pergunta (por botoes) se a pessoa usou a indicacao. STATELESS: o id da
+    indicacao vai codificado nos botoes — nada fica preso em estado (evita travar a
+    proxima mensagem da pessoa)."""
+    iid = ind["id"]
+    enviar_botoes_meta(
+        t.AVALIAR_USOU.format(nome=prestador.get("nome") or "essa pessoa",
+                              servico=prestador.get("servico") or "serviço"),
+        [{"id": f"aval_usei:{iid}",  "label": "✅ Usei"},
+         {"id": f"aval_ainda:{iid}", "label": "⏳ Ainda não"}],
+        to=to, phone_number_id=phone_number_id)
+
+
+def _enviar_lista_notas(nome, iid):
+    enviar_lista_meta(
+        t.AVALIAR_NOTA.format(nome=nome), "Dar nota",
+        [{"id": f"aval_nota:{iid}:{n}", "title": titulo, "description": desc}
+         for n, titulo, desc in _NOTAS_ROWS_BASE])
+
+
+def _ind_e_prestador(iid):
+    try:
+        rows = (supabase.table("indicacoes_recebidas").select("*")
+                .eq("id", iid).limit(1).execute().data)
+        if not rows:
+            return None, None
+        return rows[0], buscar_provider(rows[0]["provider_id"])
+    except Exception:
+        traceback.print_exc()
+        return None, None
+
+
+def _tratar_botao_avaliacao(membro, cmd):
+    """Trata os botoes de avaliacao (aval_usei:/aval_ainda:/aval_nota:). Retorna
+    True se tratou. Stateless: tudo vem codificado no id do botao."""
+    if cmd.startswith("aval_usei:"):
+        iid = cmd.split(":", 1)[1]
+        _, prest = _ind_e_prestador(iid)
+        _enviar_lista_notas((prest or {}).get("nome") or "essa pessoa", iid)
+        return True
+    if cmd.startswith("aval_ainda:"):
+        iid = cmd.split(":", 1)[1]
+        try:
+            supabase.table("indicacoes_recebidas").update({
+                "status": "dispensada",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", iid).execute()
+        except Exception:
+            traceback.print_exc()
+        resposta_whatsapp(t.AVALIAR_AINDA)
+        enviar_menu_principal()
+        return True
+    m = re.match(r"aval_nota:([^:]+):([1-5])$", cmd)
+    if m:
+        iid, nota = m.group(1), int(m.group(2))
+        ind, prest = _ind_e_prestador(iid)
+        if ind and prest:
+            _gravar_avaliacao(membro, ind, prest, nota)
+        resposta_whatsapp(t.AVALIAR_OBRIGADA)
+        enviar_menu_principal()
+        return True
+    return False
+
+
 def rotear_menu(membro, texto, button_id, contatos=None):
     """Trata a navegacao deterministica (botoes/menus/comandos fixos).
     Retorna True se ja respondeu (nao precisa chamar a IA)."""
@@ -2003,6 +2051,11 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if cmd.startswith("ind_no:"):
         _confirmar_indicacao(membro, cmd.split(":", 1)[1], False)
         return True
+
+    # -------- Avaliacao por botoes (stateless) --------
+    if cmd.startswith("aval_usei:") or cmd.startswith("aval_ainda:") or cmd.startswith("aval_nota:"):
+        if _tratar_botao_avaliacao(membro, cmd):
+            return True
 
     # -------- Fluxo ativo: o cliente esta INDICANDO um profissional --------
     fluxo = _fluxo_get(membro)
@@ -2143,6 +2196,12 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     # Quem tambem tem perfil profissional escolhe a visao (Cliente x Profissional).
     tem_perfil_prof = bool(prest and prest.get("status") in PRESTADOR_ATIVO_STATUS)
     if cmd in MENU_TRIGGERS:
+        # Ao reabrir o chat, se houver uma indicacao usada ainda sem nota, pergunta
+        # ANTES do menu (a avaliacao e por botoes — a IA nunca da nota). §7.5/§9.9.
+        pendente = _avaliacao_pendente_ind(membro)
+        if pendente:
+            _enviar_pergunta_avaliacao(membro, pendente[0], pendente[1])
+            return True
         if tem_perfil_prof:
             enviar_escolha_perfil()
         else:
@@ -2261,10 +2320,6 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     # pra ela nao inventar fluxos. So o texto livre de captura vai pra IA.
     if not primeiro_contato and rotear_menu(membro, texto_recebido, button_id, contatos_compartilhados):
         return
-
-    # Se houver uma indicacao antiga ainda sem nota, a Dorote.ia pode puxar o
-    # follow-up ("usou? como foi?") com naturalidade nesta conversa.
-    membro["avaliacao_pendente"] = buscar_avaliacao_pendente(membro)
 
     # Flag: se a IA mandar botoes via ferramenta, nao envia texto duplicado.
     interativa_enviada = [False]

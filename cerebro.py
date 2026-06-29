@@ -111,18 +111,11 @@ VOCABULARIO FIXO — use sempre igual, nunca misture os dois conceitos:
   Ex.: "quer *trazer a Maria pra sua rede*?", "voce tem 5 pessoas na sua *rede de confianca*".
   NUNCA use "indicar" ou "indicacao" para se referir a pessoas na rede — gera confusao.
 
-QUALIDADE / AVALIACAO (importante pra rede ganhar forca):
-- NUNCA invente nota nem estrelas. Voce NAO da nota: quem da e a propria pessoa.
-  So registre uma nota quando a PESSOA disser o numero (1 a 5) com as palavras dela.
-  Jamais escreva coisas como "nota 5 ⭐" por conta propria.
-- Depois que a pessoa usa uma indicacao, a opiniao dela vale ouro. Quando ela
-  contar como foi um prestador (ex.: "o Joao foi otimo", "nao gostei", "nota 4"),
-  registre com a ferramenta 'avaliar_indicacao' (nota de 1 a 5).
-- Se o sistema avisar que ha uma indicacao ainda sem nota (veja os DADOS DESTA
-  PESSOA), puxe o assunto com leveza no momento certo: pergunte se ela chegou a
-  usar e, se sim, que nota de 1 a 5 ela da. Nunca insista mais de uma vez.
-- Se ela disser que ainda nao usou, chame 'avaliar_indicacao' com usou=false pra
-  eu nao perguntar de novo a toa.
+QUALIDADE / AVALIACAO:
+- VOCE NAO AVALIA E NAO DA NOTA. Nunca escreva "nota 5 ⭐" nem registre estrelas.
+  A avaliacao das indicacoes e feita pelo SISTEMA, por botoes (1 a 5) — nao e seu papel.
+- Se a pessoa comentar que usou uma indicacao, apenas acolha com simpatia. Nao pergunte
+  nota nem tente registrar: o sistema cuida disso na hora certa, com botoes.
 - Nas buscas, os mais bem avaliados ja vem primeiro; destaque isso com naturalidade.
 
 CONTATOS (cards compartilhados pelo clipe 📎):
@@ -353,26 +346,6 @@ FERRAMENTAS = [
         },
     },
     {
-        "name": "avaliar_indicacao",
-        "description": "Registra a avaliacao (1 a 5 estrelas) de uma indicacao que a pessoa "
-                       "RECEBEU e usou. Use quando ela disser como foi o prestador (ex.: 'o "
-                       "encanador Joao foi otimo', 'gostei', 'nota 5'). Se ela disser que ainda "
-                       "NAO usou, chame com usou=false (sem nota). A nota faz a indicacao ganhar "
-                       "relevancia na rede.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "nome": {"type": "string", "description": "nome do prestador que ela esta avaliando"},
-                "usou": {"type": "boolean",
-                         "description": "true se ela usou o servico; false se ainda nao usou"},
-                "nota": {"type": "integer",
-                         "description": "de 1 a 5 estrelas (obrigatorio quando usou=true)"},
-                "comentario": {"type": "string", "description": "comentario livre dela (opcional)"},
-            },
-            "required": ["nome", "usou"],
-        },
-    },
-    {
         "name": "registrar_ajuda",
         "description": "Encaminha um pedido de ajuda/suporte para a equipe humana. Use quando "
                        "a pessoa relatar um PROBLEMA, BUG, RECLAMACAO ou algo que voce nao "
@@ -462,17 +435,6 @@ def _contexto_pessoa(membro):
             "o 'pode ser' (consentimento) de forma leve. Nao a faca se sentir comecando do zero."
         )
 
-    pend = membro.get("avaliacao_pendente")
-    if pend:
-        local = pend.get("bairro") or ""
-        if pend.get("cidade"):
-            local = f"{local}, {pend['cidade']}" if local else pend["cidade"]
-        linhas.append(
-            f"- Indicacao ainda sem nota: voce ja mostrou '{pend['nome']}' "
-            f"({pend.get('servico') or 'servico'}{' em ' + local if local else ''}) pra essa "
-            "pessoa. Se a conversa permitir, pergunte com leveza se ela chegou a usar e que "
-            "nota de 1 a 5 ela daria. Nao insista se ela desconversar."
-        )
     return "\n".join(linhas)
 
 
