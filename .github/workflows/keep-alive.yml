@@ -1,0 +1,29 @@
+name: Keep-alive (anti-hibernacao do Render)
+
+# Mantem a instancia gratuita do Render acordada, batendo em /ping de tempos em
+# tempos. Sem isso, o servidor "dorme" apos ~15 min de inatividade e o primeiro
+# retorno fica lento (~50s) — o que atrasava a resposta e os "tres pontinhos".
+# O repositorio e publico, entao os minutos do GitHub Actions sao gratuitos.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'    # a cada 5 minutos
+  workflow_dispatch:         # permite rodar manualmente pelo GitHub
+
+# Se um ping demorar, nao deixa acumular varias execucoes em fila.
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /ping para o Render nao dormir
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 \
+            https://doroteia-ia.onrender.com/ping || echo "000")
+          echo "HTTP status: $STATUS"
+          # Nao falha o job de proposito: numa volta o servidor pode estar
+          # justamente acordando (a resposta vem na proxima). O objetivo aqui
+          # e so cutucar, nao monitorar.
