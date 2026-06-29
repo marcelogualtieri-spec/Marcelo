@@ -426,30 +426,26 @@ PRESTADOR_PERFIL_INVISIVEL = (
 
 # --- Saida (exclusao) diferenciada por perfil ----------------------------
 SAIR_CLIENTE = (
-    "Tem certeza de que deseja sair? 💛\n\n"
-    "Ao confirmar, o seu acesso à central de indicações será encerrado e as suas "
-    "conexões serão removidas permanentemente. Você poderá voltar um dia, mas perderá "
-    "todo o histórico.\n\n"
-    "Se quiser explicar o que aconteceu e pedir ajuda, digite *AJUDA* e conte para nós "
-    "o que houve."
+    "Tem certeza que quer sair? 💛\n\n"
+    "Vou apagar o seu cadastro e o seu nome. As indicações que você fez continuam "
+    "ajudando a rede, mas de forma anônima (sem o seu nome).\n\n"
+    "Se quiser, digite *AJUDA* antes de sair e conte o que aconteceu."
 )
 
 SAIR_PROFISSIONAL = (
-    "Tem certeza de que deseja sair? 💛\n\n"
-    "Ao confirmar, o seu perfil de profissional de confiança será removido e você "
-    "deixará de ser recomendado para novas demandas da rede. Essa ação é permanente.\n\n"
-    "Se quiser explicar o que aconteceu e pedir ajuda, digite *AJUDA* e conte para nós "
-    "o que houve."
+    "Tem certeza que quer sair? 💛\n\n"
+    "Vou apagar o seu cadastro e o seu nome, e o seu perfil de profissional deixa de "
+    "aparecer para a rede. As indicações que você fez continuam ajudando a rede, mas de "
+    "forma anônima (sem o seu nome).\n\n"
+    "Se quiser, digite *AJUDA* antes de sair e conte o que aconteceu."
 )
 
 SAIR_HIBRIDO = (
-    "Tem certeza de que deseja sair? 💛\n\n"
-    "Você tem os dois perfis aqui. Ao sair de tudo, todo o histórico será removido: você "
-    "perderá o acesso à rede de indicações e o seu perfil profissional não será mais "
-    "recomendado.\n\n"
-    "Se preferir, você pode ficar só com um dos perfis. O que deseja fazer?\n\n"
-    "Se quiser explicar o que aconteceu e pedir ajuda, digite *AJUDA* e conte para nós "
-    "o que houve."
+    "Tem certeza que quer sair? 💛\n\n"
+    "Você tem os dois perfis aqui. Ao sair de tudo, apago o seu cadastro e o seu nome, e "
+    "o seu perfil de profissional deixa de aparecer. As indicações que você fez continuam "
+    "ajudando a rede, mas de forma anônima (sem o seu nome).\n\n"
+    "Se preferir, dá para ficar só com um dos perfis. O que deseja fazer?"
 )
 
 

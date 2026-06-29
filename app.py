@@ -318,6 +318,15 @@ def registrar_busca(servico, bairro, cidade, resultado, member_id=None):
 
 
 def excluir_membro(membro):
+    # LGPD §4.5: as indicações que a pessoa fez NÃO são apagadas — são anonimizadas
+    # (perdem o nome de quem indicou e viram ⚪ rede geral). Desligamos o vínculo
+    # ANTES de apagar o cadastro. (Pós-migração v12 a coluna aceita NULL; se a v12
+    # ainda não rodou, este update falha e o cascade antigo apaga — por isso rode a v12.)
+    try:
+        supabase.table("recommendations").update(
+            {"member_id": None}).eq("member_id", membro["id"]).execute()
+    except Exception:
+        traceback.print_exc()
     supabase.table("members").delete().eq("id", membro["id"]).execute()
 
 
@@ -656,9 +665,6 @@ def executar_busca(pedidor, servico, bairro, cidade):
     por_provider_fora = {}  # pid -> prestador (fora da rede, sem nome)
 
     for rec in recs:
-        recomendador = buscar_membro_por_id(rec["member_id"])
-        if recomendador is None or not recomendador.get("consent"):
-            continue
         prestador = buscar_provider(rec["provider_id"])
         if prestador is None:
             continue
@@ -667,8 +673,19 @@ def executar_busca(pedidor, servico, bairro, cidade):
         # esta em onboarding, pausou ou saiu nao aparece nas buscas.
         if prestador.get("status") != "ativo":
             continue
-
         pid = prestador["id"]
+
+        # Indicação ANONIMIZADA (quem indicou saiu — member_id NULL): a recomendação
+        # continua valendo, mas como ⚪ rede geral, sem nome (LGPD §4.5).
+        if rec.get("member_id") is None:
+            if pid not in por_provider_fora:
+                por_provider_fora[pid] = prestador
+            continue
+
+        recomendador = buscar_membro_por_id(rec["member_id"])
+        if recomendador is None or not recomendador.get("consent"):
+            continue
+
         if existe_vinculo(pedidor, recomendador):
             nome_rec = (recomendador.get("nome_perfil") or "").strip() or "alguem que voce conhece"
             if pid not in por_provider_rede:
