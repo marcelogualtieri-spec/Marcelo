@@ -1184,8 +1184,8 @@ def _notificar_convidante(novo_membro):
         primeiro_nome = ((novo_membro.get("nome_perfil") or "").split() or [""])[0]
         nome_exibir = primeiro_nome or "Alguem que voce convidou"
         texto = (
-            f"Boa noticia! 🎉 *{nome_exibir}* acabou de entrar na Dorote.ia pelo seu convite. "
-            "Voces dois ja estao conectados na rede de confianca!"
+            f"Boa notícia! 🎉 *{nome_exibir}* acabou de entrar na Dorote.ia pelo seu convite. "
+            "Agora vocês estão na mesma rede de confiança! 💛"
         )
         phone_number_id = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
         enviar_mensagem_meta(convidante["wa_id"], texto, phone_number_id)
@@ -2120,13 +2120,15 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                 {"id": "buscar_geral", "label": "🔍 Buscar rede geral"},
             ])
         else:
-            enviar_botoes_meta("Me conta o que você precisa e em qual cidade. 🙂\n"
-                               "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.",
+            enviar_botoes_meta("Me conta o que você precisa e em qual bairro ou região de "
+                               "São Paulo. 🙂\nEx.: *pediatra em Pinheiros*, *encanador em "
+                               "Perdizes*.",
                                [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "buscar_geral":
-        enviar_botoes_meta("Me conta o que você precisa e em qual cidade. 🙂\n"
-                           "Ex.: *pediatra em São Paulo*, *encanador em Perdizes*.",
+        enviar_botoes_meta("Me conta o que você precisa e em qual bairro ou região de "
+                           "São Paulo. 🙂\nEx.: *pediatra em Pinheiros*, *encanador em "
+                           "Perdizes*.",
                            [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "gerar_link":

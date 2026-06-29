@@ -99,8 +99,9 @@ CONSENTIMENTO_OK = "Que bom ter voce comigo{voc}! 💛 Anotei seu ok.\n\n"
 # profissional entra, aceita os termos e o cliente confirma que se conhecem.
 INDICAR_INICIO = (
     "Que bom! Quem você quer indicar? 💛\n\n"
-    "Toque no clipe 📎 ou no ➕ e envie o contato dessa pessoa.\n\n"
-    "Se preferir, escreva aqui o nome e o celular — assim: João, (11) 99999-8888. 💛"
+    "Toque no clipe 📎 (ou no ➕) e envie o contato dessa pessoa.\n\n"
+    "Se preferir, escreva aqui o nome e o telefone — assim: (11) 98765-4321.\n\n"
+    "Pode mandar do seu jeito, depois eu confirmo. 💛"
 )
 
 INDICAR_PEDIR_TELEFONE = (
@@ -114,7 +115,7 @@ INDICAR_DETALHES = (
     "🔧 O que essa pessoa faz? (ex.: eletricista, manicure, aulas de inglês)\n\n"
     "📍 Em que parte de São Paulo atende? (um bairro, vários, a cidade toda — ou \"não sei\")\n\n"
     "💬 Por que você indica? Isso ajuda muito quem procura. "
-    "(ex.: \"fez os doces do batizado, caprichou e foi pontual\")\n\n"
+    "(ex.: \"fez os doces do batizado, caprichou e foi pontual; também faz salgados\")\n\n"
     "Pode escrever do seu jeito 💛"
 )
 
@@ -134,8 +135,8 @@ INDICAR_CORRIGIR = (
 INDICAR_LINK = (
     "Prontinho! 💛 Este é o link de convite para *{nome}* entrar na Dorote.ia:\n\n"
     "{link}\n\n"
-    "É só encaminhar para essa pessoa. Quando ela entrar e aceitar, vou te chamar "
-    "para confirmar que vocês se conhecem — aí a sua indicação passa a valer na rede. 💛"
+    "É só encaminhar para essa pessoa. Quando ela entrar, vou te chamar para confirmar "
+    "que vocês se conhecem — aí sua indicação passa a valer na rede. 💛"
 )
 
 # Mensagem enviada AO CLIENTE quando a pessoa indicada entra e aceita os termos.
@@ -277,7 +278,7 @@ CONVIDAR_CLIENTE_VOCE = (
     "Boa! 💛 Quanto mais gente de confiança na sua rede, melhores as indicações que "
     "você recebe.\n\n"
     "Encaminhe este convite para quem você confia:\n\n{link}\n\n"
-    "Quando a pessoa entrar, vou perguntar se vocês se conhecem. Se os dois confirmarem, "
+    "Quando a pessoa entrar, vou perguntar se vocês se conhecem. Se as duas confirmarem, "
     "começam a trocar indicações. 💛"
 )
 
@@ -357,9 +358,9 @@ BUSCAR_SEM_REDE = (
 )
 
 PRESTADOR_QUERO_SER = (
-    "💼 *Quero ser um profissional indicado*\n\n"
-    "Que ótimo! Para que você seja recomendado, é fundamental que clientes reais "
-    "registrem recomendações sobre o seu trabalho. Para começar, aceite os termos de uso "
+    "💼 *Perfil profissional*\n\n"
+    "Que ótimo! Para o seu trabalho aparecer aqui, é fundamental que clientes registrem "
+    "recomendações de verdade sobre você. Para começar, aceite os termos de uso "
     "profissional e configure o seu perfil."
 )
 
