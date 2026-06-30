@@ -508,15 +508,15 @@ PRESTADOR_QUERO_SER = (
 # Enviado com um botão de escape (Outras opções). A pessoa manda tudo num texto só;
 # a Dorote.ia organiza e valida com botões antes de gravar.
 PRESTADOR_QUERO_SER_OK = (
-    "Perfil profissional iniciado! 🚀\n\n"
-    "Me conta tudo numa mensagem só, do seu jeito, mas com as informações básicas:\n\n"
-    "1️⃣ O que você faz (ex.: encanador, confeiteira, professor de inglês)\n\n"
-    "2️⃣ Onde atende (sua região, bairros, a cidade toda, ou online pro Brasil inteiro)\n\n"
-    "3️⃣ Seus diferenciais (no que é forte, rapidez, especialidades)\n\n"
-    "4️⃣ Como te encontrar e pagar (Pix, cartão, Instagram, site, endereço completo…)\n\n"
+    "Perfil profissional iniciado! 🚀 Seus dados ficam protegidos e só vão para quem "
+    "receber uma indicação sua.\n\n"
+    "Me conta tudo numa mensagem só, do seu jeito:\n\n"
+    "1️⃣ O que você faz\n"
+    "2️⃣ Onde atende\n"
+    "3️⃣ Seus diferenciais\n"
+    "4️⃣ Como te encontrar e pagar\n\n"
     "Ex.: _Conserto de geladeira e máquina de lavar. Atendo a zona leste de SP. Vou no "
-    "mesmo dia e dou 3 meses de garantia. Pix, cartão ou dinheiro. @geladeirafacil, Rua "
-    "Magnólia 123, Jardim das Flores, São Paulo._"
+    "mesmo dia e dou 3 meses de garantia. Pix, cartão ou dinheiro. @geladeirafacil._"
 )
 
 # Resumo organizado do que a Dorote.ia entendeu (validação com botões).

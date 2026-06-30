@@ -2207,8 +2207,16 @@ BOTOES_INDICAR = {"ind_certo", "ind_corrigir"}
 BOTOES_PERFIL = {"perfil_ok", "perfil_corrigir"}
 
 
-def _enviar_pedido_perfil():
-    """Pede a descrição do trabalho (texto livre) com um botão de escape (Menu)."""
+def _enviar_pedido_perfil(membro, provider_id):
+    """Pede a descrição do trabalho (texto livre) e DEIXA O FLUXO ARMADO.
+
+    Marca o estado como `perfil_prof` antes de pedir a descrição. Assim, o que a
+    pessoa escrever em seguida cai no fluxo determinístico de validação de perfil
+    (bloco perfil_prof), e NUNCA na conversa livre da IA. Isso conserta o bug de
+    'não consigo me registrar como profissional': a descrição é sempre capturada
+    pelo código, independente de sincronia do status do cadastro.
+    """
+    _fluxo_set(membro, {"fluxo": "perfil_prof", "provider_id": provider_id})
     enviar_botoes_meta(t.PRESTADOR_QUERO_SER_OK, [{"id": "menu", "label": "🏠 Menu"}])
 
 
@@ -2969,7 +2977,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             # aos DOIS lados se se conhecem.
             if membro.get("invited_by"):
                 _abrir_conexao_indicacao(membro, prest)
-            _enviar_pedido_perfil()
+            _enviar_pedido_perfil(membro, prest["id"])
             return True
         if cmd == "prest_ajustar":
             enviar_botoes_meta(t.PRESTADOR_AJUSTAR, [{"id": "menu", "label": "🏠 Menu"}])
@@ -2981,7 +2989,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             return True
         if cmd == "prest_editar":
             supabase.table("providers").update({"status": "aguardando_perfil"}).eq("id", prest["id"]).execute()
-            _enviar_pedido_perfil()
+            _enviar_pedido_perfil(membro, prest["id"])
             return True
         if cmd == "prest_pausar":
             novo = "ativo" if prest.get("status") == "pausado" else "pausado"
@@ -3055,7 +3063,11 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             if membro.get("invited_by"):
                 _abrir_conexao_cliente(membro)
             _criar_perfil_profissional_self(membro)
-            _enviar_pedido_perfil()
+            _prest_self = provider_do_membro(membro["id"])
+            if _prest_self:
+                _enviar_pedido_perfil(membro, _prest_self["id"])
+            else:
+                enviar_menu_principal(membro)
             return True
         # Deixar para depois.
         if cmd == "adiar":
@@ -3175,7 +3187,11 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             enviar_menu_prestador()
             return True
         _criar_perfil_profissional_self(membro)
-        _enviar_pedido_perfil()
+        _prest_novo = provider_do_membro(membro["id"])
+        if _prest_novo:
+            _enviar_pedido_perfil(membro, _prest_novo["id"])
+        else:
+            enviar_menu_principal(membro)
         return True
 
     if cmd == "rede_indicar":
