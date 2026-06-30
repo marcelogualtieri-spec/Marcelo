@@ -127,10 +127,13 @@ INDICAR_VALIDAR = (
     "💬 \"{detalhe}\""
 )
 
+# Mensagem 1 (curta): instrução. A linha editável vai numa mensagem SEPARADA
+# (INDICAR_CORRIGIR_LINHA), para a pessoa copiar só os dados, sem a instrução.
 INDICAR_CORRIGIR = (
-    "Sem problema 💛 Aqui está o que anotei — me reenvie corrigido, em uma mensagem:\n\n"
-    "{nome} · {servico} · {bairro} · {detalhe}"
+    "Sem problema 💛 Confira os dados que você quer registrar. É só copiar a mensagem "
+    "abaixo, ajustar o que precisar e me reenviar:"
 )
+INDICAR_CORRIGIR_LINHA = "{nome} · {servico} · {bairro} · {detalhe}"
 
 INDICAR_LINK = (
     "Prontinho! 💛 É só tocar no link abaixo para enviar o convite direto para *{nome}* — "
@@ -347,7 +350,8 @@ CONVITE_MENSAGEM_AMIGO = (
 CONVIDAR_CLIENTE_VOCE = (
     "Boa! 💛 Quanto mais gente de confiança na sua rede, melhores as indicações que "
     "você recebe.\n\n"
-    "Encaminhe este convite para quem você confia:\n\n{link}\n\n"
+    "Para convidar quem você confia, encaminhe *o link abaixo* — ou a *mensagem pronta* "
+    "que mando logo em seguida 👇\n\n{link}\n\n"
     "Quando a pessoa entrar, vou perguntar se vocês se conhecem. Se as duas confirmarem, "
     "começam a trocar indicações. 💛"
 )
@@ -525,8 +529,8 @@ PRESTADOR_VALIDAR = (
 )
 
 PRESTADOR_CORRIGIR = (
-    "Sem problema 💛 Me mande de novo, numa mensagem só, com o que faltou ou o que mudou — "
-    "eu organizo tudo de novo pra você conferir."
+    "Sem problema 💛 É só copiar a mensagem abaixo, ajustar o que precisar e me reenviar — "
+    "eu organizo tudo de novo pra você conferir:"
 )
 
 

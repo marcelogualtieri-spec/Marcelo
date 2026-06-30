@@ -2282,6 +2282,8 @@ def _passo_perfil(membro, fluxo, texto, button_id, cmd):
         return True
     if cmd == "perfil_corrigir":
         resposta_whatsapp(t.PRESTADOR_CORRIGIR)
+        # O texto original vai numa mensagem SEPARADA (copia só ele) + navegação.
+        enviar_botoes_meta((fluxo.get("raw") or "—"), [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if (texto or "").strip():
         # Reenviou a descrição (correção ou complemento): organiza e valida de novo.
@@ -2389,9 +2391,14 @@ def _passo_indicar(membro, fluxo, texto, button_id, contatos, cmd):
         if cmd == "ind_corrigir":
             fluxo["passo"] = "detalhes"
             _fluxo_set(membro, fluxo)
-            resposta_whatsapp(t.INDICAR_CORRIGIR.format(
-                nome=fluxo.get("nome", ""), servico=fluxo.get("servico", ""),
-                bairro=fluxo.get("bairro", ""), detalhe=fluxo.get("detalhe", "")))
+            resposta_whatsapp(t.INDICAR_CORRIGIR)
+            # A linha editável vai numa mensagem SEPARADA (copia só os dados) e já
+            # carrega o botão de navegação, pra nunca ficar sem saída.
+            enviar_botoes_meta(
+                t.INDICAR_CORRIGIR_LINHA.format(
+                    nome=fluxo.get("nome", ""), servico=fluxo.get("servico", ""),
+                    bairro=fluxo.get("bairro", ""), detalhe=fluxo.get("detalhe", "")),
+                [{"id": "menu", "label": "🏠 Menu"}])
             return True
         if cmd == "ind_certo":
             _finalizar_indicacao(membro, fluxo)
@@ -2952,7 +2959,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             _enviar_pedido_perfil()
             return True
         if cmd == "prest_ajustar":
-            resposta_whatsapp(t.PRESTADOR_AJUSTAR)
+            enviar_botoes_meta(t.PRESTADOR_AJUSTAR, [{"id": "menu", "label": "🏠 Menu"}])
             return True
         if cmd == "prest_nao":
             supabase.table("providers").update({"status": "removido"}).eq("id", prest["id"]).execute()
