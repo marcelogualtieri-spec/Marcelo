@@ -425,6 +425,14 @@ def _contexto_pessoa(membro):
         f"- Ja consentiu: {'sim' if consentiu else 'nao'}",
     ]
 
+    # O CODIGO decide o perfil ativo; a IA so se situa (nunca troca de perfil).
+    if consentiu:
+        ativo = (membro.get("perfil_ativo") or "cliente").strip().lower()
+        ativo = "profissional" if ativo == "profissional" else "cliente"
+        linhas.append(f"- PERFIL ATIVO AGORA: {ativo} (definido pelo sistema — voce NAO "
+                      "troca de perfil, nao abre menu e nao decide caminho; quem faz isso "
+                      "e o codigo, por botoes/comandos).")
+
     convidante = (membro.get("convidado_por_nome") or "").strip()
     if convidante and not consentiu:
         primeiro_conv = convidante.split()[0]

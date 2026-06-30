@@ -1602,6 +1602,55 @@ def processar_eventos(dados):
 # MENUS DETERMINISTICOS (navegacao por botoes — sem IA, pra nao inventar fluxo)
 # ===========================================================================
 
+# --- Perfil ativo e troca (quem tem Cliente + Profissional) ------------------
+def tem_perfil_profissional(membro):
+    prest = provider_do_membro(membro["id"])
+    return bool(prest and prest.get("status") in PRESTADOR_ATIVO_STATUS)
+
+
+def perfil_ativo(membro):
+    """Perfil em uso agora: 'cliente' ou 'profissional'. Padrão cliente. Só devolve
+    'profissional' se a pessoa realmente tiver um perfil profissional ativo."""
+    valor = (membro.get("perfil_ativo") or "cliente").strip().lower()
+    if valor == "profissional" and tem_perfil_profissional(membro):
+        return "profissional"
+    return "cliente"
+
+
+def set_perfil_ativo(membro, valor):
+    valor = "profissional" if valor == "profissional" else "cliente"
+    membro["perfil_ativo"] = valor
+    try:
+        supabase.table("members").update({"perfil_ativo": valor}).eq("id", membro["id"]).execute()
+    except Exception:
+        traceback.print_exc()
+
+
+def _label_perfil(p):
+    return "Profissional 💼" if p == "profissional" else "Cliente 🔍"
+
+
+def _talvez_avisar_troca(membro):
+    """Avisa UMA única vez que a pessoa pode escrever TROCAR (quando vira dual)."""
+    if not tem_perfil_profissional(membro) or membro.get("avisou_troca"):
+        return
+    resposta_whatsapp(t.TROCAR_AVISO)
+    membro["avisou_troca"] = True
+    try:
+        supabase.table("members").update({"avisou_troca": True}).eq("id", membro["id"]).execute()
+    except Exception:
+        traceback.print_exc()
+
+
+def enviar_menu_do_perfil_ativo(membro, texto=None):
+    """Abre o menu do perfil ATIVO (não pergunta 'qual perfil?' toda vez)."""
+    _talvez_avisar_troca(membro)
+    if perfil_ativo(membro) == "profissional":
+        enviar_menu_prestador()
+    else:
+        enviar_menu_principal(texto)
+
+
 def enviar_menu_principal(texto=None):
     enviar_botoes_meta(texto or "O que você deseja fazer? 💛", [
         {"id": "rede_indicar",  "label": "Indicar profissional"},
@@ -1610,15 +1659,34 @@ def enviar_menu_principal(texto=None):
     ])
 
 
-def enviar_outras_opcoes():
-    enviar_lista_meta("Outras opções 💛", "Ver opções", [
-        {"id": "buscar",         "title": "🔍 Buscar",
-         "description": "Achar um profissional de confiança"},
-        {"id": "quero_ser_prof", "title": "💼 Ser profissional",
-         "description": "Criar o seu perfil para ser recomendado"},
-        {"id": "dados",          "title": "⚙️ Minha conta",
-         "description": "Ver seus dados ou sair"},
-    ])
+def enviar_outras_opcoes(membro):
+    """Outras opções do PERFIL ATIVO. Cliente vê Buscar/Ser profissional|Trocar/Minha
+    conta; Profissional vê Editar/Pausar/Minha conta/Trocar."""
+    dual = tem_perfil_profissional(membro)
+    if perfil_ativo(membro) == "profissional":
+        rows = [
+            {"id": "prest_editar", "title": "✏️ Editar perfil",
+             "description": "Atualizar o seu serviço e dados"},
+            {"id": "prest_pausar", "title": "⏸️ Pausar / Ativar",
+             "description": "Aparecer ou não nas buscas"},
+            {"id": "dados",        "title": "⚙️ Minha conta",
+             "description": "Seu perfil e quem te recomendou"},
+            {"id": "trocar",       "title": "🔁 Trocar de perfil",
+             "description": "Ir para o perfil de cliente"},
+        ]
+        enviar_lista_meta("Outras opções 💼", "Ver opções", rows)
+        return
+    rows = [{"id": "buscar", "title": "🔍 Buscar",
+             "description": "Achar um profissional de confiança"}]
+    if dual:
+        rows.append({"id": "trocar", "title": "🔁 Trocar de perfil",
+                     "description": "Ir para o perfil profissional"})
+    else:
+        rows.append({"id": "quero_ser_prof", "title": "💼 Ser profissional",
+                     "description": "Criar o seu perfil para ser recomendado"})
+    rows.append({"id": "dados", "title": "⚙️ Minha conta",
+                 "description": "Sua rede e indicações que você fez"})
+    enviar_lista_meta("Outras opções 💛", "Ver opções", rows)
 
 
 def enviar_submenu_dados():
@@ -1795,10 +1863,10 @@ def enviar_escolha_perfil():
 
 
 def enviar_menu_prestador():
-    enviar_botoes_meta("💼 Visão Profissional. Como posso ajudar com o seu cadastro hoje?", [
-        {"id": "prest_editar", "label": "✏️ Editar perfil"},
-        {"id": "prest_pausar", "label": "⏸️ Pausar/Ativar"},
-        {"id": "menu",         "label": "🏠 Menu"},
+    enviar_botoes_meta("💼 Visão Profissional. O que você quer fazer?", [
+        {"id": "prest_editar",  "label": "✏️ Editar perfil"},
+        {"id": "prest_pausar",  "label": "⏸️ Pausar/Ativar"},
+        {"id": "outras_opcoes", "label": "☰ Outras opções"},
     ])
 
 
@@ -1892,6 +1960,10 @@ def _salvar_perfil(membro, fluxo):
     except Exception:
         tem_reco = False
     resposta_whatsapp(t.PRESTADOR_PERFIL_OK if tem_reco else t.PRESTADOR_PERFIL_INVISIVEL)
+    # Acabou de montar o lado profissional: passa a navegar nele e mostra o menu
+    # (e, se for a 1ª vez como dual, avisa que dá pra escrever TROCAR).
+    set_perfil_ativo(membro, "profissional")
+    enviar_menu_do_perfil_ativo(membro)
 
 
 def _passo_perfil(membro, fluxo, texto, button_id, cmd):
@@ -2402,6 +2474,22 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         enviar_confirmar_exclusao(membro)
         return True
 
+    # -------- TROCAR de perfil (comando global, só para quem tem os dois) --------
+    if consentiu and cmd in ("trocar", "trocar perfil", "trocar de perfil"):
+        _fluxo_limpar(membro)
+        if not tem_perfil_profissional(membro):
+            enviar_botoes_meta(t.TROCAR_SO_CLIENTE, [
+                {"id": "quero_ser_prof", "label": "💼 Ser profissional"},
+                {"id": "menu",           "label": "🏠 Menu"}])
+            return True
+        novo = "cliente" if perfil_ativo(membro) == "profissional" else "profissional"
+        set_perfil_ativo(membro, novo)
+        abrir_id = "perfil_profissional" if novo == "profissional" else "perfil_cliente"
+        enviar_botoes_meta(t.TROCAR_OK.format(perfil=_label_perfil(novo)), [
+            {"id": abrir_id,        "label": "📂 Abrir menu"},
+            {"id": "outras_opcoes", "label": "☰ Opções"}])
+        return True
+
     # -------- Confirmacao de conexao mutua (vocês se conhecem?) --------
     if cmd.startswith("conf_sim:") or cmd.startswith("conf_nao:"):
         if _tratar_botao_conexao(membro, cmd):
@@ -2554,8 +2642,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         return True
 
     # -------- Depois do aceite: navegacao --------
-    # Quem tambem tem perfil profissional escolhe a visao (Cliente x Profissional).
-    tem_perfil_prof = bool(prest and prest.get("status") in PRESTADOR_ATIVO_STATUS)
+    # MENU abre o menu do PERFIL ATIVO (não pergunta mais "qual perfil?" toda vez).
     if cmd in MENU_TRIGGERS:
         # Ao reabrir o chat (fora das 24h não dá pra avisar proativo — §7.5), mostra
         # ANTES do menu o que ficou pendente: 1º confirmação de conexão, depois nota.
@@ -2577,18 +2664,17 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if pendente:
             _enviar_pergunta_avaliacao(membro, pendente[0], pendente[1])
             return True
-        if tem_perfil_prof:
-            enviar_escolha_perfil()
-        else:
-            enviar_menu_principal()
+        enviar_menu_do_perfil_ativo(membro)
         return True
     if cmd == "perfil_cliente":
+        set_perfil_ativo(membro, "cliente")
         enviar_menu_principal(); return True
     if cmd == "perfil_profissional":
+        set_perfil_ativo(membro, "profissional")
         enviar_menu_prestador(); return True
 
     if cmd == "outras_opcoes":
-        enviar_outras_opcoes(); return True
+        enviar_outras_opcoes(membro); return True
     if cmd == "dados":
         enviar_submenu_dados(); return True
 

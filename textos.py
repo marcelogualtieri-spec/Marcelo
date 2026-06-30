@@ -408,6 +408,26 @@ CLIENTE_ATIVO = (
     "através das conexões, o que deseja fazer primeiro?"
 )
 
+# --- Troca de perfil (quem tem os dois) -------------------------------------
+# Aviso mostrado UMA única vez, quando a pessoa passa a ter os dois perfis.
+TROCAR_AVISO = (
+    "💡 A partir de agora você tem os dois perfis aqui: 🔍 Cliente e 💼 Profissional.\n"
+    "Para alternar entre eles a qualquer momento, é só escrever *TROCAR*."
+)
+
+# Confirmação depois de trocar (o {perfil} já vem com emoji, ex.: "Profissional 💼").
+TROCAR_OK = (
+    "Pronto! Agora você está no perfil *{perfil}*. 💛\n"
+    "O que deseja fazer?"
+)
+
+# Quem só tem o perfil de cliente e tenta TROCAR.
+TROCAR_SO_CLIENTE = (
+    "Por aqui você tem só o perfil de 🔍 Cliente 💛\n"
+    "Quer criar também o seu perfil de 💼 Profissional?"
+)
+
+
 BUSCAR_SEM_REDE = (
     "🔍 *Buscar profissional*\n\n"
     "Como você ainda está montando a sua rede, ainda não tenho indicações diretas dos "

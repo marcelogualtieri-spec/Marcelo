@@ -220,3 +220,10 @@ create table if not exists conexoes (
 create index if not exists idx_conexoes_a on conexoes (member_a, status);
 create index if not exists idx_conexoes_b on conexoes (member_b, status);
 alter table conexoes enable row level security;
+
+
+-- ============================================================================
+-- v14 — perfil ATIVO e troca de perfil (TROCAR)
+-- ============================================================================
+alter table members add column if not exists perfil_ativo text not null default 'cliente';
+alter table members add column if not exists avisou_troca boolean not null default false;
