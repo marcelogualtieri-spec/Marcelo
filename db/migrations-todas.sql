@@ -234,3 +234,9 @@ alter table members add column if not exists avisou_troca boolean not null defau
 -- ============================================================================
 alter table pending_invites add column if not exists nome text;
 alter table edges          add column if not exists nome text;
+
+
+-- ============================================================================
+-- v16 — motivo da indicação (o "porquê") na conexão, vira nota da recomendação
+-- ============================================================================
+alter table conexoes add column if not exists motivo text;

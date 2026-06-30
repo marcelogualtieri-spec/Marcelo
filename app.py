@@ -2376,8 +2376,16 @@ def _finalizar_indicacao(membro, fluxo):
 
     _fluxo_limpar(membro)
     numero_bot = g.get("display_phone_number") or ""
-    link = encurtar_link(montar_link_prestador(numero_bot, servico or "serviço")) if numero_bot else ""
-    resposta_whatsapp(t.INDICAR_LINK.format(nome=nome, link=link or "(link indisponível no momento)"))
+    # Link que o PROFISSIONAL clica para entrar (abre a conversa dele com a Dorote.ia).
+    bot_link = encurtar_link(montar_link_prestador(numero_bot, servico or "serviço")) if numero_bot else ""
+    # Link de UM TOQUE: abre a conversa do cliente COM o profissional, já com a
+    # mensagem (que contém o convite) escrita — mesma dinâmica do "Convidar".
+    um_toque = ""
+    if bot_link:
+        msg_prof = t.PRESTADOR_CONVITE_MENSAGEM.format(link=bot_link)
+        um_toque = encurtar_link(montar_link_para_contato(telefone, msg_prof))
+    resposta_whatsapp(t.INDICAR_LINK.format(
+        nome=nome, link=um_toque or bot_link or "(link indisponível no momento)"))
     enviar_menu_principal()
 
 
@@ -2388,22 +2396,31 @@ def _nome_curto(membro):
     return ((membro.get("nome_perfil") or "").split() or ["Alguém"])[0]
 
 
-def criar_conexao_pendente(member_a, member_b, origem, provider_id=None):
-    """Cria (ou reaproveita) a conexão pendente entre A (convidou/indicou) e B (entrou)."""
+def criar_conexao_pendente(member_a, member_b, origem, provider_id=None, motivo=None):
+    """Cria (ou reaproveita) a conexão pendente entre A (convidou/indicou) e B (entrou).
+    `motivo` é o porquê da indicação (guardado para enriquecer as buscas)."""
     if not member_a or not member_b or member_a == member_b:
         return None
+    motivo = (motivo or "").strip() or None
     try:
         existe = (supabase.table("conexoes").select("*")
                   .eq("member_a", member_a).eq("member_b", member_b).limit(1).execute().data)
         if existe:
             con = existe[0]
+            patch = {}
             if provider_id and not con.get("provider_id"):
-                supabase.table("conexoes").update({"provider_id": provider_id}).eq("id", con["id"]).execute()
-                con["provider_id"] = provider_id
+                patch["provider_id"] = provider_id
+            if motivo and not con.get("motivo"):
+                patch["motivo"] = motivo
+            if patch:
+                supabase.table("conexoes").update(patch).eq("id", con["id"]).execute()
+                con.update(patch)
             return con
         dados = {"member_a": member_a, "member_b": member_b, "origem": origem}
         if provider_id:
             dados["provider_id"] = provider_id
+        if motivo:
+            dados["motivo"] = motivo
         res = supabase.table("conexoes").insert(dados).execute()
         return res.data[0] if getattr(res, "data", None) else None
     except Exception:
@@ -2480,6 +2497,8 @@ def _efeitos_conexao_validada(con):
                     "servico": prov.get("servico") or "serviço",
                     "bairro": prov.get("bairro") or "não informado",
                     "cidade": prov.get("cidade") or "São Paulo",
+                    # O "porquê" da indicação enriquece a recomendação (e a busca).
+                    "nota": con.get("motivo") or None,
                 }).execute()
         except Exception:
             traceback.print_exc()
@@ -2541,8 +2560,11 @@ def _abrir_conexao_indicacao(provider_membro, prest):
     cliente = buscar_membro_por_id(provider_membro.get("invited_by"))
     if not cliente or not cliente.get("consent"):
         return
-    con = criar_conexao_pendente(cliente["id"], provider_membro["id"],
-                                 "profissional", provider_id=prest.get("id"))
+    # O motivo da indicação está na descrição do convidado (antes de o profissional
+    # preencher o próprio perfil) — guardamos na conexão para virar nota da recomendação.
+    con = criar_conexao_pendente(cliente["id"], provider_membro["id"], "profissional",
+                                 provider_id=prest.get("id"),
+                                 motivo=(prest.get("descricao") or "").strip())
     if not con:
         return
     pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID

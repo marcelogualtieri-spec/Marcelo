@@ -133,10 +133,19 @@ INDICAR_CORRIGIR = (
 )
 
 INDICAR_LINK = (
-    "Prontinho! 💛 Este é o link de convite para *{nome}* entrar na Dorote.ia:\n\n"
+    "Prontinho! 💛 É só tocar no link abaixo para enviar o convite direto para *{nome}* — "
+    "a conversa já abre com a mensagem pronta, você só toca em *Enviar*:\n\n"
     "{link}\n\n"
-    "É só encaminhar para essa pessoa. Quando ela entrar, vou te chamar para confirmar "
-    "que vocês se conhecem — aí sua indicação passa a valer na rede. 💛"
+    "Quando *{nome}* entrar e aceitar, vou chamar vocês dois para confirmar que se "
+    "conhecem — aí a sua indicação passa a valer na rede. 💛"
+)
+
+# Mensagem que JÁ VAI ESCRITA na conversa com o profissional (o {link} é o convite
+# que abre a Dorote.ia para ele entrar como profissional).
+PRESTADOR_CONVITE_MENSAGEM = (
+    "Oi! 💛 Te indiquei na Dorote.ia, uma central de indicações de confiança no WhatsApp. "
+    "Entra pelo meu convite para você ser recomendado e a gente se conectar por aqui:\n\n"
+    "{link}"
 )
 
 # Mensagem enviada AO CLIENTE quando a pessoa indicada entra e aceita os termos.
