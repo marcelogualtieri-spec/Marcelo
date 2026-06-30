@@ -572,15 +572,36 @@ def limpar_texto_convite(texto):
     return re.sub(r"\(?\s*convite:\s*[A-Za-z0-9]{6}\s*\)?", "", texto).strip()
 
 
-def registrar_convite_pendente(membro, numero_e164):
+def registrar_convite_pendente(membro, numero_e164, nome=None):
     codigo = calcular_contact_hash(numero_e164)
+    nome = (nome or "").strip() or None
     existe = (supabase.table("pending_invites").select("id")
               .eq("inviter_id", membro["id"]).eq("contact_hash", codigo).limit(1).execute().data)
     if not existe:
-        supabase.table("pending_invites").insert({
-            "inviter_id": membro["id"],
-            "contact_hash": codigo,
-        }).execute()
+        dados = {"inviter_id": membro["id"], "contact_hash": codigo}
+        if nome:
+            dados["nome"] = nome
+        supabase.table("pending_invites").insert(dados).execute()
+    elif nome:
+        supabase.table("pending_invites").update({"nome": nome}).eq("id", existe[0]["id"]).execute()
+
+
+def _salvar_nomes_contatos(membro, contatos):
+    """Backfill do NOME do contato (do cartão) na agenda da pessoa — para ela ver a
+    própria rede. O número continua só em hash. Roda depois que as ferramentas já
+    criaram os edges/convites (casamos pelo hash do número)."""
+    for numero, nome in (contatos or []):
+        nome = (nome or "").strip()
+        if not numero or not nome:
+            continue
+        try:
+            h = calcular_contact_hash(numero)
+            supabase.table("edges").update({"nome": nome}).eq(
+                "member_id", membro["id"]).eq("contact_hash", h).execute()
+            supabase.table("pending_invites").update({"nome": nome}).eq(
+                "inviter_id", membro["id"]).eq("contact_hash", h).execute()
+        except Exception:
+            traceback.print_exc()
 
 
 def montar_link_para_contato(numero_e164, mensagem):
@@ -1807,14 +1828,30 @@ def _ver_minha_rede(membro):
             confirmadas.append(nome)
         elif c.get("status") == "pendente":
             aguardando.append(nome)
+    # Convites que ela fez e que ainda não entraram (mostra o nome — é contato dela).
+    convidados = []
+    try:
+        inv = (supabase.table("pending_invites").select("nome")
+               .eq("inviter_id", membro["id"]).limit(20).execute().data or [])
+        convidados = [(r.get("nome") or "").strip() for r in inv]
+    except Exception:
+        traceback.print_exc()
+    com_nome = [n for n in convidados if n]
+    sem_nome = len(convidados) - len(com_nome)
+
     linhas = ["🤝 *Minha rede*\n"]
     if confirmadas:
         linhas.append("🟢 *Confirmadas:*")
         linhas += [f"• {n}" for n in confirmadas[:10]]
     if aguardando:
-        linhas.append("\n⏳ *Aguardando confirmação:*")
+        linhas.append("\n⏳ *Aguardando vocês se confirmarem:*")
         linhas += [f"• {n}" for n in aguardando[:10]]
-    if not confirmadas and not aguardando:
+    if com_nome or sem_nome:
+        linhas.append("\n📨 *Convidei, ainda não entraram:*")
+        linhas += [f"• {n}" for n in com_nome[:10]]
+        if sem_nome:
+            linhas.append(f"• e mais {sem_nome} convite(s)")
+    if not confirmadas and not aguardando and not convidados:
         linhas.append("Você ainda não tem conexões. Convide quem você confia! 💛")
     enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
 
@@ -2333,7 +2370,7 @@ def _finalizar_indicacao(membro, fluxo):
                 "status": "convidado",
             }).execute()
         # Liga o profissional a quem indicou assim que ele entrar pelo número.
-        registrar_convite_pendente(membro, telefone)
+        registrar_convite_pendente(membro, telefone, nome=nome)
     except Exception:
         traceback.print_exc()
 
@@ -3013,6 +3050,11 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
         enviar_texto=lambda texto: (None if interativa_enviada[0] else resposta_whatsapp(texto)),
         salvar_historico=lambda hist: salvar_historico(wa_id, hist),
     ) or set()
+
+    # Guarda o NOME dos contatos do cartão na agenda da pessoa (número fica só em
+    # hash) — para ela ver, na Minha rede, quem convidou e ainda não respondeu.
+    if contatos_compartilhados:
+        _salvar_nomes_contatos(membro, contatos_compartilhados)
 
     # Depois de uma acao concluida pela IA, oferece o menu — pra nunca ficar solto.
     if membro.get("consent") and not interativa_enviada[0] and (usados & TOOLS_TERMINAIS):

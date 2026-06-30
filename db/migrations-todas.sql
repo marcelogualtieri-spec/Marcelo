@@ -227,3 +227,10 @@ alter table conexoes enable row level security;
 -- ============================================================================
 alter table members add column if not exists perfil_ativo text not null default 'cliente';
 alter table members add column if not exists avisou_troca boolean not null default false;
+
+
+-- ============================================================================
+-- v15 — nome do contato na agenda (a pessoa ver a própria rede; número fica em hash)
+-- ============================================================================
+alter table pending_invites add column if not exists nome text;
+alter table edges          add column if not exists nome text;
