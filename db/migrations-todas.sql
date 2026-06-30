@@ -240,3 +240,18 @@ alter table edges          add column if not exists nome text;
 -- v16 — motivo da indicação (o "porquê") na conexão, vira nota da recomendação
 -- ============================================================================
 alter table conexoes add column if not exists motivo text;
+
+
+-- ============================================================================
+-- v17 — bloquear pessoas (§7)
+-- ============================================================================
+create table if not exists bloqueios (
+    id           uuid primary key default gen_random_uuid(),
+    member_id    uuid not null references members(id) on delete cascade,
+    bloqueado_id uuid not null references members(id) on delete cascade,
+    created_at   timestamptz not null default now(),
+    unique (member_id, bloqueado_id)
+);
+create index if not exists idx_bloqueios_member on bloqueios (member_id);
+create index if not exists idx_bloqueios_alvo   on bloqueios (bloqueado_id);
+alter table bloqueios enable row level security;

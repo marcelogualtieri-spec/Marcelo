@@ -417,6 +417,18 @@ CLIENTE_ATIVO = (
     "através das conexões, o que deseja fazer primeiro?"
 )
 
+# --- Bloquear / gerenciar a rede (§7) ---------------------------------------
+BLOQUEAR_OK = (
+    "Pronto, *{nome}* foi bloqueado. 💛\n"
+    "Vocês não aparecem mais um para o outro e as indicações não se cruzam. "
+    "Você pode desbloquear quando quiser em Minha conta."
+)
+REMOVER_OK = "Pronto! 💛 Removi a conexão com *{nome}*."
+DESBLOQUEAR_OK = "Pronto, *{nome}* foi desbloqueado. 💛"
+GERIR_VAZIO = "Você ainda não tem ninguém na rede para gerenciar. 💛"
+SEM_BLOQUEADOS = "Você não bloqueou ninguém. 💛"
+
+
 # --- Busca SEM resultado (nunca pedir à pessoa que ela mesma indique) --------
 BUSCA_SEM_RESULTADO = (
     "Ainda não tenho nenhum *{servico}* indicado na sua rede de confiança aqui de São "

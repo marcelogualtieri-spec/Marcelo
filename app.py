@@ -737,6 +737,9 @@ def executar_busca(pedidor, servico, bairro, cidade):
         recomendador = buscar_membro_por_id(rec["member_id"])
         if recomendador is None or not recomendador.get("consent"):
             continue
+        # Bloqueio: indicação de quem foi bloqueado (ou que bloqueou) não aparece.
+        if esta_bloqueado(pedidor["id"], recomendador["id"]):
+            continue
 
         eh_propria = recomendador["id"] == pedidor["id"]
         if eh_propria or conexao_validada_entre(pedidor["id"], recomendador["id"]):
@@ -956,7 +959,7 @@ def _conexoes_confirmadas(membro):
         traceback.print_exc(); cons = []
     for c in cons:
         outro = _outro_lado(c, membro)
-        if outro and outro["id"] not in vistos:
+        if outro and outro["id"] not in vistos and not esta_bloqueado(membro["id"], outro["id"]):
             vistos.add(outro["id"])
             out.append((outro["id"], _nome_curto(outro)))
     return out
@@ -982,8 +985,8 @@ def _enviar_ask_amigo(membro, friend_id):
     servico = fl.get("servico") if fl.get("fluxo") == "sem_resultado" else ""
     servico = servico or "um serviço"
     amigo = buscar_membro_por_id(friend_id)
-    if not amigo:
-        resposta_whatsapp("Não encontrei essa pessoa. 💛")
+    if not amigo or esta_bloqueado(membro["id"], friend_id):
+        resposta_whatsapp("Não consegui falar com essa pessoa. 💛")
         enviar_menu_principal(membro)
         return
     pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
@@ -1821,6 +1824,8 @@ def enviar_submenu_dados(membro):
          "description": "Suas conexões e o status de cada uma"},
         {"id": "dados_indicacoes", "title": "📤 Indicações que fiz",
          "description": "Profissionais que você indicou"},
+        {"id": "gerenciar_rede",   "title": "🚫 Bloquear e gerenciar",
+         "description": "Bloquear, remover ou desbloquear"},
         {"id": "dados_apagar",     "title": "🗑️ Sair / apagar",
          "description": "Encerrar a sua conta"},
         {"id": "menu",             "title": "🏠 Menu",
@@ -1950,6 +1955,58 @@ def _ver_quem_recomendou(membro):
         linhas.append("Ainda ninguém registrou uma recomendação sua. Assim que alguém "
                       "recomendar o seu trabalho, aparece aqui. 💛")
     enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
+
+
+def _ver_gerenciar_rede(membro):
+    """Lista as pessoas da rede para gerenciar (bloquear/remover) + ver bloqueados."""
+    try:
+        cons = ((supabase.table("conexoes").select("*").eq("member_a", membro["id"])
+                 .neq("status", "recusada").execute().data or [])
+                + (supabase.table("conexoes").select("*").eq("member_b", membro["id"])
+                   .neq("status", "recusada").execute().data or []))
+    except Exception:
+        traceback.print_exc(); cons = []
+    rows, vistos = [], set()
+    for c in cons:
+        outro = _outro_lado(c, membro)
+        if (outro and outro["id"] not in vistos
+                and not esta_bloqueado(membro["id"], outro["id"])):
+            vistos.add(outro["id"])
+            rows.append({"id": f"gerir:{outro['id']}", "title": _nome_curto(outro)[:24],
+                         "description": "Bloquear ou remover"})
+        if len(rows) >= 8:
+            break
+    rows.append({"id": "ver_bloqueados", "title": "🔓 Ver bloqueados",
+                 "description": "Desbloquear alguém"})
+    if len(rows) == 1:  # só sobrou o "ver bloqueados"
+        enviar_botoes_meta(t.GERIR_VAZIO, [
+            {"id": "ver_bloqueados", "label": "🔓 Ver bloqueados"},
+            {"id": "dados",          "label": "⚙️ Minha conta"}])
+        return
+    enviar_lista_meta("🚫 Bloquear e gerenciar", "Escolher", rows[:10])
+
+
+def _gerir_pessoa(membro, alvo_id):
+    alvo = buscar_membro_por_id(alvo_id)
+    nome = _nome_curto(alvo) if alvo else "essa pessoa"
+    enviar_botoes_meta(f"O que você quer fazer com *{nome}*?", [
+        {"id": f"bloquear:{alvo_id}", "label": "🚫 Bloquear"},
+        {"id": f"remover:{alvo_id}",  "label": "🗑️ Remover"},
+        {"id": "dados",               "label": "🔙 Voltar"}])
+
+
+def _ver_bloqueados(membro):
+    ids = bloqueados_de(membro)
+    if not ids:
+        enviar_botoes_meta(t.SEM_BLOQUEADOS, _BOTOES_CONTA)
+        return
+    rows = []
+    for bid in ids[:10]:
+        m = buscar_membro_por_id(bid)
+        rows.append({"id": f"desbloquear:{bid}",
+                     "title": (_nome_curto(m) if m else "Alguém")[:24],
+                     "description": "Tocar para desbloquear"})
+    enviar_lista_meta("🔓 Bloqueados — toque para desbloquear", "Ver", rows)
 
 
 def gerar_e_enviar_link_convite(membro):
@@ -2404,6 +2461,66 @@ def _finalizar_indicacao(membro, fluxo):
 
 
 # ---------------------------------------------------------------------------
+# BLOQUEIO (§7) — a pessoa pode bloquear alguém a qualquer momento
+# ---------------------------------------------------------------------------
+def esta_bloqueado(id_a, id_b):
+    """True se A bloqueou B OU B bloqueou A (qualquer direção)."""
+    if not id_a or not id_b:
+        return False
+    try:
+        for x, y in ((id_a, id_b), (id_b, id_a)):
+            if (supabase.table("bloqueios").select("id").eq("member_id", x)
+                    .eq("bloqueado_id", y).limit(1).execute().data):
+                return True
+    except Exception:
+        traceback.print_exc()
+    return False
+
+
+def bloqueados_de(membro):
+    try:
+        rows = (supabase.table("bloqueios").select("bloqueado_id")
+                .eq("member_id", membro["id"]).execute().data or [])
+        return [r["bloqueado_id"] for r in rows]
+    except Exception:
+        traceback.print_exc()
+        return []
+
+
+def _recusar_conexoes_entre(id_a, id_b):
+    agora = datetime.now(timezone.utc).isoformat()
+    try:
+        for x, y in ((id_a, id_b), (id_b, id_a)):
+            (supabase.table("conexoes").update({"status": "recusada", "updated_at": agora})
+             .eq("member_a", x).eq("member_b", y).neq("status", "recusada").execute())
+    except Exception:
+        traceback.print_exc()
+
+
+def bloquear_membro(membro, alvo_id):
+    """Bloqueia o alvo e recusa qualquer conexão entre os dois."""
+    if not alvo_id or alvo_id == membro["id"]:
+        return
+    try:
+        ja = (supabase.table("bloqueios").select("id").eq("member_id", membro["id"])
+              .eq("bloqueado_id", alvo_id).limit(1).execute().data)
+        if not ja:
+            supabase.table("bloqueios").insert(
+                {"member_id": membro["id"], "bloqueado_id": alvo_id}).execute()
+    except Exception:
+        traceback.print_exc()
+    _recusar_conexoes_entre(membro["id"], alvo_id)
+
+
+def desbloquear_membro(membro, alvo_id):
+    try:
+        (supabase.table("bloqueios").delete().eq("member_id", membro["id"])
+         .eq("bloqueado_id", alvo_id).execute())
+    except Exception:
+        traceback.print_exc()
+
+
+# ---------------------------------------------------------------------------
 # CONEXÕES MÚTUAS (os DOIS lados confirmam que se conhecem — §6/§7.5)
 # ---------------------------------------------------------------------------
 def _nome_curto(membro):
@@ -2414,6 +2531,8 @@ def criar_conexao_pendente(member_a, member_b, origem, provider_id=None, motivo=
     """Cria (ou reaproveita) a conexão pendente entre A (convidou/indicou) e B (entrou).
     `motivo` é o porquê da indicação (guardado para enriquecer as buscas)."""
     if not member_a or not member_b or member_a == member_b:
+        return None
+    if esta_bloqueado(member_a, member_b):   # bloqueio impede nova conexão
         return None
     motivo = (motivo or "").strip() or None
     try:
@@ -2452,7 +2571,10 @@ def buscar_conexao(con_id):
 
 
 def conexao_validada_entre(id1, id2):
-    """True se há conexão VALIDADA (mútua) entre os dois membros, em qualquer ordem."""
+    """True se há conexão VALIDADA (mútua) entre os dois membros, em qualquer ordem.
+    Se um bloqueou o outro, NÃO há vínculo."""
+    if esta_bloqueado(id1, id2):
+        return False
     try:
         for a, b in ((id1, id2), (id2, id1)):
             r = (supabase.table("conexoes").select("id").eq("status", "validada")
@@ -2967,6 +3089,32 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         _ver_meu_perfil(membro); return True
     if cmd == "dados_recomend":
         _ver_quem_recomendou(membro); return True
+
+    # -------- Bloquear / gerenciar a rede --------
+    if cmd == "gerenciar_rede":
+        _ver_gerenciar_rede(membro); return True
+    if cmd == "ver_bloqueados":
+        _ver_bloqueados(membro); return True
+    if cmd.startswith("gerir:"):
+        _gerir_pessoa(membro, cmd.split(":", 1)[1]); return True
+    if cmd.startswith("bloquear:"):
+        alvo_id = cmd.split(":", 1)[1]
+        alvo = buscar_membro_por_id(alvo_id)
+        bloquear_membro(membro, alvo_id)
+        resposta_whatsapp(t.BLOQUEAR_OK.format(nome=_nome_curto(alvo) if alvo else "essa pessoa"))
+        enviar_menu_do_perfil_ativo(membro); return True
+    if cmd.startswith("remover:"):
+        alvo_id = cmd.split(":", 1)[1]
+        alvo = buscar_membro_por_id(alvo_id)
+        _recusar_conexoes_entre(membro["id"], alvo_id)
+        resposta_whatsapp(t.REMOVER_OK.format(nome=_nome_curto(alvo) if alvo else "essa pessoa"))
+        enviar_menu_do_perfil_ativo(membro); return True
+    if cmd.startswith("desbloquear:"):
+        alvo_id = cmd.split(":", 1)[1]
+        alvo = buscar_membro_por_id(alvo_id)
+        desbloquear_membro(membro, alvo_id)
+        resposta_whatsapp(t.DESBLOQUEAR_OK.format(nome=_nome_curto(alvo) if alvo else "essa pessoa"))
+        enviar_menu_do_perfil_ativo(membro); return True
 
     if cmd == "buscar":
         # Cliente novo (sem rede ainda): explica e oferece montar a rede ou rede geral.
