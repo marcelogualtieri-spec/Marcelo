@@ -984,7 +984,7 @@ def _enviar_ask_amigo(membro, friend_id):
     amigo = buscar_membro_por_id(friend_id)
     if not amigo:
         resposta_whatsapp("Não encontrei essa pessoa. 💛")
-        enviar_menu_principal()
+        enviar_menu_principal(membro)
         return
     pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
     # Pergunta entregue ao amigo (chega na hora se ele falou com a bot nas últimas 24h;
@@ -1743,15 +1743,29 @@ def enviar_menu_do_perfil_ativo(membro, texto=None):
     if perfil_ativo(membro) == "profissional":
         enviar_menu_prestador()
     else:
-        enviar_menu_principal(texto)
+        enviar_menu_principal(membro, texto)
 
 
-def enviar_menu_principal(texto=None):
-    enviar_botoes_meta(texto or "O que você deseja fazer? 💛", [
-        {"id": "rede_indicar",  "label": "Indicar profissional"},
-        {"id": "rede_convidar", "label": "Convidar quem confio"},
-        {"id": "outras_opcoes", "label": "Outras Opções"},
-    ])
+def enviar_menu_principal(membro, texto=None):
+    """Menu do cliente como LIST MESSAGE (expande no WhatsApp) — assim o *Buscar*
+    fica no topo e fácil, sem o limite de 3 botões."""
+    rows = [
+        {"id": "buscar",        "title": "🔍 Buscar uma indicação",
+         "description": "Achar um profissional de confiança"},
+        {"id": "rede_indicar",  "title": "💛 Indicar profissional",
+         "description": "Recomendar alguém bom que você conhece"},
+        {"id": "rede_convidar", "title": "🤝 Convidar quem confio",
+         "description": "Trazer gente de confiança para a sua rede"},
+    ]
+    if tem_perfil_profissional(membro):
+        rows.append({"id": "trocar", "title": "🔁 Trocar de perfil",
+                     "description": "Ir para o seu perfil profissional"})
+    else:
+        rows.append({"id": "quero_ser_prof", "title": "💼 Ser profissional",
+                     "description": "Criar o seu perfil para ser recomendado"})
+    rows.append({"id": "dados", "title": "⚙️ Minha conta",
+                 "description": "Sua rede e indicações que você fez"})
+    enviar_lista_meta(texto or "O que você deseja fazer? 💛", "Ver opções", rows)
 
 
 def enviar_outras_opcoes(membro):
@@ -2386,7 +2400,7 @@ def _finalizar_indicacao(membro, fluxo):
         um_toque = encurtar_link(montar_link_para_contato(telefone, msg_prof))
     resposta_whatsapp(t.INDICAR_LINK.format(
         nome=nome, link=um_toque or bot_link or "(link indisponível no momento)"))
-    enviar_menu_principal()
+    enviar_menu_principal(membro)
 
 
 # ---------------------------------------------------------------------------
@@ -2521,7 +2535,7 @@ def _aplicar_confirmacao_conexao(membro, con, confirmou):
         except Exception:
             traceback.print_exc()
         resposta_whatsapp(t.CONEXAO_RECUSADA)
-        enviar_menu_principal()
+        enviar_menu_principal(membro)
         return
     try:
         supabase.table("conexoes").update({lado: True, "updated_at": agora}).eq("id", con["id"]).execute()
@@ -2538,7 +2552,7 @@ def _aplicar_confirmacao_conexao(membro, con, confirmou):
         resposta_whatsapp(t.CONEXAO_VALIDADA)
     else:
         resposta_whatsapp(t.CONEXAO_AGUARDA_OUTRO)
-    enviar_menu_principal()
+    enviar_menu_principal(membro)
 
 
 def _tratar_botao_conexao(membro, cmd):
@@ -2547,7 +2561,7 @@ def _tratar_botao_conexao(membro, cmd):
         con = buscar_conexao(cmd.split(":", 1)[1])
         if not con or con.get("status") != "pendente":
             resposta_whatsapp("Essa confirmação já foi resolvida. 💛")
-            enviar_menu_principal()
+            enviar_menu_principal(membro)
             return True
         _aplicar_confirmacao_conexao(membro, con, cmd.startswith("conf_sim:"))
         return True
@@ -2669,7 +2683,7 @@ def _tratar_botao_avaliacao(membro, cmd):
         except Exception:
             traceback.print_exc()
         resposta_whatsapp(t.AVALIAR_AINDA)
-        enviar_menu_principal()
+        enviar_menu_principal(membro)
         return True
     m = re.match(r"aval_nota:([^:]+):([1-5])$", cmd)
     if m:
@@ -2678,7 +2692,7 @@ def _tratar_botao_avaliacao(membro, cmd):
         if ind and prest:
             _gravar_avaliacao(membro, ind, prest, nota)
         resposta_whatsapp(t.AVALIAR_OBRIGADA)
-        enviar_menu_principal()
+        enviar_menu_principal(membro)
         return True
     return False
 
@@ -2707,7 +2721,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if cmd == "apagar_nao":
         resposta_whatsapp("Ufa, não apaguei nada! 😌 Está tudo no lugar.")
         if consentiu:
-            enviar_menu_principal()
+            enviar_menu_principal(membro)
         return True
     if cmd == "sair_um_perfil":
         enviar_escolha_ficar_um_perfil()
@@ -2719,7 +2733,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                 {"status": "removido"}).eq("id", prest["id"]).execute()
         resposta_whatsapp("Pronto! 💛 Mantivemos apenas o seu perfil de cliente. "
                           "Você não será mais recomendado como profissional.")
-        enviar_menu_principal()
+        enviar_menu_principal(membro)
         return True
     if cmd == "sair_so_prof":
         try:
@@ -2775,7 +2789,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if button_id in BOTOES_INDICAR or not button_id:
             if cmd in ("menu", "voltar", "cancelar", "inicio"):
                 _fluxo_limpar(membro)
-                enviar_menu_principal()
+                enviar_menu_principal(membro)
                 return True
             if _passo_indicar(membro, fluxo, texto, button_id, contatos, cmd):
                 return True
@@ -2789,7 +2803,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if button_id in BOTOES_PERFIL or not button_id:
             if cmd in ("menu", "voltar", "cancelar", "inicio"):
                 _fluxo_limpar(membro)
-                enviar_menu_principal()
+                enviar_menu_principal(membro)
                 return True
             if _passo_perfil(membro, fluxo, texto, button_id, cmd):
                 return True
@@ -2858,7 +2872,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             membro["consent"] = True
             if membro.get("invited_by"):
                 _abrir_conexao_cliente(membro)
-            enviar_menu_principal(t.CLIENTE_ATIVO)
+            enviar_menu_principal(membro, t.CLIENTE_ATIVO)
             return True
         # SABER MAIS: explica com calma e abre os 3 caminhos por botao.
         if cmd == "consent_saber_mais" or "saber mais" in cmd or cmd == "voltar_saber":
@@ -2936,7 +2950,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         return True
     if cmd == "perfil_cliente":
         set_perfil_ativo(membro, "cliente")
-        enviar_menu_principal(); return True
+        enviar_menu_principal(membro); return True
     if cmd == "perfil_profissional":
         set_perfil_ativo(membro, "profissional")
         enviar_menu_prestador(); return True
@@ -2975,7 +2989,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         return True
     if cmd == "gerar_link":
         gerar_e_enviar_link_convite(membro)
-        enviar_menu_principal(); return True
+        enviar_menu_principal(membro); return True
 
     if cmd == "quero_ser_prof":
         if prest:   # ja tem perfil profissional
@@ -3012,7 +3026,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
 
     if cmd == "dados_ver":
         resposta_whatsapp(_resumo_dados_texto(membro))
-        enviar_menu_principal(); return True
+        enviar_menu_principal(membro); return True
 
     return False
 
@@ -3080,7 +3094,7 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
 
     # Depois de uma acao concluida pela IA, oferece o menu — pra nunca ficar solto.
     if membro.get("consent") and not interativa_enviada[0] and (usados & TOOLS_TERMINAIS):
-        enviar_menu_principal()
+        enviar_menu_principal(membro)
 
 
 @app.route("/ping", methods=["GET"])
