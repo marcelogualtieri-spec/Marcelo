@@ -408,6 +408,38 @@ CLIENTE_ATIVO = (
     "através das conexões, o que deseja fazer primeiro?"
 )
 
+# --- Busca SEM resultado (nunca pedir à pessoa que ela mesma indique) --------
+BUSCA_SEM_RESULTADO = (
+    "Ainda não tenho nenhum *{servico}* indicado na sua rede de confiança aqui de São "
+    "Paulo 😕\n\n"
+    "Mas dá pra mudar isso! E assim que alguém da sua rede indicar um *{servico}*, eu te "
+    "aviso na hora. 💛\n\n"
+    "O que você prefere fazer agora?"
+)
+
+PEDIR_AMIGOS_LISTA = (
+    "Para quem você quer perguntar? Escolha um amigo de cada vez 💛\n"
+    "A mensagem vai como sendo sua."
+)
+
+PEDIR_AMIGOS_SEM_REDE = (
+    "Você ainda não tem amigos com conexão confirmada para eu perguntar 💛\n\n"
+    "Que tal convidar pessoas de confiança primeiro? Assim a sua rede cresce e as "
+    "indicações começam a aparecer."
+)
+
+ASK_ENVIADO = (
+    "Pronto, perguntei para *{nome}*! 💛 Se a pessoa conhecer alguém, eu registro a "
+    "indicação. Quer perguntar a mais alguém?"
+)
+
+# Mensagem que o AMIGO recebe (vai como sendo da pessoa que está procurando).
+ASK_PARA_AMIGO = (
+    "Oi! 💛 *{quem}* está procurando um *{servico}* de confiança aqui em São Paulo e "
+    "lembrou de você. Você conhece alguém bom para indicar?"
+)
+
+
 # --- Troca de perfil (quem tem os dois) -------------------------------------
 # Aviso mostrado UMA única vez, quando a pessoa passa a ter os dois perfis.
 TROCAR_AVISO = (

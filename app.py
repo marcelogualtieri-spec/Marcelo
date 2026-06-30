@@ -835,7 +835,7 @@ def _texto_sinais(sinais):
             "leveza a pessoa a chamar quem indicou pra essa pessoa entrar:\n" + "\n".join(linhas))
 
 
-def _ferr_buscar(membro, entrada):
+def _ferr_buscar(membro, entrada, interativa_enviada=None):
     servico = (entrada.get("servico") or "").strip().lower()
     bairro  = (entrada.get("bairro")  or "").strip()
     cidade  = (entrada.get("cidade")  or "").strip()
@@ -895,14 +895,88 @@ def _ferr_buscar(membro, entrada):
                 "de confiança para esse serviço, não esqueça de registrar aqui para fortalecer "
                 "a base! 💛':\n" + "\n".join(linhas) + sinais_txt)
 
+    # SEM RESULTADO: fluxo deterministico por botoes. NUNCA pedir a quem esta
+    # PROCURANDO que ela mesma indique alguem (era o bug do print).
     registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
-    if sinais_txt:
-        return (f"RESULTADO=vermelho_com_sinal - ninguem LIBERADO ainda para {servico} em "
-                f"{local}, mas ha indicacao pendente da rede dela. Acolha e foque no sinal "
-                "abaixo, convidando a chamar essa pessoa pra entrar." + sinais_txt)
-    return (f"RESULTADO=vermelho - ninguem indicou {servico} em {local} ainda. Acolha a "
-            "pessoa e incentive-a a recomendar alguem que conheca ou a convidar amigos pra "
-            "fortalecer a rede.")
+    tem_sinal = bool(sinais_txt)
+    if interativa_enviada is not None:
+        _enviar_sem_resultado(membro, servico, tem_sinal)
+        interativa_enviada[0] = True
+        return "Resultado vazio: opcoes ja enviadas por botoes. NAO escreva mais nada."
+    # Fallback (caso raro sem o flag): texto curto, sem pedir indicacao a quem busca.
+    return (f"RESULTADO=vermelho - ainda nao ha {servico} indicado em {local}. Acolha em 1 "
+            "linha e diga que assim que alguem da rede indicar, voce avisa. NAO peca pra ELA "
+            "indicar alguem.")
+
+
+def _enviar_sem_resultado(membro, servico, tem_sinal):
+    """Mensagem determinística de 'sem indicação': oferece perguntar a amigos ou
+    convidar a rede. Guarda o serviço no estado para o fluxo de 'pedir a amigos'."""
+    _fluxo_set(membro, {"fluxo": "sem_resultado", "servico": servico})
+    texto = t.BUSCA_SEM_RESULTADO.format(servico=servico)
+    if tem_sinal:
+        texto += ("\n\n💡 Alguém da sua rede já indicou um *" + servico + "* que ainda não "
+                  "entrou na Dorote.ia — convide a sua rede para destravar esse contato!")
+    enviar_botoes_meta(texto, [
+        {"id": "pedir_amigos", "label": "👋 Perguntar a amigos"},
+        {"id": "gerar_link",   "label": "➕ Convidar rede"},
+        {"id": "menu",         "label": "🏠 Menu"}])
+
+
+def _conexoes_confirmadas(membro):
+    """Amigos com conexão VALIDADA (confirmada pelos dois): [(member_id, nome)]."""
+    out, vistos = [], set()
+    try:
+        cons = ((supabase.table("conexoes").select("*").eq("member_a", membro["id"])
+                 .eq("status", "validada").execute().data or [])
+                + (supabase.table("conexoes").select("*").eq("member_b", membro["id"])
+                   .eq("status", "validada").execute().data or []))
+    except Exception:
+        traceback.print_exc(); cons = []
+    for c in cons:
+        outro = _outro_lado(c, membro)
+        if outro and outro["id"] not in vistos:
+            vistos.add(outro["id"])
+            out.append((outro["id"], _nome_curto(outro)))
+    return out
+
+
+def _pedir_amigos_lista(membro):
+    """Mostra os amigos confirmados para a pessoa escolher a quem perguntar."""
+    amigos = _conexoes_confirmadas(membro)
+    if not amigos:
+        enviar_botoes_meta(t.PEDIR_AMIGOS_SEM_REDE, [
+            {"id": "gerar_link", "label": "🔗 Gerar meu link"},
+            {"id": "menu",       "label": "🏠 Menu"}])
+        return
+    rows = [{"id": f"ask:{mid}", "title": (nome or "Amigo")[:24],
+             "description": "Perguntar para esta pessoa"} for mid, nome in amigos[:10]]
+    enviar_lista_meta(t.PEDIR_AMIGOS_LISTA, "Escolher", rows)
+
+
+def _enviar_ask_amigo(membro, friend_id):
+    """Manda (pelo chat da Dorote.ia) a pergunta de indicação para o amigo escolhido,
+    como se viesse da pessoa que está procurando."""
+    fl = _fluxo_get(membro)
+    servico = fl.get("servico") if fl.get("fluxo") == "sem_resultado" else ""
+    servico = servico or "um serviço"
+    amigo = buscar_membro_por_id(friend_id)
+    if not amigo:
+        resposta_whatsapp("Não encontrei essa pessoa. 💛")
+        enviar_menu_principal()
+        return
+    pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+    # Pergunta entregue ao amigo (chega na hora se ele falou com a bot nas últimas 24h;
+    # senão, aparece quando ele reabrir o chat).
+    enviar_botoes_meta(
+        t.ASK_PARA_AMIGO.format(quem=_nome_curto(membro), servico=servico),
+        [{"id": "rede_indicar", "label": "💛 Indicar alguém"},
+         {"id": "menu",         "label": "Agora não"}],
+        to=amigo["wa_id"], phone_number_id=pn)
+    # Confirmação para quem pediu, com opção de perguntar a mais alguém.
+    enviar_botoes_meta(t.ASK_ENVIADO.format(nome=_nome_curto(amigo)), [
+        {"id": "pedir_amigos", "label": "👋 Perguntar a outro"},
+        {"id": "menu",         "label": "🏠 Menu"}])
 
 
 def _enviar_alertas_busca_vermelha(recomendador, servico, cidade):
@@ -1313,7 +1387,7 @@ def construir_executor(membro, interativa_enviada):
                 "e pergunte se ja precisa de alguma indicacao agora. Nada mais."
             )
         if nome == "buscar_servico":
-            return _ferr_buscar(membro, entrada)
+            return _ferr_buscar(membro, entrada, interativa_enviada)
         if nome == "salvar_recomendacao":
             return _ferr_recomendar(membro, entrada, numeros, interativa_enviada)
         if nome == "adicionar_contatos":
@@ -2626,6 +2700,14 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if cmd.startswith("aval_usei:") or cmd.startswith("aval_ainda:") or cmd.startswith("aval_nota:"):
         if _tratar_botao_avaliacao(membro, cmd):
             return True
+
+    # -------- Busca sem resultado: perguntar a amigos --------
+    if consentiu and cmd == "pedir_amigos":
+        _pedir_amigos_lista(membro)
+        return True
+    if consentiu and cmd.startswith("ask:"):
+        _enviar_ask_amigo(membro, cmd.split(":", 1)[1])
+        return True
 
     # -------- Fluxo ativo: o cliente esta INDICANDO um profissional --------
     fluxo = _fluxo_get(membro)
