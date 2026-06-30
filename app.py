@@ -2103,25 +2103,56 @@ def provider_do_membro(member_id):
 
 
 def _criar_perfil_profissional_self(membro):
-    """Autocadastro de profissional: cria o perfil (aguardando_perfil) para o membro.
+    """Autocadastro de profissional: garante um perfil em 'aguardando_perfil' para o
+    membro e DEVOLVE o id do provider (ou None se nem assim deu).
 
-    Usado tanto no onboarding inicial (caminho "quero ser profissional" antes do
-    aceite) quanto no menu "Outras opções" depois do aceite. Idempotente.
+    Idempotente e robusto:
+    - se já existe um perfil ativo/em andamento, usa esse;
+    - se existe um registro antigo de testes/indicação (status 'convidado',
+      'removido'…), REVIVE esse mesmo registro em vez de criar outro — evita
+      duplicar e evita erro de dado repetido;
+    - só cria do zero quando não há nenhum, preenchendo TODOS os campos
+      obrigatórios (inclusive 'bairro', que é NOT NULL no banco — a falta dele
+      fazia o insert falhar em silêncio e o cadastro não acontecia).
     """
-    if provider_do_membro(membro["id"]):
-        return
     agora = datetime.now(timezone.utc).isoformat()
+    # Já tem um perfil "vivo" (onboarding/aguardando/ativo/pausado)? Usa esse.
+    atual = provider_do_membro(membro["id"])
+    if atual:
+        return atual["id"]
+    # Pode haver um registro antigo fora dos status vivos (ex.: 'convidado' de uma
+    # indicação anterior, ou 'removido'): revive em vez de inserir um novo.
+    try:
+        antigos = (supabase.table("providers").select("id")
+                   .eq("member_id", membro["id"])
+                   .order("created_at", desc=True).limit(1).execute().data)
+    except Exception:
+        traceback.print_exc()
+        antigos = None
+    if antigos:
+        pid = antigos[0]["id"]
+        try:
+            supabase.table("providers").update({
+                "status": "aguardando_perfil",
+                "termos_aceitos_em": agora, "termos_versao": termos.DATA_VIGENCIA,
+            }).eq("id", pid).execute()
+        except Exception:
+            traceback.print_exc()
+        return pid
+    # Não existe nenhum: cria do zero com todos os campos obrigatórios preenchidos.
     try:
         telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
-        supabase.table("providers").insert({
+        res = supabase.table("providers").insert({
             "member_id": membro["id"],
             "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
-            "telefone": telefone, "servico": "", "cidade": "",
+            "telefone": telefone, "servico": "", "bairro": "", "cidade": "",
             "status": "aguardando_perfil",
             "termos_aceitos_em": agora, "termos_versao": termos.DATA_VIGENCIA,
         }).execute()
+        return res.data[0]["id"] if getattr(res, "data", None) else None
     except Exception:
         traceback.print_exc()
+        return None
 
 
 def iniciar_onboarding_prestador(membro, servico):
@@ -2153,7 +2184,7 @@ def iniciar_onboarding_prestador(membro, servico):
         else:
             dados.update({
                 "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
-                "telefone": telefone, "servico": servico or "", "cidade": "",
+                "telefone": telefone, "servico": servico or "", "bairro": "", "cidade": "",
             })
             supabase.table("providers").insert(dados).execute()
             servico_final = servico or "seu serviço"
@@ -3062,10 +3093,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             membro["consent"] = True
             if membro.get("invited_by"):
                 _abrir_conexao_cliente(membro)
-            _criar_perfil_profissional_self(membro)
-            _prest_self = provider_do_membro(membro["id"])
-            if _prest_self:
-                _enviar_pedido_perfil(membro, _prest_self["id"])
+            _pid = _criar_perfil_profissional_self(membro)
+            if _pid:
+                _enviar_pedido_perfil(membro, _pid)
             else:
                 enviar_menu_principal(membro)
             return True
@@ -3186,10 +3216,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if prest:
             enviar_menu_prestador()
             return True
-        _criar_perfil_profissional_self(membro)
-        _prest_novo = provider_do_membro(membro["id"])
-        if _prest_novo:
-            _enviar_pedido_perfil(membro, _prest_novo["id"])
+        _pid = _criar_perfil_profissional_self(membro)
+        if _pid:
+            _enviar_pedido_perfil(membro, _pid)
         else:
             enviar_menu_principal(membro)
         return True
