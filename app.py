@@ -1979,13 +1979,15 @@ def _ver_gerenciar_rede(membro):
                          "description": "Bloquear ou remover"})
         if len(rows) >= 8:
             break
-    rows.append({"id": "ver_bloqueados", "title": "🔓 Ver bloqueados",
-                 "description": "Desbloquear alguém"})
-    if len(rows) == 1:  # só sobrou o "ver bloqueados"
+    if not rows:  # ninguém na rede para gerenciar
         enviar_botoes_meta(t.GERIR_VAZIO, [
             {"id": "ver_bloqueados", "label": "🔓 Ver bloqueados"},
-            {"id": "dados",          "label": "⚙️ Minha conta"}])
+            {"id": "dados",          "label": "⚙️ Minha conta"},
+            {"id": "menu",           "label": "🏠 Menu"}])
         return
+    rows.append({"id": "ver_bloqueados", "title": "🔓 Ver bloqueados",
+                 "description": "Desbloquear alguém"})
+    rows.append({"id": "menu", "title": "🏠 Menu", "description": "Voltar ao início"})
     enviar_lista_meta("🚫 Bloquear e gerenciar", "Escolher", rows[:10])
 
 
@@ -1995,7 +1997,7 @@ def _gerir_pessoa(membro, alvo_id):
     enviar_botoes_meta(f"O que você quer fazer com *{nome}*?", [
         {"id": f"bloquear:{alvo_id}", "label": "🚫 Bloquear"},
         {"id": f"remover:{alvo_id}",  "label": "🗑️ Remover"},
-        {"id": "dados",               "label": "🔙 Voltar"}])
+        {"id": "gerenciar_rede",      "label": "🔙 Voltar"}])
 
 
 def _ver_bloqueados(membro):
