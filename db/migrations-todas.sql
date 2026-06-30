@@ -255,3 +255,10 @@ create table if not exists bloqueios (
 create index if not exists idx_bloqueios_member on bloqueios (member_id);
 create index if not exists idx_bloqueios_alvo   on bloqueios (bloqueado_id);
 alter table bloqueios enable row level security;
+
+
+-- ============================================================================
+-- v18 — ligar a indicação a quem indicou (para "Indicações que fiz")
+-- ============================================================================
+alter table providers add column if not exists indicado_por uuid references members(id) on delete set null;
+create index if not exists idx_providers_indicado_por on providers (indicado_por);

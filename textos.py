@@ -124,7 +124,9 @@ INDICAR_VALIDAR = (
     "👤 {nome}\n"
     "🔧 {servico}\n"
     "📍 {bairro}\n"
-    "💬 \"{detalhe}\""
+    "💬 \"{detalhe}\"\n\n"
+    "_Em Corrigir você pode ajustar o nome. O nome final será o que essa pessoa "
+    "confirmar ao entrar na Dorote.ia._"
 )
 
 # Mensagem 1 (curta): instrução. A linha editável vai numa mensagem SEPARADA

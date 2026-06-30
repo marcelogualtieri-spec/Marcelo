@@ -1877,20 +1877,23 @@ def _ver_minha_rede(membro):
 
 def _ver_indicacoes_feitas(membro):
     valendo, aguardando = [], []
+    rec_pids = set()
     try:
-        recs = (supabase.table("recommendations").select("*")
-                .eq("member_id", membro["id"]).limit(20).execute().data or [])
+        # 🟢 Valendo: indicações já confirmadas (viraram recomendação).
+        recs = (supabase.table("recommendations").select("provider_id")
+                .eq("member_id", membro["id"]).limit(50).execute().data or [])
         for r in recs:
             prov = buscar_provider(r["provider_id"])
             if prov:
                 valendo.append(prov.get("nome") or "profissional")
-        cons = (supabase.table("conexoes").select("*").eq("member_a", membro["id"])
-                .eq("origem", "profissional").eq("status", "pendente").limit(20).execute().data or [])
-        for c in cons:
-            prov = buscar_provider(c["provider_id"]) if c.get("provider_id") else None
-            outro = _outro_lado(c, membro)
-            aguardando.append((prov.get("nome") if prov else None)
-                              or (_nome_curto(outro) if outro else "essa pessoa"))
+                rec_pids.add(prov["id"])
+        # ⏳ Aguardando: profissionais que EU indiquei e que ainda não viraram
+        # recomendação (não entraram, ou ainda falta a confirmação dos dois lados).
+        provs = (supabase.table("providers").select("*")
+                 .eq("indicado_por", membro["id"]).limit(50).execute().data or [])
+        for p in provs:
+            if p["id"] not in rec_pids and p.get("status") != "removido":
+                aguardando.append(p.get("nome") or "profissional")
     except Exception:
         traceback.print_exc()
     linhas = ["📤 *Indicações que fiz*\n"]
@@ -2250,16 +2253,22 @@ def _salvar_perfil(membro, fluxo):
     if fluxo.get("raw"):
         partes.append(fluxo["raw"])
     descricao = "\n".join(partes)
+    dados = {
+        "servico": servico,
+        "regiao": regiao,
+        "bairro": regiao or "São Paulo",
+        "cidade": "São Paulo",
+        "diferenciais": (fluxo.get("diferenciais") or "").strip(),
+        "descricao": descricao,
+        "status": "ativo",
+    }
+    # Regra: o nome OFICIAL é o que o profissional validou — usamos o nome do perfil
+    # dele no WhatsApp (sobrepõe o nome que quem indicou tinha escrito).
+    nome_prof = (membro.get("nome_perfil") or "").strip()
+    if nome_prof:
+        dados["nome"] = nome_prof
     try:
-        supabase.table("providers").update({
-            "servico": servico,
-            "regiao": regiao,
-            "bairro": regiao or "São Paulo",
-            "cidade": "São Paulo",
-            "diferenciais": (fluxo.get("diferenciais") or "").strip(),
-            "descricao": descricao,
-            "status": "ativo",
-        }).eq("id", pid).execute()
+        supabase.table("providers").update(dados).eq("id", pid).execute()
     except Exception:
         traceback.print_exc()
     _fluxo_limpar(membro)
@@ -2440,11 +2449,13 @@ def _finalizar_indicacao(membro, fluxo):
                 supabase.table("providers").update({
                     "nome": nome, "servico": servico, "bairro": bairro,
                     "cidade": "São Paulo", "descricao": detalhe, "status": "convidado",
+                    "indicado_por": membro["id"],
                 }).eq("id", prov["id"]).execute()
         else:
             supabase.table("providers").insert({
                 "nome": nome, "telefone": telefone, "servico": servico or "serviço",
                 "bairro": bairro, "cidade": "São Paulo", "descricao": detalhe,
+                "indicado_por": membro["id"],
                 "status": "convidado",
             }).execute()
         # Liga o profissional a quem indicou assim que ele entrar pelo número.
