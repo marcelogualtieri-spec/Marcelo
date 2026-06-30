@@ -36,10 +36,12 @@ privacidade de todos.
    mensagem e pede o aceite dos Termos (responder **SIM** ou **SABER MAIS**).
 2. **Consentimento (LGPD):** só depois do "SIM" o serviço começa. Tudo é guiado por
    **botões** para não ficar solto.
-3. **Menu principal:** ⭐ Recomendar · 👥 Convidar · ☰ Outras opções
-   (dentro de Outras opções: 🔍 Buscar · 💼 Ser profissional · ⚙️ Minha conta).
-4. **Buscar:** a pessoa diz o que precisa e em qual cidade; a Dorote.ia cruza as
-   indicações e entrega o contato.
+3. **Menu principal (perfil ativo):** Indicar profissional · Convidar quem confio · ☰ Outras
+   opções. O sistema **lembra o perfil ativo** (Cliente ou Profissional); quem tem os dois
+   alterna com o comando **TROCAR**. Comandos globais: **MENU · TROCAR · SAIR · AJUDA**.
+4. **Buscar:** a pessoa diz o que precisa e em qual bairro/região de SP; a Dorote.ia cruza
+   as indicações. **Sem resultado:** ela oferece opções (perguntar a amigos, convidar a
+   rede) — **nunca** pede a quem procura que ela mesma indique alguém.
 5. **Recomendar:** a pessoa indica um bom profissional (nome, telefone, serviço, cidade)
    — pelo clipe 📎 ou digitando.
 6. **Convidar / montar a rede:** gera um link para trazer pessoas de confiança. Quanto
@@ -73,8 +75,10 @@ Quando alguém busca, o resultado tem um de três níveis (quanto mais alto, mai
   - Pode entrar por **indicação** (um cliente recomenda → recebe um link → aceita os
     termos profissionais → configura região, diferenciais, descrição → fica ativo), ou
   - Por **autocadastro** ("💼 Quero ser profissional").
-- **A mesma pessoa pode ser os dois** (uma conta, um chat). No menu ela alterna entre as
-  visões **🔍 Cliente** e **💼 Profissional**.
+- **A mesma pessoa pode ser os dois** (uma conta, um chat). O sistema **lembra o perfil
+  ativo** e ela alterna com o comando **TROCAR** (ou em Outras opções → Trocar de perfil).
+  Cada perfil tem a sua própria "Minha conta": Cliente vê *Minha rede* e *Indicações que
+  fiz*; Profissional vê *Meu perfil* e *Quem me recomendou*.
 - **Premissa:** todo cadastro de profissional aceita os Termos. Profissionais de contato
   **público** (ex.: médico com telefone de consultório no Google) podem ser indicados
   como **"referência não verificada"** (base legal de interesse legítimo + dado público),

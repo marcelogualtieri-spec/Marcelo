@@ -234,3 +234,32 @@ codificado no link:
   reabrir o chat" (Fase 5).
 - **Antes de divulgar:** preencher controlador (razão social/CNPJ) e Encarregado (DPO) nos
   Termos (`termos.py`).
+
+---
+
+## 12. Estrutura de perfis e navegação (3 perfis) — IMPLEMENTADO
+
+> 3 situações numa mesma conta/chat: **Cliente**, **Profissional** e **Ambos**. Toda
+> conta nasce Cliente; o Profissional é adicionado depois. O código sabe sempre o
+> **perfil ativo** e o **estado**, e informa isso à IA — a IA segue, não decide.
+
+- **Bloco 1 — Perfil ativo + TROCAR (migração v14: `members.perfil_ativo`,
+  `members.avisou_troca`).** MENU abre o menu do perfil ativo (lembra entre conversas;
+  padrão Cliente). Comando global **TROCAR** (só dual) inverte e salva o perfil e mostra
+  `[Abrir menu] [Opções]` do perfil novo. Aviso único de TROCAR ao virar dual. "Outras
+  opções" adapta: Cliente (Buscar / Ser profissional|Trocar / Minha conta), Profissional
+  (Editar / Pausar / Minha conta / Trocar). Comandos globais: MENU · TROCAR · SAIR · AJUDA.
+- **Bloco 2 — "Minha conta" por perfil.** Cliente: 🤝 Minha rede (🟢 confirmadas /
+  ⏳ aguardando) e 📤 Indicações que fiz. Profissional: 💼 Meu perfil (situação + nº de
+  recomendações) e ⭐ Quem me recomendou. Guardar rico (banco), mostrar pouco. SAIR sempre
+  visível; toda visão termina com navegação.
+- **Bloco 3 — Busca sem resultado determinística.** NUNCA pede a quem procura que ela
+  mesma indique. Mostra botões: 👋 Perguntar a amigos (escolher conexões confirmadas; a
+  Dorote.ia manda a pergunta pelo chat, como sendo da pessoa) · ➕ Convidar rede · Menu.
+  O alerta "te aviso quando alguém indicar" já existia.
+- **Bloco 4 — Agenda com nome (migração v15: `nome` em `pending_invites` e `edges`).**
+  "Minha rede" mostra "📨 Convidei, ainda não entraram" com o nome do contato (do cartão);
+  o número continua só em hash. Backfill pelo hash, sem passar número/nome pela IA.
+
+**Regra transversal reforçada:** nenhuma mensagem termina sem botão/comando; qualquer
+perfil sempre navega; a opção de SAIR nunca fica escondida.
