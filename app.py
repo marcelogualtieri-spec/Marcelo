@@ -2208,8 +2208,8 @@ BOTOES_PERFIL = {"perfil_ok", "perfil_corrigir"}
 
 
 def _enviar_pedido_perfil():
-    """Pede a descrição do trabalho (texto livre) com um botão de escape."""
-    enviar_botoes_meta(t.PRESTADOR_QUERO_SER_OK, [{"id": "outras_opcoes", "label": "☰ Outras opções"}])
+    """Pede a descrição do trabalho (texto livre) com um botão de escape (Menu)."""
+    enviar_botoes_meta(t.PRESTADOR_QUERO_SER_OK, [{"id": "menu", "label": "🏠 Menu"}])
 
 
 def _enviar_validacao_perfil(membro, fluxo):
@@ -2977,6 +2977,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if cmd == "prest_nao":
             supabase.table("providers").update({"status": "removido"}).eq("id", prest["id"]).execute()
             resposta_whatsapp(t.PRESTADOR_NAO)
+            enviar_menu_do_perfil_ativo(membro)
             return True
         if cmd == "prest_editar":
             supabase.table("providers").update({"status": "aguardando_perfil"}).eq("id", prest["id"]).execute()
@@ -3260,9 +3261,12 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     if contatos_compartilhados:
         _salvar_nomes_contatos(membro, contatos_compartilhados)
 
-    # Depois de uma acao concluida pela IA, oferece o menu — pra nunca ficar solto.
-    if membro.get("consent") and not interativa_enviada[0] and (usados & TOOLS_TERMINAIS):
-        enviar_menu_principal(membro)
+    # NUNCA FICAR SOLTO (regra firme): se a pessoa já consentiu e a IA respondeu em
+    # texto (não mandou botões próprios), o sistema SEMPRE mostra o menu logo depois —
+    # seja após uma ação, uma saudação ou um papo fora do tema. Assim toda mensagem
+    # termina com navegação clara.
+    if membro.get("consent") and not interativa_enviada[0]:
+        enviar_menu_do_perfil_ativo(membro)
 
 
 @app.route("/ping", methods=["GET"])
