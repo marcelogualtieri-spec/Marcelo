@@ -1689,15 +1689,142 @@ def enviar_outras_opcoes(membro):
     enviar_lista_meta("Outras opções 💛", "Ver opções", rows)
 
 
-def enviar_submenu_dados():
+_BOTOES_CONTA = [{"id": "dados", "label": "⚙️ Minha conta"},
+                 {"id": "menu",  "label": "🏠 Menu"}]
+
+
+def enviar_submenu_dados(membro):
+    """Minha conta do PERFIL ATIVO (cada perfil tem a sua agenda). SAIR sempre visível."""
+    if perfil_ativo(membro) == "profissional":
+        enviar_lista_meta("Minha conta 💼", "Abrir", [
+            {"id": "dados_meu_perfil", "title": "💼 Meu perfil",
+             "description": "Situação na busca e nº de recomendações"},
+            {"id": "dados_recomend",   "title": "⭐ Quem me recomendou",
+             "description": "Quem registrou recomendações sobre você"},
+            {"id": "dados_apagar",     "title": "🗑️ Sair / apagar",
+             "description": "Encerrar a sua conta"},
+            {"id": "menu",             "title": "🏠 Menu",
+             "description": "Voltar ao início"},
+        ])
+        return
     enviar_lista_meta("Minha conta ⚙️", "Abrir", [
-        {"id": "dados_ver",    "title": "📋 Ver meus dados",
-         "description": "Nome, rede e indicações que você fez"},
-        {"id": "dados_apagar", "title": "🗑️ Sair / apagar",
+        {"id": "dados_rede",       "title": "🤝 Minha rede",
+         "description": "Suas conexões e o status de cada uma"},
+        {"id": "dados_indicacoes", "title": "📤 Indicações que fiz",
+         "description": "Profissionais que você indicou"},
+        {"id": "dados_apagar",     "title": "🗑️ Sair / apagar",
          "description": "Encerrar a sua conta"},
-        {"id": "menu",         "title": "🏠 Menu",
+        {"id": "menu",             "title": "🏠 Menu",
          "description": "Voltar ao início"},
     ])
+
+
+def _ver_minha_rede(membro):
+    confirmadas, aguardando = [], []
+    try:
+        cons = ((supabase.table("conexoes").select("*").eq("member_a", membro["id"]).execute().data or [])
+                + (supabase.table("conexoes").select("*").eq("member_b", membro["id"]).execute().data or []))
+    except Exception:
+        traceback.print_exc(); cons = []
+    for c in cons:
+        outro = _outro_lado(c, membro)
+        nome = _nome_curto(outro) if outro else "Alguém"
+        if c.get("status") == "validada":
+            confirmadas.append(nome)
+        elif c.get("status") == "pendente":
+            aguardando.append(nome)
+    linhas = ["🤝 *Minha rede*\n"]
+    if confirmadas:
+        linhas.append("🟢 *Confirmadas:*")
+        linhas += [f"• {n}" for n in confirmadas[:10]]
+    if aguardando:
+        linhas.append("\n⏳ *Aguardando confirmação:*")
+        linhas += [f"• {n}" for n in aguardando[:10]]
+    if not confirmadas and not aguardando:
+        linhas.append("Você ainda não tem conexões. Convide quem você confia! 💛")
+    enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
+
+
+def _ver_indicacoes_feitas(membro):
+    valendo, aguardando = [], []
+    try:
+        recs = (supabase.table("recommendations").select("*")
+                .eq("member_id", membro["id"]).limit(20).execute().data or [])
+        for r in recs:
+            prov = buscar_provider(r["provider_id"])
+            if prov:
+                valendo.append(prov.get("nome") or "profissional")
+        cons = (supabase.table("conexoes").select("*").eq("member_a", membro["id"])
+                .eq("origem", "profissional").eq("status", "pendente").limit(20).execute().data or [])
+        for c in cons:
+            prov = buscar_provider(c["provider_id"]) if c.get("provider_id") else None
+            outro = _outro_lado(c, membro)
+            aguardando.append((prov.get("nome") if prov else None)
+                              or (_nome_curto(outro) if outro else "essa pessoa"))
+    except Exception:
+        traceback.print_exc()
+    linhas = ["📤 *Indicações que fiz*\n"]
+    if valendo:
+        linhas.append("🟢 *Valendo na rede:*")
+        linhas += [f"• {n}" for n in valendo[:10]]
+    if aguardando:
+        linhas.append("\n⏳ *Aguardando a pessoa entrar/confirmar:*")
+        linhas += [f"• {n}" for n in aguardando[:10]]
+    if not valendo and not aguardando:
+        linhas.append("Você ainda não indicou ninguém. Conhece um bom profissional? Indique! 💛")
+    enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
+
+
+def _ver_meu_perfil(membro):
+    prov = provider_do_membro(membro["id"])
+    if not prov:
+        enviar_botoes_meta("Você ainda não tem um perfil profissional. 💼", _BOTOES_CONTA)
+        return
+    try:
+        qtd = len(supabase.table("recommendations").select("id")
+                  .eq("provider_id", prov["id"]).execute().data or [])
+    except Exception:
+        traceback.print_exc(); qtd = 0
+    status = prov.get("status")
+    if status == "pausado":
+        sit = "⏸️ Pausado (não aparece nas buscas)"
+    elif status == "aguardando_perfil":
+        sit = "📝 Perfil incompleto — falta finalizar"
+    elif status == "ativo" and qtd > 0:
+        sit = "✅ Aparecendo nas buscas"
+    else:
+        sit = "⏳ Aguardando a 1ª recomendação para aparecer"
+    linhas = ["💼 *Meu perfil*\n",
+              f"🔧 Serviço: {prov.get('servico') or '—'}",
+              f"📍 Região: {prov.get('regiao') or prov.get('bairro') or '—'}",
+              f"📊 Recomendações: {qtd}",
+              f"Situação: {sit}"]
+    enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
+
+
+def _ver_quem_recomendou(membro):
+    prov = provider_do_membro(membro["id"])
+    nomes = []
+    if prov:
+        try:
+            recs = (supabase.table("recommendations").select("*")
+                    .eq("provider_id", prov["id"]).limit(20).execute().data or [])
+            for r in recs:
+                mid = r.get("member_id")
+                if mid is None:
+                    nomes.append("Alguém da rede")
+                else:
+                    m = buscar_membro_por_id(mid)
+                    nomes.append(_nome_curto(m) if m else "Alguém da rede")
+        except Exception:
+            traceback.print_exc()
+    linhas = ["⭐ *Quem me recomendou*\n"]
+    if nomes:
+        linhas += [f"• {n}" for n in nomes[:10]]
+    else:
+        linhas.append("Ainda ninguém registrou uma recomendação sua. Assim que alguém "
+                      "recomendar o seu trabalho, aparece aqui. 💛")
+    enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
 
 
 def gerar_e_enviar_link_convite(membro):
@@ -2676,7 +2803,15 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if cmd == "outras_opcoes":
         enviar_outras_opcoes(membro); return True
     if cmd == "dados":
-        enviar_submenu_dados(); return True
+        enviar_submenu_dados(membro); return True
+    if cmd == "dados_rede":
+        _ver_minha_rede(membro); return True
+    if cmd == "dados_indicacoes":
+        _ver_indicacoes_feitas(membro); return True
+    if cmd == "dados_meu_perfil":
+        _ver_meu_perfil(membro); return True
+    if cmd == "dados_recomend":
+        _ver_quem_recomendou(membro); return True
 
     if cmd == "buscar":
         # Cliente novo (sem rede ainda): explica e oferece montar a rede ou rede geral.
