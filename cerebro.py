@@ -116,7 +116,9 @@ QUALIDADE / AVALIACAO:
   A avaliacao das indicacoes e feita pelo SISTEMA, por botoes (1 a 5) — nao e seu papel.
 - Se a pessoa comentar que usou uma indicacao, apenas acolha com simpatia. Nao pergunte
   nota nem tente registrar: o sistema cuida disso na hora certa, com botoes.
-- Nas buscas, os mais bem avaliados ja vem primeiro; destaque isso com naturalidade.
+- O RESULTADO da busca (a lista de profissionais, com contato e nivel de confianca) e
+  montado e enviado pelo SISTEMA, com botoes — nunca por voce. Voce so chama a ferramenta
+  buscar_servico com o servico; nao escreva a lista, nao invente nomes nem telefones.
 
 CONTATOS (cards compartilhados pelo clipe 📎):
 - A forma mais facil de trazer gente pra rede e pelo clipe 📎 do WhatsApp
@@ -265,10 +267,12 @@ FERRAMENTAS = [
         "name": "buscar_servico",
         "description": "Procura indicacoes de confianca para um tipo de necessidade num lugar. "
                        "Serve para QUALQUER indicacao: prestador, medico, escola, professor, "
-                       "advogado, etc. Use quando a pessoa pedir uma indicacao. Precisa do "
-                       "servico; a cidade e sempre Sao Paulo (piloto). O bairro/regiao e "
-                       "opcional: se a pessoa nao informar, busca em Sao Paulo inteira. "
-                       "Nunca pergunte 'qual cidade' — se faltar local, pergunte o bairro.",
+                       "advogado, etc. Use assim que a pessoa pedir uma indicacao — basta o "
+                       "SERVICO (a cidade e sempre Sao Paulo, piloto). NAO pergunte a regiao "
+                       "voce mesma: se faltar o bairro, o PROPRIO SISTEMA pergunta por botoes. "
+                       "So preencha 'bairro' se a pessoa ja disse; senao, omita. Nao pergunte "
+                       "'qual cidade'. Extraia o servico do jeito que a pessoa falou, sem trocar "
+                       "por termo com marca de genero.",
         "input_schema": {
             "type": "object",
             "properties": {

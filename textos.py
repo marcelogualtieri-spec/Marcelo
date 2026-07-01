@@ -444,6 +444,23 @@ BUSCA_SEM_RESULTADO = (
     "O que você prefere fazer agora?"
 )
 
+# Busca — pergunta a região quando veio só o serviço (botões [Toda a cidade] / [Escrever bairro]).
+BUSCA_FALTA_REGIAO = (
+    "Perfeito, vou procurar *{servico}*! 💛\n\n"
+    "Em que parte de São Paulo? Você pode buscar na cidade toda ou escrever um bairro."
+)
+
+BUSCA_PEDIR_BAIRRO = (
+    "Qual bairro ou região de São Paulo? 💛\n"
+    "Escreva aqui embaixo. Ex.: *Pinheiros*, *zona leste*, *Santana*…"
+)
+
+# Rede pequena (< k): só resultados ⚪ da rede geral + convite para crescer a rede.
+BUSCA_REDE_PEQUENA = (
+    "\n\nComo a sua rede ainda é pequena, estes vêm da rede geral da Dorote.ia. 💛\n"
+    "Quer convidar mais gente de confiança? Assim as próximas indicações chegam mais perto de você."
+)
+
 PEDIR_AMIGOS_LISTA = (
     "Para quem você quer perguntar? Escolha um amigo de cada vez 💛\n"
     "A mensagem vai como sendo sua."

@@ -708,9 +708,12 @@ def _na_rede_pendente(pedidor, recomendador):
 def executar_busca(pedidor, servico, bairro, cidade):
     """Roda a busca e devolve (com_nome, rede_pendente, sem_nome) — os 3 níveis (§6):
     🟢 com_nome      [(prestador, [nomes])] -> conexão mútua validada (mostra o nome).
-    🟡 rede_pendente [prestador]            -> da rede dela, mas conexão não confirmada
+    🟡 rede_pendente [(prestador, n)]       -> da rede dela, mas conexão não confirmada
                                               (anônimo; só com k-anonimato ≥ K_ANONIMATO).
-    ⚪ sem_nome      [prestador]            -> rede geral / anonimizada (anônimo).
+    ⚪ sem_nome      [(prestador, n)]        -> rede geral / anonimizada (anônimo).
+
+    `n` = quantas pessoas indicaram aquele profissional (prova social). Dentro de
+    cada nível, ordena por `n` (mais indicações primeiro) e, no empate, pela nota.
     """
     query = supabase.table("recommendations").select("*").ilike("servico", servico)
     if bairro:
@@ -720,8 +723,8 @@ def executar_busca(pedidor, servico, bairro, cidade):
     recs = query.execute().data
 
     por_provider_rede = {}      # 🟢 pid -> {"prestador", "quem_indicou": [nomes]}
-    por_provider_pendente = {}  # 🟡 pid -> prestador
-    por_provider_fora = {}      # ⚪ pid -> prestador
+    por_provider_pendente = {}  # 🟡 pid -> {"prestador", "quem": set(member_id)}
+    por_provider_fora = {}      # ⚪ pid -> {"prestador", "quem": set(member_id|rec_id)}
 
     for rec in recs:
         prestador = buscar_provider(rec["provider_id"])
@@ -731,7 +734,8 @@ def executar_busca(pedidor, servico, bairro, cidade):
 
         # Indicação ANONIMIZADA (quem indicou saiu — member_id NULL): ⚪ rede geral.
         if rec.get("member_id") is None:
-            por_provider_fora.setdefault(pid, prestador)
+            d = por_provider_fora.setdefault(pid, {"prestador": prestador, "quem": set()})
+            d["quem"].add(rec.get("id") or id(rec))
             continue
 
         recomendador = buscar_membro_por_id(rec["member_id"])
@@ -750,24 +754,29 @@ def executar_busca(pedidor, servico, bairro, cidade):
             if nome_rec not in d["quem_indicou"]:
                 d["quem_indicou"].append(nome_rec)
         elif _na_rede_pendente(pedidor, recomendador):
-            por_provider_pendente.setdefault(pid, prestador)
+            d = por_provider_pendente.setdefault(pid, {"prestador": prestador, "quem": set()})
+            d["quem"].add(recomendador["id"])
         else:
-            por_provider_fora.setdefault(pid, prestador)
+            d = por_provider_fora.setdefault(pid, {"prestador": prestador, "quem": set()})
+            d["quem"].add(recomendador["id"])
 
     # k-anonimato: sem rede grande o bastante, 🟡 vira ⚪ (anônimo geral).
     if _qtd_rede(pedidor) < K_ANONIMATO:
-        for pid, p in por_provider_pendente.items():
-            por_provider_fora.setdefault(pid, p)
+        for pid, d in por_provider_pendente.items():
+            f = por_provider_fora.setdefault(pid, {"prestador": d["prestador"], "quem": set()})
+            f["quem"] |= d["quem"]
         por_provider_pendente = {}
 
     com_nome = [(d["prestador"], d["quem_indicou"]) for d in por_provider_rede.values()]
-    pendente = [p for pid, p in por_provider_pendente.items() if pid not in por_provider_rede]
-    sem_nome = [p for pid, p in por_provider_fora.items()
+    pendente = [(d["prestador"], len(d["quem"])) for pid, d in por_provider_pendente.items()
+                if pid not in por_provider_rede]
+    sem_nome = [(d["prestador"], len(d["quem"])) for pid, d in por_provider_fora.items()
                 if pid not in por_provider_rede and pid not in por_provider_pendente]
 
-    com_nome.sort(key=lambda par: _relevancia(par[0]), reverse=True)
-    pendente.sort(key=_relevancia, reverse=True)
-    sem_nome.sort(key=_relevancia, reverse=True)
+    # Ordena por prova social (nº de indicações) e, no empate, pela nota.
+    com_nome.sort(key=lambda par: (len(par[1]), _relevancia(par[0])), reverse=True)
+    pendente.sort(key=lambda par: (par[1], _relevancia(par[0])), reverse=True)
+    sem_nome.sort(key=lambda par: (par[1], _relevancia(par[0])), reverse=True)
     return com_nome, pendente, sem_nome
 
 
@@ -859,78 +868,138 @@ def _texto_sinais(sinais):
             "leveza a pessoa a chamar quem indicou pra essa pessoa entrar:\n" + "\n".join(linhas))
 
 
-def _ferr_buscar(membro, entrada, interativa_enviada=None):
-    servico = (entrada.get("servico") or "").strip().lower()
-    bairro  = (entrada.get("bairro")  or "").strip()
-    cidade  = (entrada.get("cidade")  or "").strip()
-    if not (servico and cidade):
-        return "Faltou servico ou cidade. Pergunte o que faltar com naturalidade."
+# Quantos itens no máximo mostrar numa tela de resultado (cabe no corpo do WhatsApp).
+MAX_ITENS_RESULTADO = 6
 
-    com_nome, rede_pendente, sem_nome = executar_busca(membro, servico, bairro, cidade)
-    local = ", ".join(p for p in [bairro, cidade] if p)
-    sinais_txt = _texto_sinais(_sinais_anonimos(membro, servico, bairro))
 
-    def _selo(p):
-        # Mostra a reputacao pra IA poder destacar os bem avaliados.
-        qtd = p.get("qtd_avaliacoes") or 0
-        if qtd:
-            return f" | avaliacao: {p.get('nota_media')}/5 ({qtd} avaliacao(oes))"
-        return " | avaliacao: ainda sem notas"
+def _selo_curto(p):
+    """Nota resumida para exibição (⭐ x/5) ou '' se ainda não há avaliação."""
+    qtd = p.get("qtd_avaliacoes") or 0
+    if qtd:
+        return f"  ⭐ {p.get('nota_media')}/5"
+    return ""
 
-    if com_nome:
-        registrar_busca(servico, bairro, cidade, "verde", membro["id"])
-        for p, _ in com_nome:
-            registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
-        linhas = []
-        for p, quem_lista in com_nome:
-            endosso = _formatar_indicadores(quem_lista)
-            prova = f" | {len(quem_lista)} pessoas da sua rede indicaram" if len(quem_lista) > 1 else ""
-            linhas.append(
-                f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']} | "
-                f"indicado por: {endosso}{prova}{_selo(p)}"
-            )
-        return ("RESULTADO=verde - indicacoes de pessoas da rede de confianca dela, em "
-                f"{local}, JA ORDENADAS pelas mais bem avaliadas. Apresente com alegria, "
-                "citando quem indicou (quando mais de uma pessoa indicou o mesmo, destaque "
-                "isso — e prova social forte). Mantenha nome e telefone EXATOS:\n"
-                + "\n".join(linhas) + sinais_txt)
-    if rede_pendente:
-        registrar_busca(servico, bairro, cidade, "amarelo_rede", membro["id"])
-        for p in rede_pendente:
-            registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
-        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']}{_selo(p)}"
-                  for p in rede_pendente]
-        return ("RESULTADO=amarelo_rede - indicacoes de gente da REDE dela, mas a conexao "
-                f"ainda nao foi confirmada pelos dois lados, em {local}. NAO revele quem "
-                "indicou (anonimo) — diga apenas que e 'alguem da sua rede'. JA ORDENADAS "
-                "pelas mais bem avaliadas. Mantenha nome e telefone EXATOS; destaque a "
-                "avaliacao quando houver:\n" + "\n".join(linhas) + sinais_txt)
+
+def _prova(n):
+    return f" ({n} pessoas)" if n and n > 1 else ""
+
+
+def _texto_iscas(sinais):
+    """Iscas (indicação pendente, sem contato) — já filtradas por k-anonimato."""
+    if not sinais:
+        return ""
+    linhas = []
+    for s in sinais:
+        reg = f" na região de {s['bairro']}" if s.get("bairro") else ""
+        linhas.append(f"🔒 Alguém da sua rede indicou um(a) {s['servico']}{reg} — o contato "
+                      "libera quando essa pessoa entrar na Dorote.ia.")
+    return "\n\n" + "\n".join(linhas)
+
+
+def _linhas_resultado(com_nome, pendente, sem_nome):
+    """Monta as linhas de item, na ordem de confiança (🟢, 🟡, ⚪), com contato.
+    Devolve (linhas, sobra) onde sobra = quantos ficaram de fora do teto."""
+    itens = []
+    for p, quem in com_nome:
+        itens.append(f"🟢 *{p['nome']}* — indicado por {_formatar_indicadores(quem)}"
+                     f"{_prova(len(quem))}{_selo_curto(p)}\n📞 {p['telefone']}")
+    for p, n in pendente:
+        itens.append(f"🟡 *{p['nome']}* — alguém da sua rede indica{_prova(n)}"
+                     f"{_selo_curto(p)}\n📞 {p['telefone']}")
+    for p, n in sem_nome:
+        itens.append(f"⚪ *{p['nome']}* — indicado pela rede Dorote.ia{_prova(n)}"
+                     f"{_selo_curto(p)}\n📞 {p['telefone']}")
+    sobra = max(0, len(itens) - MAX_ITENS_RESULTADO)
+    return itens[:MAX_ITENS_RESULTADO], sobra
+
+
+def _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, sem_nome):
+    for p, _ in com_nome:
+        registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+    for p, _ in pendente:
+        registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+    for p, _ in sem_nome:
+        registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
+
+
+def _executar_e_enviar_busca(membro, servico, bairro, cidade):
+    """Roda a busca e ENVIA a tela de resultado pelo código (com botões). O telefone
+    do profissional nunca passa pela IA. Cobre RES_OK, RES_GERAL e RES_VAZIO (§6)."""
+    com_nome, pendente, sem_nome = executar_busca(membro, servico, bairro, cidade)
+    sinais = _sinais_anonimos(membro, servico, bairro)
+    local = ", ".join(p for p in [bairro, cidade] if p) or "São Paulo"
+
+    # RES_OK — há indicações da rede (🟢 e/ou 🟡). Pode listar ⚪ junto.
+    if com_nome or pendente:
+        registrar_busca(servico, bairro, cidade, "verde" if com_nome else "amarelo_rede", membro["id"])
+        _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, sem_nome)
+        linhas, sobra = _linhas_resultado(com_nome, pendente, sem_nome)
+        corpo = f"🔍 O que encontrei para *{servico}* em {local}:\n\n" + "\n\n".join(linhas)
+        if sobra:
+            corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
+        corpo += _texto_iscas(sinais)
+        enviar_botoes_meta(corpo, [
+            {"id": "buscar",       "label": "🔍 Buscar outro"},
+            {"id": "rede_indicar", "label": "💛 Indicar"},
+            {"id": "menu",         "label": "🏠 Menu"}])
+        return
+
+    # Só ⚪ (rede geral / anonimizado).
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
-        for p in sem_nome:
-            registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
-        linhas = [f"- Nome: {p['nome']} | telefone (copie EXATO): {p['telefone']}{_selo(p)}"
-                  for p in sem_nome]
-        return ("RESULTADO=amarelo - ha indicacoes boas em "
-                f"{local}, mas de FORA da rede dela (NAO revele quem indicou), JA ORDENADAS "
-                "pelas mais bem avaliadas. Apresente mantendo o telefone EXATO, destacando a "
-                "avaliacao quando houver. AO FINAL, acrescente exatamente esta frase: "
-                "'Este profissional foi validado pela rede Dorote.ia. Se você encontrar alguém "
-                "de confiança para esse serviço, não esqueça de registrar aqui para fortalecer "
-                "a base! 💛':\n" + "\n".join(linhas) + sinais_txt)
+        _registrar_mostrados(membro, servico, bairro, cidade, [], [], sem_nome)
+        linhas, sobra = _linhas_resultado([], [], sem_nome)
+        corpo = f"🔍 O que encontrei para *{servico}* em {local}:\n\n" + "\n\n".join(linhas)
+        if sobra:
+            corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
+        corpo += _texto_iscas(sinais)
+        # RES_GERAL — rede pequena (< k): enquadra como rede geral e convida a crescer.
+        if _qtd_rede(membro) < K_ANONIMATO:
+            corpo += t.BUSCA_REDE_PEQUENA
+            enviar_botoes_meta(corpo, [
+                {"id": "rede_convidar", "label": "🤝 Convidar"},
+                {"id": "buscar",        "label": "🔍 Buscar outro"},
+                {"id": "menu",          "label": "🏠 Menu"}])
+        else:
+            enviar_botoes_meta(corpo, [
+                {"id": "buscar",       "label": "🔍 Buscar outro"},
+                {"id": "rede_indicar", "label": "💛 Indicar"},
+                {"id": "menu",         "label": "🏠 Menu"}])
+        return
 
-    # SEM RESULTADO: fluxo deterministico por botoes. NUNCA pedir a quem esta
-    # PROCURANDO que ela mesma indique alguem (era o bug do print).
+    # RES_VAZIO — nada na rede. NUNCA pedir a quem busca que ela mesma indique.
     registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
-    tem_sinal = bool(sinais_txt)
-    if interativa_enviada is not None:
-        _enviar_sem_resultado(membro, servico, tem_sinal)
+    _enviar_sem_resultado(membro, servico, bool(sinais))
+
+
+def _perguntar_regiao_busca(membro, servico):
+    """BUSCA_FALTA (§): veio só o serviço → pergunta a região por botões (a IA não
+    conduz). Guarda o serviço no estado para o próximo passo ser determinístico."""
+    _fluxo_set(membro, {"fluxo": "busca", "servico": servico})
+    enviar_botoes_meta(t.BUSCA_FALTA_REGIAO.format(servico=servico), [
+        {"id": "busca_cidade_toda", "label": "🏙️ Toda a cidade"},
+        {"id": "busca_bairro",      "label": "📍 Escrever bairro"},
+        {"id": "menu",              "label": "🏠 Menu"}])
+
+
+def _ferr_buscar(membro, entrada, interativa_enviada=None):
+    """A IA só EXTRAI {servico, região}. A partir daqui, quem conduz é o código:
+    pergunta a região que falta (por botões) e envia o resultado pronto (com contato
+    e botões). O telefone do profissional nunca chega ao modelo."""
+    servico = (entrada.get("servico") or "").strip().lower()
+    bairro  = (entrada.get("bairro")  or "").strip()
+    if not servico:
+        return "Faltou o servico. Pergunte O QUE a pessoa precisa (nunca 'qual cidade')."
+    if interativa_enviada is None:
+        interativa_enviada = [False]
+    # Sem região → pergunta com botões (Toda a cidade / Escrever bairro).
+    if not bairro:
+        _perguntar_regiao_busca(membro, servico)
         interativa_enviada[0] = True
-        return "Resultado vazio: opcoes ja enviadas por botoes. NAO escreva mais nada."
-    # Fallback (caso raro sem o flag): texto curto, sem pedir indicacao a quem busca.
-    return (f"RESULTADO=vermelho - ainda nao ha {servico} indicado em {local}. Acolha em 1 "
-            "linha e diga que assim que alguem da rede indicar, voce avisa. NAO peca pra ELA "
-            "indicar alguem.")
+        return "Perguntei a regiao por botoes. NAO escreva mais nada."
+    _executar_e_enviar_busca(membro, servico, bairro, "São Paulo")
+    interativa_enviada[0] = True
+    return "Resultado da busca ja enviado por botoes. NAO escreva mais nada."
 
 
 def _enviar_sem_resultado(membro, servico, tem_sinal):
@@ -2962,6 +3031,29 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if consentiu and cmd.startswith("ask:"):
         _enviar_ask_amigo(membro, cmd.split(":", 1)[1])
         return True
+
+    # -------- Fluxo ativo: BUSCA (perguntar a região que faltou) --------
+    fbusca = _fluxo_get(membro)
+    if consentiu and fbusca.get("fluxo") == "busca":
+        servico_b = (fbusca.get("servico") or "").strip()
+        if cmd in ("menu", "voltar", "cancelar", "inicio"):
+            _fluxo_limpar(membro); enviar_menu_principal(membro); return True
+        if cmd == "busca_cidade_toda":
+            _fluxo_limpar(membro)
+            _executar_e_enviar_busca(membro, servico_b, "", "São Paulo")
+            return True
+        if cmd == "busca_bairro":
+            fbusca["passo"] = "bairro"; _fluxo_set(membro, fbusca)
+            enviar_botoes_meta(t.BUSCA_PEDIR_BAIRRO, [
+                {"id": "busca_cidade_toda", "label": "🏙️ Toda a cidade"},
+                {"id": "menu",              "label": "🏠 Menu"}])
+            return True
+        if not button_id and (texto or "").strip():
+            _fluxo_limpar(membro)
+            _executar_e_enviar_busca(membro, servico_b, texto.strip(), "São Paulo")
+            return True
+        # Outro botão de navegação: sai da busca e deixa o resto tratar.
+        _fluxo_limpar(membro)
 
     # -------- Fluxo ativo: o cliente esta INDICANDO um profissional --------
     fluxo = _fluxo_get(membro)
