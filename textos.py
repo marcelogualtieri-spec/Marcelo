@@ -412,7 +412,9 @@ MEUS_DADOS = (
 EXCLUSAO_CONFIRMAR = "Pra apagar tudo, digite *EXCLUIR*. Pra voltar, e so mandar *cancelar*. 🙂"
 EXCLUSAO_CANCELADA = "Ufa, nao apaguei nada! 😌 Esta tudo no lugar."
 ADEUS = (
-    "Pronto, apaguei tudo certinho 💛 Foi um prazer te ajudar!\n"
+    "Pronto, sua conta foi apagada 💛 Apaguei o seu cadastro e o seu nome.\n"
+    "As indicações que você fez continuam ajudando a rede, mas de forma anônima "
+    "(sem o seu nome).\n"
     "Se um dia quiser voltar, é só me mandar um oi que a gente recomeça. 👋"
 )
 

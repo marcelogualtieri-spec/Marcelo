@@ -97,15 +97,13 @@ o modelo; roteador determinístico; trava defensiva no cérebro).
 ## 5) MINHA CONTA + SAIR — (analisado, não implementado)
 
 **LGPD:**
-- 🔴 **Mensagem final do SAIR desonesta.** `ADEUS` diz *"Pronto, apaguei tudo certinho 💛"*,
-  mas as indicações são **anonimizadas, não apagadas**. A tela de CONFIRMAÇÃO
-  (`SAIR_CLIENTE`) é honesta; o problema é só a mensagem final. Trocar para algo como
-  "Pronto, sua conta foi apagada. Se um dia quiser voltar, é só mandar um oi 💛".
-- 🔴 **SAIR não remove o rastro da pessoa nas redes de OUTROS.** `excluir_membro` anonimiza
-  as recomendações ✅ e apaga o cadastro ✅, mas **não** remove o hash do número dela em
-  `edges` de outras pessoas, **nem** limpa o `nome` dela guardado em `edges`/
-  `pending_invites` de terceiros. A regra manda "apagar o nome" e "remover o contato dela
-  guardado em outras redes (hash)".
+- ✅ **[FEITO — commit posterior]** **Mensagem final do SAIR honesta.** `ADEUS` reescrita:
+  não promete mais "apaguei tudo"; diz que o cadastro/nome são apagados e as indicações
+  ficam anônimas.
+- ✅ **[FEITO — commit posterior]** **SAIR remove o rastro da pessoa nas redes de OUTROS.**
+  `excluir_membro` agora apaga, pela chave de hash do telefone dela, os registros em
+  `edges` e `pending_invites` de terceiros (remove hash + nome guardados na agenda de quem
+  a adicionou), além de anonimizar as recomendações e apagar o cadastro.
 
 **Cumprido (não mexer):**
 - ✅ Confirmação obrigatória antes de apagar (`enviar_confirmar_exclusao`).

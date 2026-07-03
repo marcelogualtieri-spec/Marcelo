@@ -345,6 +345,17 @@ def excluir_membro(membro):
             {"member_id": None}).eq("member_id", membro["id"]).execute()
     except Exception:
         traceback.print_exc()
+    # LGPD: remover o RASTRO da pessoa nas redes de OUTROS. O cadastro dela (e a agenda
+    # dela — edges com member_id dela) some no delete/cascade abaixo, mas o NÚMERO dela
+    # (em hash) e o NOME dela ficam guardados na agenda de quem a adicionou. Apagamos
+    # esses vestígios pela chave de hash do telefone dela.
+    h = hash_de_membro(membro)
+    if h:
+        for tabela in ("edges", "pending_invites"):
+            try:
+                supabase.table(tabela).delete().eq("contact_hash", h).execute()
+            except Exception:
+                traceback.print_exc()
     supabase.table("members").delete().eq("id", membro["id"]).execute()
 
 
