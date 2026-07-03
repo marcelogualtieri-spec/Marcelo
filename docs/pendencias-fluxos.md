@@ -94,6 +94,24 @@ o modelo; roteador determinístico; trava defensiva no cérebro).
 
 ---
 
+## 0) CORE — CONEXÕES DA REDE — (2 bugs graves CORRIGIDOS + itens em aberto)
+
+Ver `docs/core-conexoes.md` (documentação do coração do app).
+
+**✅ [FEITO — commit posterior]:**
+- 🔴 Conexão nunca criada para quem **já era membro** ao abrir um link de convite de
+  cliente. Corrigido com `_conectar_por_link_cliente` (conecta na hora, idempotente).
+- 🔴 Profissional com recomendação real ficava invisível na busca (só virava `ativo` ao
+  configurar perfil). Agora a recomendação real já o torna `ativo` (§5.3).
+
+**Em aberto (decidir):**
+- 🟡 Conexão fica pendente para sempre se um dos dois nunca confirmar "vocês se conhecem?".
+  Melhoria possível: lembrete de confirmação pendente / expiração.
+- 🟡 Convite por número (sem código) para quem já é membro só dispara quando a pessoa manda
+  alguma mensagem (sem push proativo — janela 24h da Meta).
+
+---
+
 ## 5) MINHA CONTA + SAIR — (analisado, não implementado)
 
 **LGPD:**

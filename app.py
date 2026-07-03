@@ -1468,6 +1468,60 @@ def _abrir_conexao_cliente(novo_membro):
         traceback.print_exc()
 
 
+def _conectar_por_link_cliente(membro, texto):
+    """CORE (correção de conexão). Quem JÁ é membro e JÁ consentiu, ao abrir um link
+    de convite de cliente, NÃO passa de novo pelo aceite — então o vínculo com quem
+    convidou nunca era criado (bug: a conexão só nascia na criação/consentimento).
+
+    Aqui detectamos o convite — pelo código no texto OU por um convite pendente ligado
+    ao número — e abrimos a conexão mútua na hora, perguntando aos dois se se conhecem.
+    Idempotente: se já existe qualquer conexão entre os dois (em qualquer status ou
+    direção), não recria nem repergunta. Retorna True se abriu a conexão (perguntou)."""
+    inviter_id = None
+    codigo = extrair_codigo_convite(texto)
+    if codigo:
+        conv = membro_por_codigo(codigo)
+        if conv:
+            inviter_id = conv["id"]
+    if inviter_id is None:
+        numero = normalizar_e164(membro.get("wa_id") or "")
+        if numero:
+            try:
+                h = calcular_contact_hash(numero)
+                row = (supabase.table("pending_invites").select("inviter_id")
+                       .eq("contact_hash", h).limit(1).execute().data)
+                if row:
+                    inviter_id = row[0]["inviter_id"]
+            except Exception:
+                traceback.print_exc()
+    if not inviter_id or inviter_id == membro["id"]:
+        return False
+    inviter = buscar_membro_por_id(inviter_id)
+    if not inviter or not inviter.get("consent") or esta_bloqueado(membro["id"], inviter_id):
+        return False
+    # Já existe conexão (qualquer status/direção)? Consome o convite pendente e sai —
+    # não recria nem repergunta.
+    for a, b in ((inviter_id, membro["id"]), (membro["id"], inviter_id)):
+        try:
+            if (supabase.table("conexoes").select("id")
+                    .eq("member_a", a).eq("member_b", b).limit(1).execute().data):
+                aplicar_convite_pendente(membro["wa_id"])
+                return False
+        except Exception:
+            traceback.print_exc()
+    # Abre a conexão mútua reusando o fluxo padrão (cria pendente + pergunta aos dois).
+    if not membro.get("invited_by"):
+        try:
+            supabase.table("members").update(
+                {"invited_by": inviter_id}).eq("id", membro["id"]).execute()
+        except Exception:
+            traceback.print_exc()
+    membro["invited_by"] = inviter_id
+    aplicar_convite_pendente(membro["wa_id"])   # consome o convite pendente pelo número
+    _abrir_conexao_cliente(membro)
+    return True
+
+
 def construir_executor(membro, interativa_enviada):
     """Devolve a funcao que a IA usa pra disparar acoes. Mantem o consentimento
     como porteiro: sem consent, so 'registrar_consentimento' funciona."""
@@ -2775,6 +2829,13 @@ def _efeitos_conexao_validada(con):
                     # O "porquê" da indicação enriquece a recomendação (e a busca).
                     "nota": con.get("motivo") or None,
                 }).execute()
+            # §5.3: com uma recomendação REAL, e já tendo entrado e aceitado os termos,
+            # o profissional passa a ATIVO — ou seja, aparece na busca. É a recomendação
+            # de verdade que dá visibilidade (não a configuração do perfil, que pode vir
+            # depois). Não mexe em quem saiu (removido) ou pausou de propósito.
+            if prov.get("status") not in ("removido", "pausado", "ativo"):
+                supabase.table("providers").update(
+                    {"status": "ativo"}).eq("id", prov["id"]).execute()
         except Exception:
             traceback.print_exc()
 
@@ -3376,6 +3437,13 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     slug_prest = extrair_codigo_prestador(texto_recebido)
     if slug_prest is not None:
         iniciar_onboarding_prestador(membro, slug_prest)
+        return
+
+    # CORE (conexão): quem JÁ é membro e JÁ consentiu, ao abrir um link de convite de
+    # cliente, não passa de novo pelo aceite — então o vínculo nunca era criado. Aqui
+    # conectamos na hora (idempotente). Precisa do texto CRU (com o código), por isso
+    # roda ANTES de limpar_texto_convite.
+    if membro.get("consent") and _conectar_por_link_cliente(membro, texto_recebido):
         return
 
     # Limpa o codigo tecnico do convite do texto antes de mandar pra IA.
