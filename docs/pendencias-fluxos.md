@@ -136,3 +136,35 @@ Ver `docs/core-conexoes.md` (documentação do coração do app).
 - 🟡 Botão **"Ver o outro perfil"** no CONTA_DADOS de contas híbridas (hoje só via TROCAR).
 - 🟡 O menu de conta já vem **quebrado** em vários itens (Minha rede / Indicações / etc.)
   em vez de um único "Ver meus dados" — é mais rico que a tabela, decidir se mantém.
+
+---
+
+## 6) PROFISSIONAL PEDE RECOMENDAÇÕES — (implementado)
+
+Fluxo espelho do "Convidar quem confio", na voz do profissional:
+- ✅ Entrada: *Outras opções 💼 → 📣 Pedir recomendação* → instruções curtas + mensagem
+  pronta para encaminhar com link pessoal (`montar_link_recomendar`, marcador
+  `recomendar: CODE`).
+- ✅ Regra do titular: quem ENTRA pelo link já está recomendando (consentiu ao entrar);
+  SÓ o profissional confirma "vocês se conhecem?". Ao confirmar → recomendação do
+  CLIENTE (member_b) nasce (origem `prof_convite`) e o perfil vira `ativo`/visível.
+- ✅ LGPD: pessoa nova só tem a conexão/recomendação criada DEPOIS do aceite dos termos
+  (antes, só o marcador `entrada_rec` + invited_by). Boas-vindas personalizada cita o
+  profissional e deixa claro que entrar = recomendar.
+- ✅ Autorrecomendação bloqueada (profissional abre o próprio link → aviso).
+- ✅ Status no "Meu perfil" sempre claro: `Status: ✅ Ativo / ⏸️ Pausado` + complemento
+  (aguardando 1ª recomendação / aparecendo nas buscas / falta finalizar perfil).
+
+---
+
+## 🅿️ PARKING LOT — evoluções futuras (não implementar agora)
+
+- **Painel/CRM do profissional:** um painel que se atualiza sozinho (recomendações
+  recebidas, quem entrou pelo link e está pendente, conversões, situação na busca).
+  Pensar formato (mensagem periódica? mini-dashboard no chat? página web?).
+- **Dashboard do projeto (pedido do Marcelo):** ele vai mandar um prompt periódico
+  pedindo o que foi feito, para alimentar um dashboard do projeto — com ideias,
+  guardrails, evoluções e estado. Manter `pendencias-fluxos.md` + `core-conexoes.md`
+  sempre atualizados para servirem de fonte.
+- **Lembrete/expiração de confirmações pendentes** (conexões que nunca validam).
+- **Template Meta** (pós-piloto) para notificar fora da janela de 24h.

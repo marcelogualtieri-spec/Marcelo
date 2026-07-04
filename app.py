@@ -561,6 +561,19 @@ def extrair_codigo_convite(texto):
     return achado.group(1).upper() if achado else None
 
 
+def montar_link_recomendar(numero_bot, codigo):
+    """Link pessoal do PROFISSIONAL para pedir recomendação a quem ele já atendeu.
+    Quem entra por ele está RECOMENDANDO o profissional (regra do titular: entrar já
+    é o consentimento de quem recomenda; o profissional confirma que conhece)."""
+    mensagem = f"Oi! Vim recomendar um trabalho na Dorote.ia 💛 (recomendar: {codigo})"
+    return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
+
+
+def extrair_codigo_recomendar(texto):
+    achado = re.search(r"recomendar:\s*([A-Za-z0-9]{6})", texto or "")
+    return achado.group(1).upper() if achado else None
+
+
 def membro_por_codigo(codigo):
     resposta = supabase.table("members").select("id").eq("invite_code", codigo).execute()
     return resposta.data[0] if resposta.data else None
@@ -1928,6 +1941,8 @@ def enviar_outras_opcoes(membro):
     dual = tem_perfil_profissional(membro)
     if perfil_ativo(membro) == "profissional":
         rows = [
+            {"id": "prof_pedir_rec", "title": "📣 Pedir recomendação",
+             "description": "Convite para clientes que você já atendeu"},
             {"id": "prest_editar", "title": "✏️ Editar perfil",
              "description": "Atualizar o seu serviço e dados"},
             {"id": "prest_pausar", "title": "⏸️ Pausar / Ativar",
@@ -2070,19 +2085,23 @@ def _ver_meu_perfil(membro):
     except Exception:
         traceback.print_exc(); qtd = 0
     status = prov.get("status")
+    # Status SEMPRE claro (Ativo ou Pausado) + complemento de visibilidade embaixo.
+    linha_status = "⏸️ *Pausado*" if status == "pausado" else "✅ *Ativo*"
+    complementos = []
+    if status == "aguardando_perfil":
+        complementos.append("📝 Falta finalizar o seu perfil")
     if status == "pausado":
-        sit = "⏸️ Pausado (não aparece nas buscas)"
-    elif status == "aguardando_perfil":
-        sit = "📝 Perfil incompleto — falta finalizar"
-    elif status == "ativo" and qtd > 0:
-        sit = "✅ Aparecendo nas buscas"
+        complementos.append("🔍 Fora das buscas enquanto estiver pausado")
+    elif qtd > 0:
+        complementos.append("🔍 Aparecendo nas buscas")
     else:
-        sit = "⏳ Aguardando a 1ª recomendação para aparecer"
+        complementos.append("⏳ Aguardando a 1ª recomendação para aparecer na busca")
     linhas = ["💼 *Meu perfil*\n",
               f"🔧 Serviço: {prov.get('servico') or '—'}",
               f"📍 Região: {prov.get('regiao') or prov.get('bairro') or '—'}",
               f"📊 Recomendações: {qtd}",
-              f"Situação: {sit}"]
+              f"Status: {linha_status}"]
+    linhas += complementos
     enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
 
 
@@ -2174,6 +2193,80 @@ def gerar_e_enviar_link_convite(membro):
     link = encurtar_link(montar_link_convite(numero_bot, codigo))
     resposta_whatsapp(t.CONVIDAR_CLIENTE_VOCE.format(link=link))
     resposta_whatsapp(t.CONVITE_MENSAGEM_AMIGO.format(link=link))
+
+
+def gerar_e_enviar_link_recomendar(membro):
+    """Kit do PROFISSIONAL para pedir recomendações a quem ele já atendeu: instruções
+    curtas + a mensagem pronta para encaminhar (com o link pessoal dele). Espelho do
+    'Convidar quem confio', mas na voz do profissional."""
+    numero_bot = g.get("display_phone_number") or ""
+    codigo = obter_ou_criar_codigo(membro)
+    link = encurtar_link(montar_link_recomendar(numero_bot, codigo))
+    resposta_whatsapp(t.REC_PEDIR_VOCE)
+    # A mensagem pronta vai SEPARADA, para encaminhar só ela.
+    resposta_whatsapp(t.REC_MENSAGEM_CLIENTE.format(link=link))
+    enviar_menu_prestador()
+
+
+def _abrir_conexao_recomendar(cliente, prof, prov):
+    """Cliente entrou pelo link 'recomendar' do profissional: abre a conexão com o
+    lado do CLIENTE já confirmado (entrar pelo link é o consentimento de quem
+    recomenda) e pergunta SÓ ao profissional se conhece. Quando ele confirmar, a
+    recomendação do cliente passa a valer (origem 'prof_convite')."""
+    con = criar_conexao_pendente(prof["id"], cliente["id"], "prof_convite",
+                                 provider_id=prov["id"])
+    if not con:
+        return
+    _confirmar_lado_de(con, cliente["id"])
+    pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+    _pedir_confirmacao_conexao(prof, con,
+                               t.REC_CONFIRMA_PROF.format(nome=_nome_curto(cliente)),
+                               to=prof["wa_id"], phone_number_id=pn)
+
+
+def _entrada_link_recomendar(membro, codigo):
+    """Trata a chegada pelo link 'recomendar' do profissional. Devolve True se cuidou
+    da mensagem. Antes do aceite, NADA é gravado além do mínimo (marcador + convite);
+    a conexão/recomendação só nasce depois do SIM (LGPD)."""
+    ref = membro_por_codigo(codigo)
+    prof = buscar_membro_por_id(ref["id"]) if ref else None
+    if not prof:
+        return False
+    if prof["id"] == membro["id"]:
+        # Ninguém recomenda a si mesmo (§4.6) — abriu o próprio link.
+        enviar_botoes_meta(t.INDICAR_SI_MESMO, [
+            {"id": "menu", "label": "🏠 Menu"}])
+        return True
+    prov = provider_do_membro(prof["id"])
+    if not prov:
+        return False
+    # Já é membro e já aceitou: registra na hora (o profissional confirma depois).
+    if membro.get("consent"):
+        if esta_bloqueado(membro["id"], prof["id"]):
+            return False
+        _abrir_conexao_recomendar(membro, prof, prov)
+        resposta_whatsapp(t.REC_ENTROU_OK.format(nome=_nome_curto(prof)))
+        enviar_menu_do_perfil_ativo(membro)
+        return True
+    # Ainda não aceitou: guarda o marcador e dá as boas-vindas citando o profissional.
+    if not membro.get("invited_by"):
+        try:
+            supabase.table("members").update(
+                {"invited_by": prof["id"]}).eq("id", membro["id"]).execute()
+            membro["invited_by"] = prof["id"]
+        except Exception:
+            traceback.print_exc()
+    _fluxo_set(membro, {"fluxo": "entrada_rec", "prof_id": prof["id"]})
+    msg = t.BOAS_VINDAS_RECOMENDAR.format(nome=_nome_curto(prof), link=LINK_TERMOS)
+    resposta_whatsapp(msg)
+    # Registra no histórico para o cérebro NÃO repetir a boas-vindas genérica no "SIM".
+    salvar_historico(membro["wa_id"], [
+        {"role": "user", "content": "(entrou pelo convite de recomendação)"},
+        {"role": "assistant", "content": msg},
+    ])
+    membro["historico"] = [{"role": "user", "content": "(entrou pelo convite de recomendação)"},
+                           {"role": "assistant", "content": msg}]
+    return True
 
 
 def _perfil_tipo(membro):
@@ -2826,20 +2919,25 @@ def _outro_lado(con, membro):
 
 
 def _efeitos_conexao_validada(con):
-    """Quando os dois confirmam: se for indicação de profissional, a recomendação
-    de A sobre o profissional passa a valer (🟢). Para 'cliente', a própria conexão
-    validada já serve de vínculo (a busca consulta isso)."""
-    if con.get("origem") == "profissional" and con.get("provider_id"):
+    """Quando a conexão valida: se envolver um profissional, a recomendação passa a
+    valer (🟢). Quem recomenda depende da origem:
+    - 'profissional'  → member_a (o cliente que INDICOU o profissional);
+    - 'prof_convite'  → member_b (o cliente que entrou pelo link do profissional —
+      o profissional NUNCA recomenda a si mesmo).
+    Para 'cliente', a própria conexão validada já serve de vínculo."""
+    origem = con.get("origem")
+    if origem in ("profissional", "prof_convite") and con.get("provider_id"):
+        recomendador_id = con["member_a"] if origem == "profissional" else con["member_b"]
         prov = buscar_provider(con["provider_id"])
         if not prov:
             return
         try:
             ja = (supabase.table("recommendations").select("id")
-                  .eq("member_id", con["member_a"]).eq("provider_id", prov["id"])
+                  .eq("member_id", recomendador_id).eq("provider_id", prov["id"])
                   .limit(1).execute().data)
             if not ja:
                 supabase.table("recommendations").insert({
-                    "member_id": con["member_a"], "provider_id": prov["id"],
+                    "member_id": recomendador_id, "provider_id": prov["id"],
                     "servico": prov.get("servico") or "serviço",
                     "bairro": prov.get("bairro") or "não informado",
                     "cidade": prov.get("cidade") or "São Paulo",
@@ -3202,6 +3300,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             supabase.table("providers").update({"status": "aguardando_perfil"}).eq("id", prest["id"]).execute()
             _enviar_pedido_perfil(membro, prest["id"])
             return True
+        if cmd == "prof_pedir_rec":
+            gerar_e_enviar_link_recomendar(membro)
+            return True
         if cmd == "prest_pausar":
             novo = "ativo" if prest.get("status") == "pausado" else "pausado"
             supabase.table("providers").update({"status": novo}).eq("id", prest["id"]).execute()
@@ -3239,6 +3340,18 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if cmd == "consent_sim" or cmd in ACEITES_TXT:
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
+            # Entrou pelo link 'recomendar' de um profissional: com o aceite dado,
+            # registra a recomendação (aguardando só a confirmação do profissional).
+            fl_rec = _fluxo_get(membro)
+            if fl_rec.get("fluxo") == "entrada_rec":
+                _fluxo_limpar(membro)
+                prof_rec = buscar_membro_por_id(fl_rec.get("prof_id"))
+                prov_rec = provider_do_membro(prof_rec["id"]) if prof_rec else None
+                if prof_rec and prov_rec:
+                    _abrir_conexao_recomendar(membro, prof_rec, prov_rec)
+                    resposta_whatsapp(t.REC_ENTROU_OK.format(nome=_nome_curto(prof_rec)))
+                    enviar_menu_principal(membro)
+                    return True
             if membro.get("invited_by"):
                 _abrir_conexao_cliente(membro)
             enviar_menu_principal(membro, t.CLIENTE_ATIVO)
@@ -3312,9 +3425,12 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             nome = _nome_curto(outro) if outro else "essa pessoa"
             if con.get("member_a") == membro["id"]:
                 # Quem convidou/indicou (é sempre este lado que confirma, pela regra nova).
-                texto = (t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome)
-                         if con.get("origem") == "profissional"
-                         else t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=nome))
+                if con.get("origem") == "profissional":
+                    texto = t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome)
+                elif con.get("origem") == "prof_convite":
+                    texto = t.REC_CONFIRMA_PROF.format(nome=nome)
+                else:
+                    texto = t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=nome)
             elif con.get("origem") == "profissional":
                 # Legado: conexões antigas em que o profissional ainda não confirmou.
                 texto = t.CONEXAO_PERGUNTA_PROF.format(nome=nome)
@@ -3469,6 +3585,12 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     slug_prest = extrair_codigo_prestador(texto_recebido)
     if slug_prest is not None:
         iniciar_onboarding_prestador(membro, slug_prest)
+        return
+
+    # RECOMENDAR: chegou pelo link pessoal de um profissional pedindo recomendação.
+    # Quem entra por ele está recomendando (regra do titular); o profissional confirma.
+    cod_rec = extrair_codigo_recomendar(texto_recebido)
+    if cod_rec is not None and _entrada_link_recomendar(membro, cod_rec):
         return
 
     # CORE (conexão): quem JÁ é membro e JÁ consentiu, ao abrir um link de convite de

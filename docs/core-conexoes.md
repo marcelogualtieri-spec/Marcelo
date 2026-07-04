@@ -36,6 +36,19 @@ quando a pessoa **reabre o chat**, o código mostra a confirmação pendente ANT
 
 ---
 
+## 1.1 Origens de conexão (campo `conexoes.origem`)
+
+- `cliente` — convite de cliente para cliente (link "Convidar quem confio"). A conexão
+  validada é o próprio vínculo 🟢; não cria recomendação.
+- `profissional` — cliente INDICOU um profissional; ao validar, a recomendação nasce de
+  **member_a** (o cliente que indicou).
+- `prof_convite` — o PROFISSIONAL pediu recomendação a um cliente dele (link
+  "Pedir recomendação"); ao validar, a recomendação nasce de **member_b** (o cliente que
+  entrou pelo link). O profissional NUNCA recomenda a si mesmo.
+
+Em todas: quem ENTRA pelo link já consente (lado auto-confirmado); quem convidou/indicou/
+pediu é o único perguntado ("vocês se conhecem?").
+
 ## 2. As duas portas + o dedupe
 
 - **Porta A — Autocadastro:** a pessoa vira profissional sozinha. Fica invisível até a 1ª

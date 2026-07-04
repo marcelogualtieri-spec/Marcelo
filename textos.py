@@ -629,6 +629,55 @@ PRESTADOR_PERFIL_INVISIVEL = (
 )
 
 
+# --- Profissional pede recomendações à própria clientela ------------------
+# Instruções que O PROFISSIONAL vê (curtas e diretas). O link é pessoal: pode
+# encaminhar para qualquer cliente que já atendeu.
+REC_PEDIR_VOCE = (
+    "📣 *Peça recomendações a quem você já atendeu*\n\n"
+    "É a recomendação de clientes de verdade que faz o seu trabalho aparecer aqui.\n\n"
+    "Encaminhe a mensagem abaixo para clientes que você já atendeu — pode mandar para "
+    "quantas pessoas quiser. Quando alguém entrar pelo seu convite, eu te aviso para "
+    "você confirmar que conhece. Aí a recomendação passa a valer. 💛"
+)
+
+# Mensagem PRONTA para o profissional encaminhar (voz do profissional, com segurança).
+REC_MENSAGEM_CLIENTE = (
+    "Oi! 💛 Meu trabalho agora está na Dorote.ia, uma central de indicações de "
+    "confiança no WhatsApp.\n"
+    "Se você gostou do meu serviço, me recomenda lá? É rapidinho — entra pelo meu "
+    "convite e pronto. Sua recomendação me ajuda demais:\n"
+    "{link}"
+)
+
+# Boas-vindas de quem chega pelo link de RECOMENDAR um profissional.
+BOAS_VINDAS_RECOMENDAR = (
+    "Oi! Eu sou a Dorote.ia 💛\n\n"
+    "*{nome}* pediu a sua recomendação. Ao entrar por este convite, você recomenda o "
+    "trabalho de {nome} e vocês ficam conectados aqui — é assim que as boas indicações "
+    "circulam entre quem se conhece.\n\n"
+    "De quebra, você também passa a achar profissionais recomendados por quem confia.\n\n"
+    "🔒 *Privacidade:* guardo só o seu nome e telefone. O seu número nunca é "
+    "compartilhado e o seu nome só aparece para quem você aceitar. Para sair, digite "
+    "*SAIR*.\n\n"
+    "🔗 *Termos de uso:*\n{link}\n\n"
+    "Posso registrar? Responda *SIM* para aceitar os termos e recomendar *{nome}*, ou "
+    "digite *SABER MAIS*."
+)
+
+# Aviso ao PROFISSIONAL quando um cliente entra pelo link de recomendação.
+REC_CONFIRMA_PROF = (
+    "Boa notícia! 💛 *{nome}* entrou pelo seu convite para recomendar o seu trabalho.\n\n"
+    "Vocês se conhecem?"
+)
+
+# Retorno a quem ENTROU e recomendou (aguardando só a confirmação do profissional).
+REC_ENTROU_OK = (
+    "Prontinho! 💛 Sua recomendação para *{nome}* foi registrada.\n"
+    "Assim que {nome} confirmar que vocês se conhecem, ela passa a valer na rede e "
+    "vocês ficam conectados."
+)
+
+
 # --- Saida (exclusao) diferenciada por perfil ----------------------------
 SAIR_CLIENTE = (
     "Tem certeza que quer sair? 💛\n\n"
