@@ -495,11 +495,19 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
     # PRIMEIRO CONTATO: manda SO a mensagem de boas-vindas FIXA (verbatim), numa
     # mensagem unica. A propria mensagem pede pra responder SIM ou SABER MAIS — entao
     # nao mandamos botoes junto (evita duas mensagens de uma vez) e esperamos a resposta.
+    # Se a pessoa chegou por um convite PESSOAL, a boas-vindas cita quem convidou e deixa
+    # claro que, ao entrar, ela ja esta se conectando com essa pessoa.
     if not consentiu and len(historico) == 0:
-        enviar_texto(_limpar_markdown(BOAS_VINDAS))
+        convidante = (membro.get("convidado_por_nome") or "").strip()
+        if convidante:
+            msg_boas = textos.BOAS_VINDAS_CONVIDADO.format(
+                nome=convidante.split()[0], link=LINK_TERMOS)
+        else:
+            msg_boas = BOAS_VINDAS
+        enviar_texto(_limpar_markdown(msg_boas))
         salvar_historico([
             {"role": "user", "content": conteudo_usuario},
-            {"role": "assistant", "content": BOAS_VINDAS},
+            {"role": "assistant", "content": msg_boas},
         ])
         return
 

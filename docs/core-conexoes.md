@@ -13,15 +13,20 @@ Uma conexão entre duas pessoas (A convidou/indicou, B entrou) passa por estados
 
 1. **Convite pendente** — A convida B (por link com código, ou por número → `pending_invites`
    com o hash do telefone de B). Ainda não há conexão.
-2. **Conexão pendente** (`conexoes.status = "pendente"`) — B abre o link/entra. O código cria
-   a conexão e **pergunta aos DOIS** "vocês se conhecem?" (`a_confirmou` / `b_confirmou`).
-3. **Validada** (`status = "validada"`) — quando **os dois confirmam**. Só então:
+2. **Conexão pendente** (`conexoes.status = "pendente"`) — B abre o link/entra. **Entrar por
+   um convite pessoal já é o consentimento de B para o vínculo** — então o lado de B é
+   confirmado automaticamente (`_confirmar_lado_de`). O código pergunta **só a quem convidou/
+   indicou (A)**: "vocês se conhecem?".
+3. **Validada** (`status = "validada"`) — quando **A confirma** (o lado de B já veio
+   confirmado ao entrar). Só então:
    - vira 🟢 na busca (conexão mútua com nome);
    - se for indicação de profissional, a **recomendação é criada** (`_efeitos_conexao_validada`)
      e o profissional passa a **ATIVO** (aparece na busca).
-4. **Recusada** (`status = "recusada"`) — se alguém disser "não conheço", ou por bloqueio.
+4. **Recusada** (`status = "recusada"`) — se A disser "não conheço", ou por bloqueio.
 
-> Regra-mãe: **a conexão só vale quando os DOIS confirmam.** Um lado só não basta.
+> Regra-mãe (regra do titular): **quem ENTRA por um convite pessoal já consentiu o vínculo
+> ao entrar — não é perguntado de novo.** Só quem CONVIDOU/INDICOU confirma "vocês se
+> conhecem?". Ao confirmar → 🟢. (Antes o código exigia os dois confirmarem; corrigido.)
 
 ### Janela de 24h (Meta)
 A pergunta "vocês se conhecem?" é enviada aos dois. Para quem está no chat, chega na hora.
@@ -47,16 +52,17 @@ quando a pessoa **reabre o chat**, o código mostra a confirmação pendente ANT
 Um profissional indicado (ex.: Catharina indicou William como eletricista) só aparece na
 busca de eletricista de quem procura quando **TUDO** isto acontece:
 
-1. William **entra pelo link** e **aceita os termos** (`prest_aceito`).
-2. A conexão Catharina↔William é criada e **os dois confirmam** "vocês se conhecem?".
-   → aí a **recomendação Catharina→William** é criada e o provider vira **ATIVO**.
+1. William **entra pelo link** e **aceita os termos** (`prest_aceito`). Isso já confirma o
+   lado dele.
+2. **Catharina confirma** "vocês se conhecem?" (o lado do William já veio confirmado ao
+   entrar). → aí a **recomendação Catharina→William** é criada e o provider vira **ATIVO**.
    *(Correção aplicada: antes o `ativo` só vinha quando William configurava o perfil todo;
    agora a recomendação real já o torna visível — §5.3.)*
 3. Quem procura precisa ter **conexão validada com Catharina** para ver como 🟢 (com o nome
    dela). Sem isso, aparece como ⚪ rede geral (se k≥5) ou não aparece.
 
-> Se a busca "não trouxe" o profissional, quase sempre falta o passo 2 (um dos dois lados
-> não confirmou "vocês se conhecem?"), ou o profissional não entrou/aceitou.
+> Se a busca "não trouxe" o profissional, quase sempre falta o passo 2 (quem indicou não
+> confirmou "vocês se conhecem?"), ou o profissional não entrou/aceitou.
 
 ---
 
@@ -72,6 +78,15 @@ vínculo.
 já é membro e já consentiu. Ao abrir um link de convite de cliente (código no texto OU
 convite pendente pelo número), abre a conexão mútua na hora e pergunta aos dois. Idempotente
 (não recria nem repergunta se já houver conexão).
+
+### 4.3 🔴 Dupla confirmação indevida (regra do titular)
+**Antes:** o código exigia que os DOIS lados confirmassem "vocês se conhecem?", e ainda
+perguntava a quem tinha ENTRADO pelo link ("{Fulano} convidou você… vocês se conhecem?").
+**Correção:** quem entra por um convite pessoal já consente o vínculo ao entrar — esse lado
+é confirmado automaticamente (`_confirmar_lado_de`). Só quem convidou/indicou é perguntado.
+Boas-vindas de convite agora citam quem convidou e deixam claro o vínculo
+(`BOAS_VINDAS_CONVIDADO`); quem entra recebe um aviso de que está conectado, aguardando a
+confirmação de quem convidou (`CONEXAO_ENTROU_LIGADO`).
 
 ### 4.2 🔴 Profissional com recomendação real não aparecia na busca
 **Causa:** `status = "ativo"` só era gravado quando o profissional configurava o perfil
@@ -99,9 +114,9 @@ criada), continuava `aguardando_perfil` → invisível.
 
 ## 6. Pontos frágeis ainda em aberto (documentar / decidir)
 
-- A validação depende de **os dois confirmarem** "vocês se conhecem?". Se um lado nunca
-  reabre o chat / nunca confirma, a conexão fica pendente para sempre. Possível melhoria:
-  lembrete de confirmação pendente, ou expiração.
+- A validação depende de **quem convidou/indicou confirmar** "vocês se conhecem?". Se essa
+  pessoa nunca reabre o chat / nunca confirma, a conexão fica pendente para sempre. Possível
+  melhoria: lembrete de confirmação pendente, ou expiração.
 - Convite **por número** (contato específico, sem código) para quem já é membro: hoje o
   `_conectar_por_link_cliente` cobre isso pelo `pending_invite`, mas só dispara quando a
   pessoa manda alguma mensagem. Não há push proativo (janela 24h).

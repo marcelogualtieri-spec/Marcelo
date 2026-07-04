@@ -1443,10 +1443,25 @@ def _ferr_enviar_botoes(entrada, interativa_enviada):
     return "ok - mensagem com botoes enviada. Sua resposta de texto final deve ser VAZIA."
 
 
+def _confirmar_lado_de(con, membro_id):
+    """Marca como confirmado o lado do membro dado, SEM pedir resposta a ele.
+
+    Regra do titular: quem ENTRA por um convite pessoal já está consentindo o vínculo
+    ao entrar — então esse lado é confirmado automaticamente. Só o outro lado (quem
+    convidou/indicou) precisa dizer 'sim, conheço' para a conexão virar 🟢."""
+    lado = "a_confirmou" if con.get("member_a") == membro_id else "b_confirmou"
+    try:
+        supabase.table("conexoes").update({lado: True}).eq("id", con["id"]).execute()
+    except Exception:
+        traceback.print_exc()
+    con[lado] = True
+
+
 def _abrir_conexao_cliente(novo_membro):
     """Quando alguém entra por um convite de CLIENTE: abre a conexão mútua com quem
-    convidou e pergunta aos DOIS lados se se conhecem (§6/§7.4). A conexão só vira
-    🟢 quando os dois confirmam."""
+    convidou (§6/§7.4). Regra do titular: quem ENTROU pelo convite já consentiu o
+    vínculo ao entrar — esse lado é confirmado automaticamente. Só quem CONVIDOU
+    recebe a pergunta 'vocês se conhecem?'. Ao confirmar, a conexão vira 🟢."""
     try:
         convidante = buscar_membro_por_id(novo_membro.get("invited_by"))
         if not convidante or not convidante.get("consent"):
@@ -1454,16 +1469,14 @@ def _abrir_conexao_cliente(novo_membro):
         con = criar_conexao_pendente(convidante["id"], novo_membro["id"], "cliente")
         if not con:
             return
+        # Quem entrou (member_b) já confirmou ao entrar pelo convite pessoal.
+        _confirmar_lado_de(con, novo_membro["id"])
         pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
-        # Pergunta a quem convidou.
+        # Só quem convidou é perguntado.
         _pedir_confirmacao_conexao(
             convidante, con,
             t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=_nome_curto(novo_membro)),
             to=convidante["wa_id"], phone_number_id=pn)
-        # Pergunta a quem entrou (na conversa atual).
-        _pedir_confirmacao_conexao(
-            novo_membro, con,
-            t.CONEXAO_PERGUNTA_ENTROU.format(nome=_nome_curto(convidante)))
     except Exception:
         traceback.print_exc()
 
@@ -1519,6 +1532,10 @@ def _conectar_por_link_cliente(membro, texto):
     membro["invited_by"] = inviter_id
     aplicar_convite_pendente(membro["wa_id"])   # consome o convite pendente pelo número
     _abrir_conexao_cliente(membro)
+    # Quem entrou não é perguntado de novo (entrar já foi o consentimento do vínculo);
+    # damos um retorno claro + navegação.
+    resposta_whatsapp(t.CONEXAO_ENTROU_LIGADO.format(nome=_nome_curto(inviter)))
+    enviar_menu_do_perfil_ativo(membro)
     return True
 
 
@@ -2903,15 +2920,14 @@ def _abrir_conexao_indicacao(provider_membro, prest):
                                  motivo=(prest.get("descricao") or "").strip())
     if not con:
         return
+    # O profissional (member_b) entrou pelo link da indicação — isso já é o consentimento
+    # do vínculo. Só quem INDICOU (cliente) é perguntado se conhece.
+    _confirmar_lado_de(con, provider_membro["id"])
     pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
     nome_prof = (prest.get("nome") or _nome_curto(provider_membro))
-    # Pergunta a quem indicou (cliente).
     _pedir_confirmacao_conexao(cliente, con,
                                t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome_prof),
                                to=cliente["wa_id"], phone_number_id=pn)
-    # Pergunta ao profissional (lado que acabou de entrar) — na conversa atual.
-    _pedir_confirmacao_conexao(provider_membro, con,
-                               t.CONEXAO_PERGUNTA_PROF.format(nome=_nome_curto(cliente)))
 
 
 # ---------------------------------------------------------------------------
@@ -3282,10 +3298,14 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             con = cons_pend[0]
             outro = _outro_lado(con, membro)
             nome = _nome_curto(outro) if outro else "essa pessoa"
-            if con.get("origem") == "profissional" and con.get("member_b") == membro["id"]:
+            if con.get("member_a") == membro["id"]:
+                # Quem convidou/indicou (é sempre este lado que confirma, pela regra nova).
+                texto = (t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome)
+                         if con.get("origem") == "profissional"
+                         else t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=nome))
+            elif con.get("origem") == "profissional":
+                # Legado: conexões antigas em que o profissional ainda não confirmou.
                 texto = t.CONEXAO_PERGUNTA_PROF.format(nome=nome)
-            elif con.get("member_a") == membro["id"]:
-                texto = t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=nome)
             else:
                 texto = t.CONEXAO_PERGUNTA_ENTROU.format(nome=nome)
             _pedir_confirmacao_conexao(membro, con, texto)

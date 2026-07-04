@@ -37,6 +37,23 @@ BOAS_VINDAS = (
     "*SABER MAIS*."
 )
 
+# Boas-vindas de quem chega POR UM CONVITE PESSOAL. Deixa claro que, ao entrar por
+# este convite, a pessoa já está se conectando com quem convidou (é o consentimento
+# do vínculo). {nome} = primeiro nome de quem convidou; {link} = termos.
+BOAS_VINDAS_CONVIDADO = (
+    "Oi! Eu sou a Dorote.ia 💛\n\n"
+    "*{nome}* te convidou para a nossa central de indicações de confiança. Ao entrar por "
+    "este convite, vocês ficam conectados — é assim que as boas indicações circulam entre "
+    "quem se conhece.\n\n"
+    "Aqui você encontra profissionais recomendados por quem confia e também pode indicar e "
+    "convidar a sua gente.\n\n"
+    "🔒 *Privacidade:* guardo só o seu nome e telefone. O seu número nunca é compartilhado "
+    "e o seu nome só aparece para quem você aceitar. Para sair, é só digitar *SAIR*.\n\n"
+    "🔗 *Termos de uso:*\n{link}\n\n"
+    "Posso começar? Responda *SIM* para aceitar os termos e se conectar com *{nome}*, ou "
+    "digite *SABER MAIS*."
+)
+
 # Enviada COM BOTÕES (SIM, aceito · Quero ser prof. · Deixa pra depois).
 # O {link} vira o endereço dos Termos de Uso do cliente.
 SABER_MAIS = (
@@ -207,6 +224,14 @@ CONEXAO_PERGUNTA_ENTROU = (
 CONEXAO_PERGUNTA_PROF = (
     "*{nome}* indicou o seu trabalho aqui na Dorote.ia 💛\n\n"
     "Vocês se conhecem?"
+)
+
+# Aviso a QUEM ENTROU por um convite pessoal: não precisa confirmar de novo (entrar já
+# foi o consentimento do vínculo); só falta quem convidou confirmar.
+CONEXAO_ENTROU_LIGADO = (
+    "Você entrou pelo convite de *{nome}* 💛\n\n"
+    "Já avisei {nome} que você entrou. Assim que {nome} confirmar que vocês se conhecem, "
+    "vocês passam a trocar indicações na rede."
 )
 
 CONEXAO_VALIDADA = (
