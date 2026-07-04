@@ -3205,10 +3205,17 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if cmd == "prest_pausar":
             novo = "ativo" if prest.get("status") == "pausado" else "pausado"
             supabase.table("providers").update({"status": novo}).eq("id", prest["id"]).execute()
-            resposta_whatsapp(
-                "Cadastro *pausado* — você não receberá indicações por ora. Quando quiser "
-                "voltar, é só clicar de novo. 💛" if novo == "pausado" else
-                "Cadastro *reativado*! 💼 Você voltou a aparecer para quem busca o seu serviço.")
+            # Sempre termina com botões (o mesmo botão liga/desliga) — nunca sem saída.
+            if novo == "pausado":
+                enviar_botoes_meta(
+                    "Cadastro *pausado* — você não vai receber indicações por ora. 💛",
+                    [{"id": "prest_pausar", "label": "▶️ Reativar"},
+                     {"id": "menu",         "label": "🏠 Menu"}])
+            else:
+                enviar_botoes_meta(
+                    "Cadastro *reativado*! 💼 Você voltou a aparecer para quem busca o seu serviço.",
+                    [{"id": "prest_pausar", "label": "⏸️ Pausar"},
+                     {"id": "menu",         "label": "🏠 Menu"}])
             return True
         # Texto livre durante o onboarding (nao e botao nem comando de menu):
         if not button_id and cmd not in MENU_TRIGGERS:

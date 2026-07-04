@@ -50,8 +50,8 @@ botões de região, RES_GERAL (rede pequena), ordenação por nº de indicaçõe
 ## 3) SER PROFISSIONAL / CONFIGURAR PERFIL — (analisado, não implementado)
 
 **LGPD / UX imediatos:**
-- 🟠 **Furo do `prest_pausar`:** ao pausar/ativar, responde só com TEXTO, sem botão nem
-  menu depois — a pessoa fica sem navegação.
+- ✅ **[FEITO]** **Furo do `prest_pausar`:** ao pausar/ativar, agora termina com botões
+  (o mesmo botão liga/desliga: ▶️ Reativar / ⏸️ Pausar) + 🏠 Menu. Nunca sem saída.
 - 🔴 **Link dos termos profissionais faltando** no autocadastro do cliente já aceito
   (`quero_ser_prof` → `prest_self`): a tela diz "aceite os termos profissionais" mas **não
   mostra o link** (diferente de PROF_DUAL/PROF_SO). O aceite é gravado, mas sem exibir o
