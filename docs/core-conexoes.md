@@ -117,6 +117,10 @@ criada), continuava `aguardando_perfil` → invisível.
 - **Telefone:** o número trafega só no código. Na rede/grafo é guardado como **hash HMAC com
   pepper** (`edges`, `pending_invites`). O único telefone compartilhado é o de quem presta
   serviço e **já aceitou** — e agora ele é enviado pelo **código** na busca (não passa pela IA).
+- **Telefone do profissional (v19):** enquanto `convidado` (indicado que não entrou), o banco
+  guarda **só o `telefone_hash`** — o número cru NÃO é persistido. O cru só é gravado no
+  **aceite dos termos** (é o que a busca entrega, §4.4). Dedupe de indicações é pelo hash.
+  SAIR/recusa apagam o cru (o hash fica, para o dedupe continuar funcionando).
 - **k-anonimato (≥5):** 🟡 rede pendente e as iscas só aparecem com pelo menos 5 contatos na
   rede; abaixo disso viram ⚪ / somem.
 - **Bloqueio:** quem bloqueou/foi bloqueado não conecta nem aparece nas buscas um do outro.

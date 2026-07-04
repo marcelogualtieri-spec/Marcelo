@@ -262,3 +262,11 @@ alter table bloqueios enable row level security;
 -- ============================================================================
 alter table providers add column if not exists indicado_por uuid references members(id) on delete set null;
 create index if not exists idx_providers_indicado_por on providers (indicado_por);
+
+
+-- ============================================================================
+-- v19 — telefone do profissional com hash+pepper na indicação (LGPD §4.2)
+-- ============================================================================
+alter table providers add column if not exists telefone_hash text;
+create index if not exists idx_providers_telefone_hash on providers (telefone_hash);
+alter table providers alter column telefone drop not null;

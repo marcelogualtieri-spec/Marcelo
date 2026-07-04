@@ -25,11 +25,11 @@
 - 🟡 Tratamento de texto impróprio/sensível (hoje grava cru em `descricao`).
 
 **Diverge / LGPD:**
-- 🔴 **Dedupe por telefone CRU** (`providers.telefone`), não por hash. E o telefone do
-  profissional indicado fica **gravado em claro** já na indicação (antes de ele entrar/
-  consentir). É decisão de produto: o número precisa ser recuperável para ser
-  compartilhado quando ele vira `ativo`. Caminho sugerido: guardar só o hash enquanto
-  `convidado` e o número cru só após o consentimento (muda o modelo — precisa seu aval).
+- ✅ **[FEITO — migração v19]** **Telefone com hash+pepper na indicação.** Enquanto o
+  profissional é `convidado` (não entrou/consentiu), só o `telefone_hash` fica no banco;
+  o número cru é gravado apenas no aceite dos termos (`prest_aceito`/autocadastro).
+  Dedupe passou a ser pelo hash. Sinais anônimos casam pelo hash. SAIR/recusa limpam o
+  número cru (fica só o hash de dedupe). Backfill dos registros antigos roda no boot.
 - 🟡 Dois gatilhos de entrada (botão + IA por texto livre) em vez de só o botão.
 
 ---

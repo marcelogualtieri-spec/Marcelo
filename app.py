@@ -44,6 +44,30 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
+def _backfill_telefone_hash():
+    """Backfill v19: preenche providers.telefone_hash nos registros antigos.
+
+    Roda no boot (idempotente e barato: só pega quem ainda não tem hash). Tem que
+    ser aqui no código porque o PEPPER vive só no ambiente — o SQL não consegue
+    calcular o HMAC. Se a migração v19 ainda não rodou, falha em silêncio e tenta
+    de novo no próximo boot."""
+    try:
+        rows = (supabase.table("providers").select("id, telefone")
+                .is_("telefone_hash", "null").neq("telefone", "")
+                .limit(500).execute().data) or []
+        for r in rows:
+            h = calcular_contact_hash(r["telefone"])
+            supabase.table("providers").update(
+                {"telefone_hash": h}).eq("id", r["id"]).execute()
+        if rows:
+            print(f"[V19] backfill de telefone_hash: {len(rows)} registro(s).")
+    except Exception as erro:
+        print(f"[V19] backfill adiado (migração v19 já rodou?): {erro}")
+
+
+_backfill_telefone_hash()
+
+
 # ---------------------------------------------------------------------------
 # CONFIG DA WHATSAPP CLOUD API (Meta)
 # ---------------------------------------------------------------------------
@@ -850,11 +874,13 @@ def _sinais_anonimos(pedidor, servico, bairro, limite=3):
 
     sinais, vistos = [], set()
     for p in provs:
+        # LGPD: o convidado nao tem numero cru no banco — casamos pelo HASH.
+        # (Fallback pro cru so em registros antigos, pre-v19.)
         tel = (p.get("telefone") or "").strip()
-        if not tel or p["id"] in vistos:
+        h = (p.get("telefone_hash") or "").strip() or (calcular_contact_hash(tel) if tel else "")
+        if not h or p["id"] in vistos:
             continue
         try:
-            h = calcular_contact_hash(tel)
             inviters = (supabase.table("pending_invites").select("inviter_id")
                         .eq("contact_hash", h).execute().data) or []
         except Exception:
@@ -2373,23 +2399,27 @@ def _criar_perfil_profissional_self(membro):
     except Exception:
         traceback.print_exc()
         antigos = None
+    telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
+    tel_hash = calcular_contact_hash(telefone)
     if antigos:
         pid = antigos[0]["id"]
         try:
+            # Autocadastro = consentimento dado: pode gravar o numero cru (+ hash).
             supabase.table("providers").update({
                 "status": "aguardando_perfil",
                 "termos_aceitos_em": agora, "termos_versao": termos.DATA_VIGENCIA,
+                "telefone": telefone, "telefone_hash": tel_hash,
             }).eq("id", pid).execute()
         except Exception:
             traceback.print_exc()
         return pid
     # Não existe nenhum: cria do zero com todos os campos obrigatórios preenchidos.
     try:
-        telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
         res = supabase.table("providers").insert({
             "member_id": membro["id"],
             "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
-            "telefone": telefone, "servico": "", "bairro": "", "cidade": "",
+            "telefone": telefone, "telefone_hash": tel_hash,
+            "servico": "", "bairro": "", "cidade": "",
             "status": "aguardando_perfil",
             "termos_aceitos_em": agora, "termos_versao": termos.DATA_VIGENCIA,
         }).execute()
@@ -2415,10 +2445,15 @@ def iniciar_onboarding_prestador(membro, servico):
             traceback.print_exc()
     try:
         telefone = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
-        # Reaproveita um registro ja indicado com esse telefone, se houver.
+        h = calcular_contact_hash(telefone)
+        # Reaproveita um registro ja indicado com esse telefone (dedupe pelo hash;
+        # fallback pelo numero cru para registros antigos, pre-v19).
         existente = (supabase.table("providers").select("*")
-                     .eq("telefone", telefone).limit(1).execute().data)
-        dados = {"member_id": membro["id"], "status": "onboarding"}
+                     .eq("telefone_hash", h).limit(1).execute().data)
+        if not existente:
+            existente = (supabase.table("providers").select("*")
+                         .eq("telefone", telefone).limit(1).execute().data)
+        dados = {"member_id": membro["id"], "status": "onboarding", "telefone_hash": h}
         if servico:
             dados["servico"] = servico
         if existente:
@@ -2426,9 +2461,11 @@ def iniciar_onboarding_prestador(membro, servico):
             supabase.table("providers").update(dados).eq("id", prov["id"]).execute()
             servico_final = servico or prov.get("servico") or "seu serviço"
         else:
+            # LGPD §4.2: a pessoa ENTROU mas ainda nao aceitou os termos — o numero
+            # cru so e gravado no aceite (prest_aceito). Ate la, so o hash.
             dados.update({
                 "nome": (membro.get("nome_perfil") or "").strip() or "Profissional",
-                "telefone": telefone, "servico": servico or "", "bairro": "", "cidade": "",
+                "telefone": "", "servico": servico or "", "bairro": "", "cidade": "",
             })
             supabase.table("providers").insert(dados).execute()
             servico_final = servico or "seu serviço"
@@ -2725,8 +2762,16 @@ def _finalizar_indicacao(membro, fluxo):
         enviar_botoes_meta(t.LIMITE_INDICACOES, [{"id": "menu", "label": "🏠 Menu"}])
         return
     try:
+        # LGPD §4.2: o dedupe é pelo HASH (com pepper). O número cru fica só na
+        # memória desta função (pro link de um toque) — NUNCA no banco enquanto o
+        # profissional não entrou e aceitou os termos.
+        h = calcular_contact_hash(telefone)
         existente = (supabase.table("providers").select("*")
-                     .eq("telefone", telefone).limit(1).execute().data)
+                     .eq("telefone_hash", h).limit(1).execute().data)
+        if not existente:
+            # Compatibilidade: registros antigos (pré-v19) ainda sem hash.
+            existente = (supabase.table("providers").select("*")
+                         .eq("telefone", telefone).limit(1).execute().data)
         if existente:
             prov = existente[0]
             # Não mexe em quem já entrou/é ativo; só completa um registro 'convidado'.
@@ -2734,11 +2779,12 @@ def _finalizar_indicacao(membro, fluxo):
                 supabase.table("providers").update({
                     "nome": nome, "servico": servico, "bairro": bairro,
                     "cidade": "São Paulo", "descricao": detalhe, "status": "convidado",
-                    "indicado_por": membro["id"],
+                    "indicado_por": membro["id"], "telefone_hash": h,
                 }).eq("id", prov["id"]).execute()
         else:
             supabase.table("providers").insert({
-                "nome": nome, "telefone": telefone, "servico": servico or "serviço",
+                "nome": nome, "telefone": "", "telefone_hash": h,
+                "servico": servico or "serviço",
                 "bairro": bairro, "cidade": "São Paulo", "descricao": detalhe,
                 "indicado_por": membro["id"],
                 "status": "convidado",
@@ -3147,8 +3193,10 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         prest = provider_do_membro(membro["id"])
         if prest:
             try:
+                # LGPD: saiu -> o numero cru sai do cadastro (fica so o hash de dedupe).
                 supabase.table("providers").update(
-                    {"status": "removido", "member_id": None}).eq("id", prest["id"]).execute()
+                    {"status": "removido", "member_id": None,
+                     "telefone": ""}).eq("id", prest["id"]).execute()
             except Exception:
                 traceback.print_exc()
         excluir_membro(membro)
@@ -3166,7 +3214,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         prest = provider_do_membro(membro["id"])
         if prest:
             supabase.table("providers").update(
-                {"status": "removido"}).eq("id", prest["id"]).execute()
+                {"status": "removido", "telefone": ""}).eq("id", prest["id"]).execute()
         resposta_whatsapp("Pronto! 💛 Mantivemos apenas o seu perfil de cliente. "
                           "Você não será mais recomendado como profissional.")
         enviar_menu_principal(membro)
@@ -3274,10 +3322,15 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if prest:
         if cmd == "prest_aceito":
             agora = datetime.now(timezone.utc).isoformat()
+            # LGPD §4.2/§4.4: SO no aceite dos termos o numero cru e gravado no
+            # cadastro do profissional — e o que sera entregue nas buscas.
+            tel_prof = normalizar_e164(membro["wa_id"]) or membro["wa_id"]
             supabase.table("providers").update({
                 "status": "aguardando_perfil",
                 "termos_aceitos_em": agora,
                 "termos_versao": termos.DATA_VIGENCIA,
+                "telefone": tel_prof,
+                "telefone_hash": calcular_contact_hash(tel_prof),
             }).eq("id", prest["id"]).execute()
             if not membro.get("consent"):
                 registrar_consentimento(membro["wa_id"]); membro["consent"] = True
@@ -3292,7 +3345,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             enviar_botoes_meta(t.PRESTADOR_AJUSTAR, [{"id": "menu", "label": "🏠 Menu"}])
             return True
         if cmd == "prest_nao":
-            supabase.table("providers").update({"status": "removido"}).eq("id", prest["id"]).execute()
+            # Recusou os termos: nao ha consentimento -> nenhum numero cru no cadastro.
+            supabase.table("providers").update(
+                {"status": "removido", "telefone": ""}).eq("id", prest["id"]).execute()
             resposta_whatsapp(t.PRESTADOR_NAO)
             enviar_menu_do_perfil_ativo(membro)
             return True
