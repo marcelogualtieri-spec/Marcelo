@@ -168,3 +168,21 @@ Fluxo espelho do "Convidar quem confio", na voz do profissional:
   sempre atualizados para servirem de fonte.
 - **Lembrete/expiração de confirmações pendentes** (conexões que nunca validam).
 - **Template Meta** (pós-piloto) para notificar fora da janela de 24h.
+- **💰 Cupons e ofertas com opt-in (monetização).** As pessoas ACEITAM receber cupons de
+  desconto/ofertas por tipo de serviço (ex.: "quero ofertas de beleza e reformas").
+  Profissionais da rede publicam o cupom; a Dorote.ia entrega só a quem optou. Receita
+  possível: taxa por cupom entregue/resgatado ou plano do profissional.
+  **Estágio de maturidade para ligar isso (não antes):**
+  1. Core validado — rede conectando, busca com resultado e confirmações fluindo (feito
+     nesta fase, em estabilização);
+  2. Tração mínima — massa crítica de profissionais ATIVOS e buscas recorrentes por
+     categoria (sinal de demanda real; ex.: ≥50 profissionais ativos e buscas semanais
+     constantes no piloto SP);
+  3. Infra de envio — Template Meta aprovado (cupom é mensagem proativa, fora da janela
+     de 24h) e conta em bom estado na Meta;
+  4. LGPD específica — opt-in PRÓPRIO para marketing (separado do consentimento de uso;
+     coluna/registro de consentimento por finalidade, com data e versão), preferências
+     por categoria, e sair do recebimento com 1 toque (PARAR CUPONS);
+  5. Só então monetizar. Guardrails: cupom só de profissional ATIVO da rede; nunca
+     vender/compartilhar dados; frequência limitada (anti-spam); IA nunca decide quem
+     recebe — código + preferências decidem.
