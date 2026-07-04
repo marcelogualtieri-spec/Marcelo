@@ -168,6 +168,12 @@ Fluxo espelho do "Convidar quem confio", na voz do profissional:
   sempre atualizados para servirem de fonte.
 - **Lembrete/expiração de confirmações pendentes** (conexões que nunca validam).
 - **Template Meta** (pós-piloto) para notificar fora da janela de 24h.
+- **🖼️ JPG de instruções do PRÉ-PILOTO (ideia do Marcelo, 2026-07-04 — destacar no
+  painel):** gerar uma imagem simples (1 tela, JPG) com o passo a passo do que as
+  pessoas da fase de teste precisam fazer (ex.: 1. entre pelo link do convite ·
+  2. responda SIM · 3. indique 1 profissional que você confia · 4. confirme quem você
+  conhece). Fácil de encaminhar no WhatsApp junto com o convite. Ideia registrada para
+  refinar depois — formato, conteúdo e visual a definir.
 - **💰 Cupons e ofertas com opt-in (monetização).** As pessoas ACEITAM receber cupons de
   desconto/ofertas por tipo de serviço (ex.: "quero ofertas de beleza e reformas").
   Profissionais da rede publicam o cupom; a Dorote.ia entrega só a quem optou. Receita
