@@ -3286,13 +3286,18 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             else:
                 enviar_menu_principal(membro)
             return True
-        # Deixar para depois.
+        # Deixar para depois — mas sempre com um caminho de volta (botões).
         if cmd == "adiar":
-            resposta_whatsapp(t.ADIAR)
+            enviar_botoes_meta(t.ADIAR, [
+                {"id": "consent_sim",        "label": "✅ Começar agora"},
+                {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
+            ])
             return True
-        # Qualquer outra coisa antes do aceite: um lembrete curto, em texto.
-        resposta_whatsapp("Para começar, responda *SIM* para aceitar os termos, ou digite "
-                          "*SABER MAIS* se quiser entender melhor. 💛")
+        # Qualquer outra coisa antes do aceite: reforça o convite COM BOTÕES (nunca sem saída).
+        enviar_botoes_meta(t.PRECISA_CONSENTIR, [
+            {"id": "consent_sim",        "label": "✅ Aceito e começar"},
+            {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
+        ])
         return True
 
     # -------- Depois do aceite: navegacao --------

@@ -82,9 +82,11 @@ botões de região, RES_GERAL (rede pequena), ordenação por nº de indicaçõe
   antes do consentimento (ou salvar só a categoria da intenção).
 
 **Furos / falta:**
-- 🟠 **Botões na apresentação** (`BOAS_VINDAS` é enviada como texto, pedindo pra digitar
-  SIM/SABER MAIS) e no **catch-all pré-aceite** (`app.py:3199`, sem botões). `ADIAR` também
-  sem botão.
+- ✅ **[FEITO]** Catch-all pré-aceite e `ADIAR` agora terminam com botões
+  (`✅ Aceito e começar` / `ℹ️ Saber mais`). Nunca sem saída.
+- 🟠 **Botões na apresentação** (`BOAS_VINDAS` ainda é enviada como texto, pedindo pra
+  digitar SIM/SABER MAIS). Continua pendente porque é a boas-vindas longa; dá um caminho por
+  texto, mas não por botão.
 - 🟡 **Retomar o pedido após o aceite** (quem chega pedindo "eletricista" tem que repetir
   depois do SIM).
 - 🟡 Botões do SABER_MAIS diferentes da tabela (3 botões, inclui caminho profissional).
