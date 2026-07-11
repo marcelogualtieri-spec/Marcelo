@@ -333,6 +333,7 @@ def registrar_consentimento(wa_id):
     supabase.table("members").update({
         "consent": True,
         "consent_at": agora,
+        "consent_version": termos.DATA_VIGENCIA,
     }).eq("wa_id", wa_id).execute()
 
 
