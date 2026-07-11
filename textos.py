@@ -40,19 +40,16 @@ BOAS_VINDAS = (
 # este convite, a pessoa já está se conectando com quem convidou (é o consentimento
 # do vínculo). {nome} = primeiro nome de quem convidou; {link} = termos.
 BOAS_VINDAS_CONVIDADO = (
-    "Oi! 💛 *{nome}* te indicou para fazer parte da Dorote.ia.\n\n"
-    "Central de Indicações de confiança conectada à sua rede — organizada, sem grupo confuso, "
-    "sem avaliação paga.\n\n"
-    "🔍 *Buscar:* encontre profissionais recomendados por quem você confia ou da central "
+    "Oi! *{nome}* te indicou para fazer parte da Dorote.ia 💛 Central de indicações de "
+    "confiança — organizada, sem grupo confuso e sem avaliação paga.\n\n"
+    "🔍 *Buscar:* especialistas sob recomendação de quem você confia ou da nossa central "
     "qualificada.\n\n"
-    "🤝 *Indicar:* recomende alguém bom que você conhece.\n\n"
-    "🙋 *Convidar:* quanto mais pessoas que você confia, melhores as conexões e recomendações.\n\n"
-    "✅ *Certificação:* todas as conexões são confirmadas — assim você sabe que é gente "
-    "de verdade.\n\n"
-    "🔒 *Privacidade:* registro seu nome e telefone. Só quem você aprova se conecta e seu "
-    "contato.\n\n"
-    "Para sair a qualquer momento, digite *SAIR* ou use o *MENU*.\n\n"
-    "🔗 *Para fazer parte, aceite os Termos de uso:*\n{link}"
+    "🤝 *Indicar:* recomende quem presta um serviço de excelência.\n\n"
+    "🙋 *Convidar:* quanto mais gente de confiança, melhores as indicações.\n\n"
+    "✓ *Rede exclusiva:* a curadoria é sua! Só se conecta a você quem você aprovar.\n\n"
+    "🔒 *Privacidade:* só quem você libera tem acesso ao seu contato — registramos apenas "
+    "seu nome e telefone.\n\n"
+    "Aceite os Termos para começar:\n{link}"
 )
 
 # Enviada COM BOTÕES (SIM, aceito · Quero ser prof. · Deixa pra depois).
