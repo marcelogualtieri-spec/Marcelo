@@ -9,6 +9,7 @@
 
 import hashlib
 import hmac
+import html
 import json
 import os
 import re
@@ -84,6 +85,10 @@ PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://doroteia-ia.onrende
 # Links dos Termos de Uso (cliente e profissional).
 LINK_TERMOS = os.environ.get("TERMOS_URL") or (PUBLIC_BASE_URL + "/termos")
 LINK_TERMOS_PROF = os.environ.get("TERMOS_PROF_URL") or (PUBLIC_BASE_URL + "/termos/profissional")
+
+# Chave do painel/admin de confirmação por link (piloto). Configure ADMIN_TOKEN no
+# Render. Sem ela, as rotas /admin/* ficam bloqueadas (nunca públicas).
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 
 # Cron de follow-up: chave de protecao do endpoint e id do numero do bot.
 # CRON_SECRET: string aleatoria configurada no Render + GitHub Secrets.
@@ -3964,6 +3969,274 @@ def redirecionar_link(codigo):
 @app.route("/", methods=["GET"])
 def home():
     return "A Dorote.ia esta viva! 🎉"
+
+
+# ===========================================================================
+# CONFIRMAÇÃO DE INDICAÇÃO POR LINK (página web, sem entrar no bot) — piloto
+# ---------------------------------------------------------------------------
+# Fluxo: o admin gera um link curto por indicado (/admin/confirmacoes/lote);
+# a pessoa abre /confirmar/<token>, responde Sim/Não; gravamos o status e, se
+# der para casar com um profissional do banco, "Sim" valida a conexão (🟢).
+# Painel em /admin/confirmacoes. Decisões: grava em `conexoes`; "Sim" já valida.
+# ===========================================================================
+
+def _admin_ok(req):
+    """Protege as rotas /admin/*. Exige ADMIN_TOKEN (env) via ?key= ou header."""
+    if not ADMIN_TOKEN:
+        return False
+    chave = req.args.get("key") or req.headers.get("X-Admin-Token") or ""
+    return hmac.compare_digest(chave, ADMIN_TOKEN)
+
+
+def _novo_token_confirmacao():
+    """Token curto, aleatório e não sequencial (garante unicidade no banco)."""
+    for _ in range(6):
+        tok = secrets.token_urlsafe(6)  # ~8 chars, url-safe
+        try:
+            ja = (supabase.table("confirm_tokens").select("token")
+                  .eq("token", tok).limit(1).execute().data)
+        except Exception:
+            ja = None
+        if not ja:
+            return tok
+    return secrets.token_urlsafe(9)
+
+
+def _pagina_confirmar(nome_indicador, token, erro=""):
+    ind = html.escape(nome_indicador or "alguém que confia em você")
+    aviso = f'<p class="erro">{html.escape(erro)}</p>' if erro else ""
+    return f"""<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dorote.ia — Confirmar conexão</title>{_ESTILO_CONFIRMA}</head><body>
+<form class="card" method="post" action="/confirmar/{html.escape(token)}">
+  <div class="heart">💛</div>
+  <h1>Você conhece <span class="nome">{ind}</span>?</h1>
+  <p>{ind} disse que te conhece e quer te conectar na Dorote.ia, a central de
+     indicações de confiança no WhatsApp.</p>
+  {aviso}
+  <button class="sim" name="resposta" value="sim">Sim, conheço</button>
+  <button class="nao" name="resposta" value="nao">Não conheço</button>
+  <p class="rodape">🔒 Sua resposta é privada. Seu número não é compartilhado.</p>
+</form></body></html>"""
+
+
+def _pagina_obrigado(titulo, texto):
+    return f"""<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dorote.ia 💛</title>{_ESTILO_CONFIRMA}</head><body>
+<div class="card">
+  <div class="heart">💛</div>
+  <h1>{html.escape(titulo)}</h1>
+  <p>{html.escape(texto)}</p>
+</div></body></html>"""
+
+
+_ESTILO_CONFIRMA = """<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+background:#faf7f2;color:#2b2b2b;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+.card{background:#fff;border-radius:20px;box-shadow:0 8px 30px rgba(0,0,0,.08);max-width:380px;width:100%;padding:32px 24px;text-align:center}
+h1{font-size:1.35rem;margin:.2rem 0 1rem;line-height:1.35}.nome{color:#e0a500}
+p{color:#666;font-size:.95rem;margin:0 0 20px}.erro{color:#b00020;font-weight:600}
+button{width:100%;border:0;border-radius:14px;padding:16px;font-size:1.05rem;font-weight:600;cursor:pointer;margin-bottom:12px}
+.sim{background:#25623b;color:#fff}.nao{background:#f0efe9;color:#444}
+.heart{font-size:2rem}.rodape{font-size:.8rem;color:#999;margin:14px 0 0}
+table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+.tag{padding:2px 8px;border-radius:8px;font-size:.8rem;font-weight:600}
+.ok{background:#e3f3e8;color:#25623b}.no{background:#fdeaea;color:#b00020}.pend{background:#f3efe1;color:#8a7300}
+</style>"""
+
+
+@app.route("/confirmar/<token>", methods=["GET"])
+def pagina_confirmar(token):
+    try:
+        row = (supabase.table("confirm_tokens").select("*")
+               .eq("token", token).limit(1).execute().data)
+    except Exception:
+        traceback.print_exc()
+        row = None
+    if not row:
+        return Response(_pagina_obrigado("Link inválido",
+                        "Este link de confirmação não existe ou expirou."),
+                        mimetype="text/html", status=404)
+    r = row[0]
+    if r.get("status") in ("confirmado", "negado"):
+        return Response(_pagina_obrigado("Você já respondeu 💛",
+                        "Obrigada! Sua resposta já foi registrada."),
+                        mimetype="text/html")
+    return Response(_pagina_confirmar(r.get("nome_indicador"), token),
+                    mimetype="text/html")
+
+
+@app.route("/confirmar/<token>", methods=["POST"])
+def responder_confirmar(token):
+    resposta = (request.form.get("resposta") or "").strip().lower()
+    try:
+        row = (supabase.table("confirm_tokens").select("*")
+               .eq("token", token).limit(1).execute().data)
+    except Exception:
+        traceback.print_exc()
+        row = None
+    if not row:
+        return Response(_pagina_obrigado("Link inválido",
+                        "Este link de confirmação não existe ou expirou."),
+                        mimetype="text/html", status=404)
+    r = row[0]
+    if r.get("status") in ("confirmado", "negado"):
+        return Response(_pagina_obrigado("Você já respondeu 💛",
+                        "Obrigada! Sua resposta já foi registrada."), mimetype="text/html")
+    if resposta not in ("sim", "nao"):
+        return Response(_pagina_confirmar(r.get("nome_indicador"), token,
+                        erro="Toque em Sim ou Não para responder."), mimetype="text/html")
+
+    agora = datetime.now(timezone.utc).isoformat()
+    novo_status = "confirmado" if resposta == "sim" else "negado"
+    try:
+        supabase.table("confirm_tokens").update(
+            {"status": novo_status, "respondido_em": agora}).eq("token", token).execute()
+    except Exception:
+        traceback.print_exc()
+
+    # "Sim" já valida (decisão do piloto): integra com o grafo `conexoes` quando dá.
+    if resposta == "sim":
+        _aplicar_confirmacao_web(r)
+        return Response(_pagina_obrigado("Prontinho! 💛",
+            "Obrigada por confirmar. Sua conexão está registrada na Dorote.ia."),
+            mimetype="text/html")
+    return Response(_pagina_obrigado("Obrigada por avisar 💛",
+        "Registramos que vocês não se conhecem. Nada será compartilhado."),
+        mimetype="text/html")
+
+
+def _aplicar_confirmacao_web(r):
+    """Ao confirmar 'Sim' pela web: valida a(s) conexão(ões) pendentes ligadas ao
+    profissional casado (pelo hash) e ativa o profissional na busca. Fonte de
+    verdade continua sendo `conexoes` — reusa os efeitos existentes (🟢)."""
+    try:
+        prov_id = r.get("provider_id")
+        con_id = r.get("conexao_id")
+        cons = []
+        if con_id:
+            cons = (supabase.table("conexoes").select("*").eq("id", con_id).execute().data) or []
+        elif prov_id:
+            cons = (supabase.table("conexoes").select("*")
+                    .eq("provider_id", prov_id).eq("status", "pendente").execute().data) or []
+        for con in cons:
+            supabase.table("conexoes").update({
+                "a_confirmou": True, "b_confirmou": True, "status": "validada",
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", con["id"]).execute()
+            con.update({"a_confirmou": True, "b_confirmou": True, "status": "validada"})
+            _efeitos_conexao_validada(con)
+        # Sem conexão no grafo mas com profissional casado: ao menos deixa visível.
+        if not cons and prov_id:
+            prov = buscar_provider(prov_id)
+            if prov and prov.get("status") not in ("removido", "pausado", "ativo"):
+                supabase.table("providers").update(
+                    {"status": "ativo"}).eq("id", prov_id).execute()
+    except Exception:
+        traceback.print_exc()
+
+
+@app.route("/admin/confirmacoes/lote", methods=["POST"])
+def admin_confirmacoes_lote():
+    """Gera link + mensagem por indicado. Body JSON: uma lista de objetos
+    {nome_indicado, telefone, nome_indicador}. Devolve, por item, o link curto e
+    a mensagem pronta para o WhatsApp. Guarda só o HASH do telefone (LGPD)."""
+    if not _admin_ok(request):
+        return Response('{"erro":"não autorizado"}', status=401, mimetype="application/json")
+    try:
+        dados = request.get_json(force=True, silent=True) or []
+        itens = dados.get("itens") if isinstance(dados, dict) else dados
+        if not isinstance(itens, list):
+            return Response('{"erro":"envie uma lista de itens"}', status=400, mimetype="application/json")
+    except Exception:
+        return Response('{"erro":"json inválido"}', status=400, mimetype="application/json")
+
+    saida = []
+    for it in itens:
+        if not isinstance(it, dict):
+            continue
+        nome_ind = (it.get("nome_indicado") or "").strip()
+        tel_raw  = (it.get("telefone") or "").strip()
+        nome_or  = (it.get("nome_indicador") or "").strip()
+        tel_e164 = normalizar_e164(tel_raw) or ""
+        tel_hash = calcular_contact_hash(tel_e164) if tel_e164 else None
+
+        # Best-effort: casa com um profissional já no banco pelo hash do telefone.
+        provider_id, conexao_id = None, None
+        if tel_hash:
+            try:
+                pv = (supabase.table("providers").select("id")
+                      .eq("telefone_hash", tel_hash).limit(1).execute().data)
+                if pv:
+                    provider_id = pv[0]["id"]
+                    cx = (supabase.table("conexoes").select("id")
+                          .eq("provider_id", provider_id).eq("status", "pendente")
+                          .limit(1).execute().data)
+                    if cx:
+                        conexao_id = cx[0]["id"]
+            except Exception:
+                traceback.print_exc()
+
+        token = _novo_token_confirmacao()
+        try:
+            supabase.table("confirm_tokens").insert({
+                "token": token, "provider_id": provider_id, "conexao_id": conexao_id,
+                "nome_indicado": nome_ind, "nome_indicador": nome_or,
+                "telefone_hash": tel_hash, "status": "pendente",
+            }).execute()
+        except Exception:
+            traceback.print_exc()
+            continue
+
+        link = f"{PUBLIC_BASE_URL}/confirmar/{token}"
+        primeiro = (nome_or.split()[0] if nome_or else "Alguém")
+        mensagem = (f"Oi! 💛 {primeiro} disse que te conhece e quer te conectar na "
+                    f"Dorote.ia, a central de indicações de confiança. Pode confirmar "
+                    f"rapidinho? {link}")
+        saida.append({"nome_indicado": nome_ind, "telefone": tel_raw,
+                      "link": link, "mensagem": mensagem, "casado": bool(provider_id)})
+
+    corpo = json.dumps({"total": len(saida), "itens": saida}, ensure_ascii=False)
+    return Response(corpo, mimetype="application/json")
+
+
+@app.route("/admin/confirmacoes", methods=["GET"])
+def admin_confirmacoes_painel():
+    """Painel simples: quem confirmou, quem negou e quem ainda não respondeu."""
+    if not _admin_ok(request):
+        return Response("Não autorizado. Use ?key=SEU_ADMIN_TOKEN", status=401,
+                        mimetype="text/plain")
+    try:
+        rows = (supabase.table("confirm_tokens").select("*")
+                .order("created_at", desc=True).limit(500).execute().data) or []
+    except Exception:
+        traceback.print_exc()
+        rows = []
+    n_ok = sum(1 for r in rows if r.get("status") == "confirmado")
+    n_no = sum(1 for r in rows if r.get("status") == "negado")
+    n_pd = sum(1 for r in rows if r.get("status") == "pendente")
+    _tag = {"confirmado": '<span class="tag ok">confirmado</span>',
+            "negado": '<span class="tag no">negado</span>',
+            "pendente": '<span class="tag pend">pendente</span>'}
+    linhas = []
+    for r in rows:
+        quando = (r.get("respondido_em") or "")[:16].replace("T", " ")
+        linhas.append("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>".format(
+            html.escape(r.get("nome_indicado") or "—"),
+            html.escape(r.get("nome_indicador") or "—"),
+            _tag.get(r.get("status"), r.get("status") or "—"),
+            html.escape(quando or "—")))
+    corpo = f"""<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel — Confirmações</title>{_ESTILO_CONFIRMA}</head><body>
+<div class="card" style="max-width:640px;text-align:left">
+  <h1 style="text-align:center">Confirmações 💛</h1>
+  <p style="text-align:center">✅ {n_ok} confirmaram · ❌ {n_no} negaram · ⏳ {n_pd} pendentes</p>
+  <table><thead><tr><th>Indicado</th><th>Indicou</th><th>Status</th><th>Quando</th></tr></thead>
+  <tbody>{''.join(linhas) or '<tr><td colspan=4>Nada ainda.</td></tr>'}</tbody></table>
+</div></body></html>"""
+    return Response(corpo, mimetype="text/html")
 
 
 if __name__ == "__main__":
