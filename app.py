@@ -3817,13 +3817,14 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     interativa_enviada = [False]
 
     def enviar_texto_com_botoes_boas_vindas(texto):
-        """Se for a 1ª mensagem de boas-vindas (pré-aceite), envia com botões.
-        Senão, envia como texto normal."""
+        """REGRA FIRME: toda mensagem de boas-vindas/consentimento (pré-aceite) SEMPRE
+        sai com botões — a pessoa nunca fica sem ação. Detecta pela menção a 'Termos'
+        (todo texto de consentimento pede o aceite dos Termos), sem depender de frase
+        exata. Assim, se a copy mudar, os botões continuam aparecendo."""
         if interativa_enviada[0]:
             return
-        # Detecta se é uma das boas-vindas (contém Dorote.ia + Termos de uso).
-        if "Dorote.ia" in texto and "Termos de uso" in texto:
-            # É boas-vindas: envia com botões.
+        # É boas-vindas/consentimento se cita "Termos" (aceite pendente).
+        if re.search(r"\btermos\b", texto, re.IGNORECASE):
             enviar_botoes_meta(texto, [
                 {"id": "consent_sim",        "label": "✅ Aceito e começar"},
                 {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
