@@ -925,11 +925,18 @@ MAX_ITENS_RESULTADO = 6
 
 
 def _selo_curto(p):
-    """Nota resumida para exibição (⭐ x/5) ou '' se ainda não há avaliação."""
+    """Nota resumida para exibição (⭐ x/5) ou '' se ainda não há avaliação.
+    (Desativada por ora — a nota volta no futuro; ver _linhas_resultado.)"""
     qtd = p.get("qtd_avaliacoes") or 0
     if qtd:
         return f"  ⭐ {p.get('nota_media')}/5"
     return ""
+
+
+def _regiao_curta(p):
+    """Bairro/região onde a pessoa foi indicada (para quando a busca não pediu bairro)."""
+    reg = (p.get("bairro") or "").strip() or (p.get("cidade") or "").strip()
+    return f"  📍 {reg}" if reg else ""
 
 
 def _prova(n):
@@ -948,19 +955,24 @@ def _texto_iscas(sinais):
     return "\n\n" + "\n".join(linhas)
 
 
-def _linhas_resultado(com_nome, pendente, sem_nome):
+def _linhas_resultado(com_nome, pendente, sem_nome, mostrar_regiao=False):
     """Monta as linhas de item, na ordem de confiança (🟢, 🟡, ⚪), com contato.
-    Devolve (linhas, sobra) onde sobra = quantos ficaram de fora do teto."""
+    Devolve (linhas, sobra) onde sobra = quantos ficaram de fora do teto.
+    - mostrar_regiao: quando a busca NÃO pediu bairro, mostra o bairro/região de
+      cada indicação (senão fica redundante, pois todos são do mesmo bairro).
+    - Nota (⭐) está desativada por ora — volta no futuro (ver _selo_curto)."""
+    def reg(p):
+        return _regiao_curta(p) if mostrar_regiao else ""
     itens = []
     for p, quem in com_nome:
         itens.append(f"🟢 *{p['nome']}* — indicado por {_formatar_indicadores(quem)}"
-                     f"{_prova(len(quem))}{_selo_curto(p)}\n📞 {p['telefone']}")
+                     f"{_prova(len(quem))}{reg(p)}\n📞 {p['telefone']}")
     for p, n in pendente:
         itens.append(f"🟡 *{p['nome']}* — alguém da sua rede indica{_prova(n)}"
-                     f"{_selo_curto(p)}\n📞 {p['telefone']}")
+                     f"{reg(p)}\n📞 {p['telefone']}")
     for p, n in sem_nome:
         itens.append(f"⚪ *{p['nome']}* — indicado pela rede Dorote.ia{_prova(n)}"
-                     f"{_selo_curto(p)}\n📞 {p['telefone']}")
+                     f"{reg(p)}\n📞 {p['telefone']}")
     sobra = max(0, len(itens) - MAX_ITENS_RESULTADO)
     return itens[:MAX_ITENS_RESULTADO], sobra
 
@@ -985,7 +997,7 @@ def _executar_e_enviar_busca(membro, servico, bairro, cidade):
     if com_nome or pendente:
         registrar_busca(servico, bairro, cidade, "verde" if com_nome else "amarelo_rede", membro["id"])
         _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, sem_nome)
-        linhas, sobra = _linhas_resultado(com_nome, pendente, sem_nome)
+        linhas, sobra = _linhas_resultado(com_nome, pendente, sem_nome, mostrar_regiao=not bairro)
         corpo = f"🔍 O que encontrei para *{servico}* em {local}:\n\n" + "\n\n".join(linhas)
         if sobra:
             corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
@@ -1000,7 +1012,7 @@ def _executar_e_enviar_busca(membro, servico, bairro, cidade):
     if sem_nome:
         registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
         _registrar_mostrados(membro, servico, bairro, cidade, [], [], sem_nome)
-        linhas, sobra = _linhas_resultado([], [], sem_nome)
+        linhas, sobra = _linhas_resultado([], [], sem_nome, mostrar_regiao=not bairro)
         corpo = f"🔍 O que encontrei para *{servico}* em {local}:\n\n" + "\n\n".join(linhas)
         if sobra:
             corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
