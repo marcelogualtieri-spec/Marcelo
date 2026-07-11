@@ -3268,6 +3268,27 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         _enviar_ask_amigo(membro, cmd.split(":", 1)[1])
         return True
 
+    # -------- Fluxo ativo: BUSCA RETOMADA (pedido que chegou pré-aceite) --------
+    fbusca_retomada = _fluxo_get(membro)
+    if consentiu and fbusca_retomada.get("fluxo") == "busca_retomada":
+        # Extrai a intenção do pedido pré-aceite via IA e executa a busca.
+        pedido_texto = fbusca_retomada.get("pedido_texto", "").strip()
+        _fluxo_limpar(membro)
+        if pedido_texto:
+            # IA vai extrair o serviço do texto (cerebro chama buscar_servico).
+            # Por enquanto, passa o texto cru pra cerebro processar.
+            # cerebro.conversar vai chamar buscar_servico com o texto como serviço.
+            usados = cerebro.conversar(
+                membro,
+                pedido_texto,
+                contatos_compartilhados,
+                executar_ferramenta=construir_executor(membro, [False]),
+                enviar_texto=enviar_texto_com_botoes_boas_vindas,
+                salvar_historico=lambda hist: salvar_historico(wa_id, hist),
+            ) or set()
+            return True
+        return True
+
     # -------- Fluxo ativo: BUSCA (perguntar a região que faltou) --------
     fbusca = _fluxo_get(membro)
     if consentiu and fbusca.get("fluxo") == "busca":
@@ -3397,6 +3418,16 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if cmd == "consent_sim" or cmd in ACEITES_TXT:
             registrar_consentimento(membro["wa_id"])
             membro["consent"] = True
+            # Se pessoa fez um pedido antes de aceitar, retoma agora.
+            fluxo_pre = _fluxo_get(membro)
+            pedido_pre = fluxo_pre.get("pedido_pre_aceite") if fluxo_pre else None
+            if pedido_pre:
+                _fluxo_limpar(membro)
+                # Guarda o pedido pra retomar depois — o cerebro vai extrair a intenção.
+                resposta_whatsapp("Que bom! Vou procurar por isso pra você. 💛")
+                _fluxo_set(membro, {"fluxo": "busca_retomada", "pedido_texto": pedido_pre})
+                # Na próxima mensagem, vai retomar a busca (ver linha ~3273).
+                return True
             # Entrou pelo link 'recomendar' de um profissional: com o aceite dado,
             # registra a recomendação (aguardando só a confirmação do profissional).
             fl_rec = _fluxo_get(membro)
@@ -3463,11 +3494,28 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                 {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
             ])
             return True
-        # Qualquer outra coisa antes do aceite: reforça o convite COM BOTÕES (nunca sem saída).
-        enviar_botoes_meta(t.PRECISA_CONSENTIR, [
-            {"id": "consent_sim",        "label": "✅ Aceito e começar"},
-            {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
-        ])
+        # Qualquer outra coisa antes do aceite: reconhece gentilmente (se parece um pedido),
+        # guarda a intenção, e pede o aceite.
+        palavras_pedido = ["preciso", "quero", "tenho", "procuro", "busco", "precisa", "achei", "need", "help"]
+        parece_pedido = any(p in texto_recebido.lower() for p in palavras_pedido) and len(texto_recebido) > 5
+
+        if parece_pedido:
+            # Reconhece o pedido com gentileza, guarda em fluxo.
+            _fluxo_set(membro, {"pedido_pre_aceite": texto_recebido})
+            msg_reconhece = (
+                f"Posso te ajudar com isso 💛\n"
+                f"Só preciso que você aceite os termos primeiro — é rapidinho."
+            )
+            enviar_botoes_meta(msg_reconhece, [
+                {"id": "consent_sim",        "label": "✅ Aceito e começar"},
+                {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
+            ])
+        else:
+            # Texto aleatório: reforça o convite normal.
+            enviar_botoes_meta(t.PRECISA_CONSENTIR, [
+                {"id": "consent_sim",        "label": "✅ Aceito e começar"},
+                {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
+            ])
         return True
 
     # -------- Depois do aceite: navegacao --------
@@ -3674,12 +3722,28 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     # Flag: se a IA mandar botoes via ferramenta, nao envia texto duplicado.
     interativa_enviada = [False]
 
+    def enviar_texto_com_botoes_boas_vindas(texto):
+        """Se for a 1ª mensagem de boas-vindas (pré-aceite), envia com botões.
+        Senão, envia como texto normal."""
+        if interativa_enviada[0]:
+            return
+        # Detecta se é uma das boas-vindas (contém a estrutura típica).
+        if ("Dorote.ia" in texto and ("Responda SIM" in texto or "Posso te ajudar" in texto or "Posso começar" in texto)
+            and "Termos de uso" in texto):
+            # É boas-vindas: envia com botões.
+            enviar_botoes_meta(texto, [
+                {"id": "consent_sim",        "label": "✅ Aceito e começar"},
+                {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
+            ])
+        else:
+            resposta_whatsapp(texto)
+
     usados = cerebro.conversar(
         membro,
         texto_recebido,
         contatos_compartilhados,
         executar_ferramenta=construir_executor(membro, interativa_enviada),
-        enviar_texto=lambda texto: (None if interativa_enviada[0] else resposta_whatsapp(texto)),
+        enviar_texto=enviar_texto_com_botoes_boas_vindas,
         salvar_historico=lambda hist: salvar_historico(wa_id, hist),
     ) or set()
 
