@@ -2471,7 +2471,7 @@ def iniciar_onboarding_prestador(membro, servico):
             })
             supabase.table("providers").insert(dados).execute()
             servico_final = servico or "seu serviço"
-        enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_final), [
+        enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_final, link=LINK_TERMOS_PROF), [
             {"id": "prest_aceito",  "label": "✅ Aceito e confirmo"},
             {"id": "prest_ajustar", "label": "✏️ Ajustar serviço"},
             {"id": "prest_nao",     "label": "⛔ Não desejo"},
@@ -2531,7 +2531,12 @@ def _enviar_pedido_perfil(membro, provider_id):
     pelo código, independente de sincronia do status do cadastro.
     """
     _fluxo_set(membro, {"fluxo": "perfil_prof", "provider_id": provider_id})
-    enviar_botoes_meta(t.PRESTADOR_QUERO_SER_OK, [{"id": "menu", "label": "🏠 Menu"}])
+    # Variação: se já era cliente (consentiu), usa "também como profissional".
+    msg = t.PRESTADOR_QUERO_SER_OK_DUAL if membro.get("consent") else t.PRESTADOR_QUERO_SER_OK
+    enviar_botoes_meta(msg, [
+        {"id": "menu", "label": "✅ Concluir"},
+        {"id": "outras_opcoes", "label": "☰ Outras opções"}
+    ])
 
 
 def _enviar_validacao_perfil(membro, fluxo):
@@ -3405,7 +3410,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             if prest.get("status") == "onboarding":
                 servico_novo = (texto or "").strip().lower()
                 supabase.table("providers").update({"servico": servico_novo}).eq("id", prest["id"]).execute()
-                enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_novo or "seu serviço"), [
+                enviar_botoes_meta(t.PRESTADOR_ACOLHIDA.format(servico=servico_novo or "seu serviço", link=LINK_TERMOS_PROF), [
                     {"id": "prest_aceito",  "label": "✅ Aceito e confirmo"},
                     {"id": "prest_ajustar", "label": "✏️ Ajustar serviço"},
                     {"id": "prest_nao",     "label": "⛔ Não desejo"},
@@ -3621,8 +3626,10 @@ def rotear_menu(membro, texto, button_id, contatos=None):
 
     if cmd == "quero_ser_prof":
         if prest:   # ja tem perfil profissional
-            resposta_whatsapp("Você já tem um perfil profissional aqui! 💼")
-            enviar_menu_prestador()
+            enviar_botoes_meta("Você já tem um perfil profissional 💛\n\nQuer editar?", [
+                {"id": "prest_editar", "label": "✏️ Editar perfil"},
+                {"id": "menu",         "label": "🏠 Menu"},
+            ])
             return True
         enviar_botoes_meta(t.PRESTADOR_QUERO_SER, [
             {"id": "prest_self", "label": "✅ Aceito e configuro"},

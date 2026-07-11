@@ -548,12 +548,22 @@ PRESTADOR_QUERO_SER = (
     "profissional e configure o seu perfil."
 )
 
-# Pedido do perfil (mesmo texto para autocadastro e para quem foi indicado).
-# Enviado com um botão de escape (Outras opções). A pessoa manda tudo num texto só;
-# a Dorote.ia organiza e valida com botões antes de gravar.
 PRESTADOR_QUERO_SER_OK = (
     "Perfil profissional iniciado! 🚀 Seus dados ficam protegidos e só vão para quem "
     "receber uma indicação sua.\n\n"
+    "Me conta tudo numa mensagem só, do seu jeito:\n\n"
+    "1️⃣ O que você faz\n"
+    "2️⃣ Onde atende\n"
+    "3️⃣ Seus diferenciais\n"
+    "4️⃣ Como te encontrar e pagar\n\n"
+    "Ex.: _Conserto de geladeira e máquina de lavar. Atendo a zona leste de SP. Vou no "
+    "mesmo dia e dou 3 meses de garantia. Pix, cartão ou dinheiro. @geladeirafacil._"
+)
+
+# Para quem já era cliente e agora vira também profissional (variação da 1ª linha).
+PRESTADOR_QUERO_SER_OK_DUAL = (
+    "Que bom ter você também como profissional! 🚀 Seus dados ficam protegidos e só vão "
+    "para quem receber uma indicação sua.\n\n"
     "Me conta tudo numa mensagem só, do seu jeito:\n\n"
     "1️⃣ O que você faz\n"
     "2️⃣ Onde atende\n"
@@ -589,8 +599,9 @@ PRESTADOR_ACOLHIDA = (
     "a sua indicação, o seu contato vai só para essa pessoa. Ninguém te manda mensagem "
     "por aqui.\n\n"
     "Para ativar o seu cadastro, preciso da sua autorização para usar o seu contato e a "
-    "categoria do serviço, conforme os Termos de Uso. Os seus dados serão usados apenas "
-    "para conectar você a quem busca o seu trabalho.\n\n"
+    "categoria do serviço, conforme os Termos de Uso.\n\n"
+    "📄 Termos do profissional:\n{link}\n\n"
+    "Os seus dados serão usados apenas para conectar você a quem busca o seu trabalho. "
     "Deseja prosseguir?"
 )
 
