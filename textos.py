@@ -41,17 +41,13 @@ BOAS_VINDAS = (
 # este convite, a pessoa já está se conectando com quem convidou (é o consentimento
 # do vínculo). {nome} = primeiro nome de quem convidou; {link} = termos.
 BOAS_VINDAS_CONVIDADO = (
-    "Oi! Eu sou a Dorote.ia 💛\n\n"
-    "*{nome}* te convidou para a nossa central de indicações de confiança. Ao entrar por "
-    "este convite, vocês ficam conectados — é assim que as boas indicações circulam entre "
-    "quem se conhece.\n\n"
-    "Aqui você encontra profissionais recomendados por quem confia e também pode indicar e "
-    "convidar a sua gente.\n\n"
-    "🔒 *Privacidade:* guardo só o seu nome e telefone. O seu número nunca é compartilhado "
-    "e o seu nome só aparece para quem você aceitar. Para sair, é só digitar *SAIR*.\n\n"
-    "🔗 *Termos de uso:*\n{link}\n\n"
-    "Posso começar? Responda *SIM* para aceitar os termos e se conectar com *{nome}*, ou "
-    "digite *SABER MAIS*."
+    "Oi! 💛 *{nome}* te convidou para a Dorote.ia.\n\n"
+    "Aqui você encontra profissionais indicados por quem confia — gente de verdade, testada "
+    "pela rede.\n\n"
+    "🔒 Seu telefone fica protegido. Só aparece pra quem você aceitar.\n\n"
+    "Quando você entrar, a gente pede que *{nome}* confirme que vocês se conhecem. Aí "
+    "ficam conectados.\n\n"
+    "🔗 *Termos de uso:*\n{link}"
 )
 
 # Enviada COM BOTÕES (SIM, aceito · Quero ser prof. · Deixa pra depois).
