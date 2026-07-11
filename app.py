@@ -2026,7 +2026,7 @@ def enviar_submenu_dados(membro):
 
 
 def _ver_minha_rede(membro):
-    confirmadas, aguardando = [], []
+    confirmadas, aguardando, aguardando_ids = [], [], []
     try:
         cons = ((supabase.table("conexoes").select("*").eq("member_a", membro["id"]).execute().data or [])
                 + (supabase.table("conexoes").select("*").eq("member_b", membro["id"]).execute().data or []))
@@ -2039,12 +2039,15 @@ def _ver_minha_rede(membro):
             confirmadas.append(nome)
         elif c.get("status") == "pendente":
             aguardando.append(nome)
+            if outro:
+                aguardando_ids.append(outro["id"])
     # Convites que ela fez e que ainda não entraram (mostra o nome — é contato dela).
-    convidados = []
+    convidados, convidados_ids = [], []
     try:
-        inv = (supabase.table("pending_invites").select("nome")
+        inv = (supabase.table("pending_invites").select("nome", "id")
                .eq("inviter_id", membro["id"]).limit(20).execute().data or [])
         convidados = [(r.get("nome") or "").strip() for r in inv]
+        convidados_ids = [r.get("id") for r in inv]
     except Exception:
         traceback.print_exc()
     com_nome = [n for n in convidados if n]
@@ -2064,7 +2067,18 @@ def _ver_minha_rede(membro):
             linhas.append(f"• e mais {sem_nome} convite(s)")
     if not confirmadas and not aguardando and not convidados:
         linhas.append("Você ainda não tem conexões. Convide quem você confia! 💛")
-    enviar_botoes_meta("\n".join(linhas), _BOTOES_CONTA)
+
+    # Se tem pendências, oferece "Gerenciar"; senão, só "Minha conta" e "Menu"
+    if aguardando or com_nome or sem_nome:
+        _fluxo_set(membro, {"rede_aguardando": aguardando_ids, "rede_convidados": convidados_ids})
+        botoes = [
+            {"id": "gerenciar_rede", "label": "✏️ Gerenciar"},
+            {"id": "dados", "label": "⚙️ Minha conta"},
+            {"id": "menu", "label": "🏠 Menu"}
+        ]
+    else:
+        botoes = _BOTOES_CONTA
+    enviar_botoes_meta("\n".join(linhas), botoes)
 
 
 def _ver_indicacoes_feitas(membro):
@@ -2157,34 +2171,46 @@ def _ver_quem_recomendou(membro):
 
 
 def _ver_gerenciar_rede(membro):
-    """Lista as pessoas da rede para gerenciar (bloquear/remover) + ver bloqueados."""
-    try:
-        cons = ((supabase.table("conexoes").select("*").eq("member_a", membro["id"])
-                 .neq("status", "recusada").execute().data or [])
-                + (supabase.table("conexoes").select("*").eq("member_b", membro["id"])
-                   .neq("status", "recusada").execute().data or []))
-    except Exception:
-        traceback.print_exc(); cons = []
-    rows, vistos = [], set()
-    for c in cons:
-        outro = _outro_lado(c, membro)
-        if (outro and outro["id"] not in vistos
-                and not esta_bloqueado(membro["id"], outro["id"])):
-            vistos.add(outro["id"])
-            rows.append({"id": f"gerir:{outro['id']}", "title": _nome_curto(outro)[:24],
-                         "description": "Bloquear ou remover"})
-        if len(rows) >= 8:
-            break
-    if not rows:  # ninguém na rede para gerenciar
-        enviar_botoes_meta(t.GERIR_VAZIO, [
-            {"id": "ver_bloqueados", "label": "🔓 Ver bloqueados"},
-            {"id": "dados",          "label": "⚙️ Minha conta"},
-            {"id": "menu",           "label": "🏠 Menu"}])
+    """Mostra quem está aguardando confirmação ou convites pendentes com ações simples."""
+    fluxo = _fluxo_get(membro)
+    aguardando_ids = fluxo.get("rede_aguardando", []) if fluxo else []
+    convidados_ids = fluxo.get("rede_convidados", []) if fluxo else []
+
+    if not aguardando_ids and not convidados_ids:
+        enviar_botoes_meta("Nada a gerenciar agora. 💛", [
+            {"id": "dados_rede", "label": "🤝 Minha rede"},
+            {"id": "menu",       "label": "🏠 Menu"}])
         return
-    rows.append({"id": "ver_bloqueados", "title": "🔓 Ver bloqueados",
-                 "description": "Desbloquear alguém"})
-    rows.append({"id": "menu", "title": "🏠 Menu", "description": "Voltar ao início"})
-    enviar_lista_meta("🚫 Bloquear e gerenciar", "Escolher", rows[:10])
+
+    rows = []
+    # Quem está aguardando confirmação
+    for aid in aguardando_ids[:5]:
+        outro = buscar_membro_por_id(aid)
+        if outro:
+            nome = _nome_curto(outro)
+            rows.append({"id": f"gerir_aguarda:{aid}", "title": f"⏳ {nome}",
+                         "description": "Lembrar ou remover"})
+
+    # Quem foi convidado mas não entrou (pending_invites)
+    if convidados_ids:
+        for inv_id in convidados_ids[:5]:
+            try:
+                inv = supabase.table("pending_invites").select("nome").eq("id", inv_id).limit(1).execute().data
+                if inv:
+                    nome = (inv[0].get("nome") or "").strip() or "Contato"
+                    rows.append({"id": f"gerir_convite:{inv_id}", "title": f"📨 {nome}",
+                                 "description": "Reenviar link ou remover"})
+            except Exception:
+                traceback.print_exc()
+
+    if not rows:
+        enviar_botoes_meta("Nada a gerenciar agora. 💛", [
+            {"id": "dados_rede", "label": "🤝 Minha rede"},
+            {"id": "menu",       "label": "🏠 Menu"}])
+        return
+
+    rows.append({"id": "dados_rede", "title": "🏠 Voltar", "description": "Voltar à minha rede"})
+    enviar_lista_meta("👥 Gerenciar rede", "Escolher", rows)
 
 
 def _gerir_pessoa(membro, alvo_id):
@@ -3579,6 +3605,34 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         _ver_bloqueados(membro); return True
     if cmd.startswith("gerir:"):
         _gerir_pessoa(membro, cmd.split(":", 1)[1]); return True
+    if cmd.startswith("gerir_aguarda:"):
+        alvo_id = cmd.split(":", 1)[1]
+        alvo = buscar_membro_por_id(alvo_id)
+        nome = _nome_curto(alvo) if alvo else "essa pessoa"
+        enviar_botoes_meta(f"*{nome}* — aguardando confirmação", [
+            {"id": f"remover:{alvo_id}", "label": "🗑️ Remover"},
+            {"id": "gerenciar_rede",      "label": "🔙 Voltar"}])
+        return True
+    if cmd.startswith("gerir_convite:"):
+        inv_id = cmd.split(":", 1)[1]
+        try:
+            inv = supabase.table("pending_invites").select("nome").eq("id", inv_id).limit(1).execute().data
+            nome = (inv[0].get("nome") or "").strip() if inv else "esse contato"
+        except Exception:
+            nome = "esse contato"
+        enviar_botoes_meta(f"*{nome}* — ainda não entrou", [
+            {"id": f"deletar_convite:{inv_id}", "label": "🗑️ Remover"},
+            {"id": "gerenciar_rede",             "label": "🔙 Voltar"}])
+        return True
+    if cmd.startswith("deletar_convite:"):
+        inv_id = cmd.split(":", 1)[1]
+        try:
+            supabase.table("pending_invites").delete().eq("id", inv_id).execute()
+            resposta_whatsapp("Removido 💛")
+        except Exception:
+            traceback.print_exc()
+        _ver_gerenciar_rede(membro)
+        return True
     if cmd.startswith("bloquear:"):
         alvo_id = cmd.split(":", 1)[1]
         alvo = buscar_membro_por_id(alvo_id)

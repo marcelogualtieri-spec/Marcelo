@@ -375,12 +375,9 @@ CONVITE_MENSAGEM_AMIGO = (
 # trazendo outra pessoa de confiança para a rede). Não confundir com indicar um
 # profissional (esse é outro fluxo, com outro link).
 CONVIDAR_CLIENTE_VOCE = (
-    "Boa! 💛 Quanto mais gente de confiança na sua rede, melhores as indicações que "
-    "você recebe.\n\n"
-    "Para convidar quem você confia, encaminhe *o link abaixo* — ou a *mensagem pronta* "
-    "que mando logo em seguida 👇\n\n{link}\n\n"
-    "Quando a pessoa entrar, vou perguntar se vocês se conhecem. Se as duas confirmarem, "
-    "começam a trocar indicações. 💛"
+    "Boa! 💛 Compartilhe pelo clipe 📎 o contato de quem você quer convidar "
+    "(pode mandar vários).\n\n"
+    "Ou use o link abaixo pra gente trocar indicações:\n\n{link}"
 )
 
 # O que a Dorote.ia te responde, com o link que abre a conversa com a pessoa.
