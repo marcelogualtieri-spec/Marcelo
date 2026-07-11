@@ -1002,10 +1002,12 @@ def _executar_e_enviar_busca(membro, servico, bairro, cidade):
         if sobra:
             corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
         corpo += _texto_iscas(sinais)
+        # Guarda o serviço para o botão "Refinar bairro" reaproveitar a categoria.
+        _fluxo_set(membro, {"fluxo": "resultado", "servico": servico})
         enviar_botoes_meta(corpo, [
-            {"id": "buscar",       "label": "🔍 Buscar outro"},
-            {"id": "rede_indicar", "label": "💛 Indicar"},
-            {"id": "menu",         "label": "🏠 Menu"}])
+            {"id": "busca_refinar", "label": "📍 Refinar bairro"},
+            {"id": "rede_indicar",  "label": "💛 Indicar"},
+            {"id": "menu",          "label": "🏠 Menu"}])
         return
 
     # Só ⚪ (rede geral / anonimizado).
@@ -1017,18 +1019,20 @@ def _executar_e_enviar_busca(membro, servico, bairro, cidade):
         if sobra:
             corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
         corpo += _texto_iscas(sinais)
+        # Guarda o serviço para o botão "Refinar bairro" reaproveitar a categoria.
+        _fluxo_set(membro, {"fluxo": "resultado", "servico": servico})
         # RES_GERAL — rede pequena (< k): enquadra como rede geral e convida a crescer.
         if _qtd_rede(membro) < K_ANONIMATO:
             corpo += t.BUSCA_REDE_PEQUENA
             enviar_botoes_meta(corpo, [
-                {"id": "rede_convidar", "label": "🤝 Convidar"},
-                {"id": "buscar",        "label": "🔍 Buscar outro"},
+                {"id": "rede_convidar", "label": "🤝 Convidar rede"},
+                {"id": "busca_refinar", "label": "📍 Refinar bairro"},
                 {"id": "menu",          "label": "🏠 Menu"}])
         else:
             enviar_botoes_meta(corpo, [
-                {"id": "buscar",       "label": "🔍 Buscar outro"},
-                {"id": "rede_indicar", "label": "💛 Indicar"},
-                {"id": "menu",         "label": "🏠 Menu"}])
+                {"id": "busca_refinar", "label": "📍 Refinar bairro"},
+                {"id": "rede_indicar",  "label": "💛 Indicar"},
+                {"id": "menu",          "label": "🏠 Menu"}])
         return
 
     # RES_VAZIO — nada na rede. NUNCA pedir a quem busca que ela mesma indique.
@@ -3416,6 +3420,27 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             _executar_e_enviar_busca(membro, servico_b, texto.strip(), "São Paulo")
             return True
         # Outro botão de navegação: sai da busca e deixa o resto tratar.
+        _fluxo_limpar(membro)
+
+    # -------- Estado passivo: RESULTADO de busca (botão "Refinar bairro") --------
+    # Reaproveita a CATEGORIA já buscada e pergunta só o bairro (não repergunta o
+    # serviço). Só reage ao 'busca_refinar'; qualquer outra coisa sai do estado.
+    fres = _fluxo_get(membro)
+    if consentiu and fres.get("fluxo") == "resultado":
+        if cmd == "busca_refinar":
+            servico_r = (fres.get("servico") or "").strip()
+            if servico_r:
+                _fluxo_set(membro, {"fluxo": "busca", "servico": servico_r, "passo": "bairro"})
+                enviar_botoes_meta(t.BUSCA_PEDIR_BAIRRO, [
+                    {"id": "busca_cidade_toda", "label": "🏙️ Toda a cidade"},
+                    {"id": "menu",              "label": "🏠 Menu"}])
+                return True
+            # Sem serviço guardado (raro): cai numa busca nova.
+            _fluxo_set(membro, {"fluxo": "busca_query"})
+            enviar_botoes_meta("Me conta o que você precisa e em qual bairro ou região de "
+                               "São Paulo. 🙂", [{"id": "menu", "label": "🏠 Menu"}])
+            return True
+        # Não é refinar: sai do estado passivo e deixa o resto tratar (botões/menu/texto).
         _fluxo_limpar(membro)
 
     # -------- Fluxo ativo: o cliente esta INDICANDO um profissional --------
