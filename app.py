@@ -576,7 +576,7 @@ def montar_link_convite(numero_bot, codigo=None):
       pendente registrado), entao a mensagem fica LIMPA, sem codigo (codigo=None).
     - Link generico de divulgacao: nao ha numero pra casar, entao ai sim o codigo
       vai junto (e o unico jeito de saber quem convidou)."""
-    mensagem = "Oi! 💛 Tô entrando na Dorote.ia pelo convite de um amigo…"
+    mensagem = "Oi! Fui convidado pra Dorote.ia 💛"
     if codigo:
         mensagem += f" (convite: {codigo})"
     return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"
@@ -1283,6 +1283,7 @@ def _ferr_convidar(membro, numeros):
         return ("Nenhum contato veio nesta mensagem pra convidar. Peca pra compartilhar os "
                 "contatos pelo clipe 📎 (pode mandar varios!) ou digitar os numeros com DDD.")
     numero_bot = g.get("display_phone_number") or ""
+    interativa_enviada = [False]
 
     # Atrela TODOS os contatos ao convite (conexao pelo telefone, sem codigo).
     for numero in numeros:
@@ -1302,17 +1303,23 @@ def _ferr_convidar(membro, numeros):
     aviso_extra = ""
     if len(numeros) > MAX_LINKS_INDIVIDUAIS:
         sobra = len(numeros) - MAX_LINKS_INDIVIDUAIS
-        aviso_extra = (f"\n\n(Os outros {sobra} contato(s) tambem ja estao atrelados ao convite — "
-                       "pra gerar os links deles, e so mandar esses contatos de novo.)")
+        aviso_extra = (f"\n\n(Os outros {sobra} contato(s) tambem ja estao atrelados — "
+                       "mandar esses contatos de novo gera os links.)")
 
-    return (
-        f"Convites prontos pra {len(numeros)} pessoa(s) — todas ja atreladas ao convite dela "
-        "(quando entrarem, ficam conectadas automaticamente, sem precisar de codigo).\n\n"
-        "Entregue o link de cada uma, TROCANDO a ficha [CONTATO_n] pelo NOME da pessoa "
-        "(voce sabe quem e cada ficha). Cada link abre a conversa com aquela pessoa ja com "
-        "o convite escrito; ela so toca em Enviar. Links (copie EXATOS):\n"
+    # Envia a resposta com BOTOES, nao somente texto.
+    texto = (
+        f"Pronto! 💛 Links prontos para {len(numeros)} convite(s) — toque em cada link "
+        "e envie a quem você confia:\n\n"
         + "\n".join(linhas) + aviso_extra
     )
+    resposta_whatsapp(texto)
+    enviar_botoes_meta("O que você deseja fazer agora?", [
+        {"id": "rede_convidar", "label": "🤝 Convidar mais"},
+        {"id": "menu",          "label": "🏠 Menu"}])
+    interativa_enviada[0] = True
+
+    # Não retorna texto — a resposta já foi enviada com botoes.
+    return ""
 
 
 def _ferr_link_generico(membro):
@@ -1947,8 +1954,8 @@ def enviar_menu_principal(membro, texto=None):
          "description": "Achar um profissional de confiança"},
         {"id": "rede_indicar",  "title": "💛 Indicar profissional",
          "description": "Recomendar alguém bom que você conhece"},
-        {"id": "rede_convidar", "title": "🤝 Convidar quem confio",
-         "description": "Trazer gente de confiança para a sua rede"},
+        {"id": "rede_convidar", "title": "🤝 Convidar rede",
+         "description": "Trazer gente de sua confiança"},
     ]
     if tem_perfil_profissional(membro):
         rows.append({"id": "trocar", "title": "🔁 Trocar de perfil",

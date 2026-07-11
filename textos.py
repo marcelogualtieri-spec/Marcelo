@@ -375,17 +375,13 @@ CONVITE_MENSAGEM_AMIGO = (
 # trazendo outra pessoa de confiança para a rede). Não confundir com indicar um
 # profissional (esse é outro fluxo, com outro link).
 CONVIDAR_CLIENTE_VOCE = (
-    "Boa! 💛 Compartilhe pelo clipe 📎 o contato de quem você quer convidar "
-    "(pode mandar vários).\n\n"
-    "Ou use o link abaixo pra gente trocar indicações:\n\n{link}"
+    "Compartilhe o contato da pessoa pelo clipe 📎 ou toque abaixo pra gerar um link 💛"
 )
 
 # O que a Dorote.ia te responde, com o link que abre a conversa com a pessoa.
 CONVITE_PRONTO = (
-    "Prontinho! 🙌 Ja deixei voce e essa pessoa conectados - quando ela entrar, "
-    "voces aparecem um pro outro automaticamente.\n\n"
-    "Agora e um toque so: abra o link abaixo (vai abrir a conversa com ela, com o "
-    "convite ja escrito) e toque em *Enviar*. 💛\n{link}"
+    "Pronto! 💛 Toque no link abaixo pra abrir o convite com essa pessoa — "
+    "é só enviar.\n\n{link}"
 )
 
 
