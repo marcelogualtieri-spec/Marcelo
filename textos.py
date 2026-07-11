@@ -479,8 +479,8 @@ BUSCA_REDE_PEQUENA = (
 )
 
 PEDIR_AMIGOS_LISTA = (
-    "Para quem você quer perguntar? Escolha um amigo de cada vez 💛\n"
-    "A mensagem vai como sendo sua."
+    "Para quem você quer perguntar? 💛\n"
+    "Escolha *Perguntar a todos* ou uma pessoa por vez. A mensagem vai como sendo sua."
 )
 
 PEDIR_AMIGOS_SEM_REDE = (
@@ -495,9 +495,10 @@ ASK_ENVIADO = (
 )
 
 # Mensagem que o AMIGO recebe (vai como sendo da pessoa que está procurando).
+# {onde} e {detalhe} entram só quando há bairro/característica (montados no código).
 ASK_PARA_AMIGO = (
-    "Oi! 💛 *{quem}* está procurando um *{servico}* de confiança aqui em São Paulo e "
-    "lembrou de você. Você conhece alguém bom para indicar?"
+    "Oi! 💛 *{quem}* está procurando um *{servico}*{onde}{detalhe} e lembrou de você.\n"
+    "Você conhece alguém bom para indicar?"
 )
 
 

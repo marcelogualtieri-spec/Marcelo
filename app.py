@@ -991,9 +991,10 @@ def _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, se
         registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
 
 
-def _executar_e_enviar_busca(membro, servico, bairro, cidade):
+def _executar_e_enviar_busca(membro, servico, bairro, cidade, detalhe=""):
     """Roda a busca e ENVIA a tela de resultado pelo código (com botões). O telefone
-    do profissional nunca passa pela IA. Cobre RES_OK, RES_GERAL e RES_VAZIO (§6)."""
+    do profissional nunca passa pela IA. Cobre RES_OK, RES_GERAL e RES_VAZIO (§6).
+    `detalhe` = característica específica do pedido (segue para 'perguntar a amigos')."""
     com_nome, pendente, sem_nome = executar_busca(membro, servico, bairro, cidade)
     sinais = _sinais_anonimos(membro, servico, bairro)
     local = ", ".join(p for p in [bairro, cidade] if p) or "São Paulo"
@@ -1042,13 +1043,14 @@ def _executar_e_enviar_busca(membro, servico, bairro, cidade):
 
     # RES_VAZIO — nada na rede. NUNCA pedir a quem busca que ela mesma indique.
     registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
-    _enviar_sem_resultado(membro, servico, bool(sinais))
+    _enviar_sem_resultado(membro, servico, bool(sinais), bairro=bairro, detalhe=detalhe)
 
 
-def _perguntar_regiao_busca(membro, servico):
+def _perguntar_regiao_busca(membro, servico, detalhe=""):
     """BUSCA_FALTA (§): veio só o serviço → pergunta a região por botões (a IA não
-    conduz). Guarda o serviço no estado para o próximo passo ser determinístico."""
-    _fluxo_set(membro, {"fluxo": "busca", "servico": servico})
+    conduz). Guarda serviço + característica no estado para o próximo passo ser
+    determinístico (a característica segue até 'perguntar a amigos')."""
+    _fluxo_set(membro, {"fluxo": "busca", "servico": servico, "detalhe": detalhe})
     enviar_botoes_meta(t.BUSCA_FALTA_REGIAO.format(servico=servico), [
         {"id": "busca_cidade_toda", "label": "🏙️ Toda a cidade"},
         {"id": "busca_bairro",      "label": "📍 Escrever bairro"},
@@ -1075,10 +1077,12 @@ def _ferr_buscar(membro, entrada, interativa_enviada=None):
     return "Resultado da busca ja enviado por botoes. NAO escreva mais nada."
 
 
-def _enviar_sem_resultado(membro, servico, tem_sinal):
+def _enviar_sem_resultado(membro, servico, tem_sinal, bairro="", detalhe=""):
     """Mensagem determinística de 'sem indicação': oferece perguntar a amigos ou
-    convidar a rede. Guarda o serviço no estado para o fluxo de 'pedir a amigos'."""
-    _fluxo_set(membro, {"fluxo": "sem_resultado", "servico": servico})
+    convidar a rede. Guarda serviço + bairro + característica no estado para o fluxo
+    de 'pedir a amigos' repassar tudo (a riqueza do pedido segue para o amigo)."""
+    _fluxo_set(membro, {"fluxo": "sem_resultado", "servico": servico,
+                        "bairro": bairro, "detalhe": detalhe})
     texto = t.BUSCA_SEM_RESULTADO.format(servico=servico)
     if tem_sinal:
         texto += ("\n\n💡 Alguém da sua rede já indicou um *" + servico + "* que ainda não "
@@ -1115,34 +1119,76 @@ def _pedir_amigos_lista(membro):
             {"id": "gerar_link", "label": "🔗 Gerar meu link"},
             {"id": "menu",       "label": "🏠 Menu"}])
         return
-    rows = [{"id": f"ask:{mid}", "title": (nome or "Amigo")[:24],
-             "description": "Perguntar para esta pessoa"} for mid, nome in amigos[:10]]
+    rows = [{"id": "ask_todos", "title": "👥 Perguntar a todos",
+             "description": f"Enviar para {len(amigos)} pessoa(s) da sua rede"}]
+    rows += [{"id": f"ask:{mid}", "title": (nome or "Amigo")[:24],
+              "description": "Perguntar só para esta pessoa"} for mid, nome in amigos[:9]]
     enviar_lista_meta(t.PEDIR_AMIGOS_LISTA, "Escolher", rows)
 
 
-def _enviar_ask_amigo(membro, friend_id):
-    """Manda (pelo chat da Dorote.ia) a pergunta de indicação para o amigo escolhido,
-    como se viesse da pessoa que está procurando."""
+def _texto_ask(membro):
+    """Monta a pergunta que vai ao amigo, com a RIQUEZA do pedido: serviço + bairro +
+    característica específica (o que dá valor à indicação, como nos grupos)."""
     fl = _fluxo_get(membro)
-    servico = fl.get("servico") if fl.get("fluxo") == "sem_resultado" else ""
-    servico = servico or "um serviço"
+    servico = (fl.get("servico") or "").strip() or "um serviço"
+    bairro  = (fl.get("bairro")  or "").strip()
+    detalhe = (fl.get("detalhe") or "").strip()
+    onde = f" em {bairro}" if bairro else " aqui em São Paulo"
+    det  = f" ({detalhe})" if detalhe else ""
+    return t.ASK_PARA_AMIGO.format(quem=_nome_curto(membro), servico=servico,
+                                   onde=onde, detalhe=det)
+
+
+def _enviar_pergunta_a_amigo(membro, amigo, texto_pergunta, pn):
+    """Entrega a pergunta a UM amigo pelo chat da Dorote.ia (como se fosse da pessoa)."""
+    enviar_botoes_meta(texto_pergunta,
+        [{"id": "rede_indicar", "label": "💛 Indicar alguém"},
+         {"id": "menu",         "label": "Agora não"}],
+        to=amigo["wa_id"], phone_number_id=pn)
+
+
+def _enviar_ask_amigo(membro, friend_id):
+    """Pergunta a UM amigo escolhido (a mensagem chega na hora se ele falou com a bot
+    nas últimas 24h; senão, aparece quando ele reabrir o chat)."""
     amigo = buscar_membro_por_id(friend_id)
     if not amigo or esta_bloqueado(membro["id"], friend_id):
         resposta_whatsapp("Não consegui falar com essa pessoa. 💛")
         enviar_menu_principal(membro)
         return
     pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
-    # Pergunta entregue ao amigo (chega na hora se ele falou com a bot nas últimas 24h;
-    # senão, aparece quando ele reabrir o chat).
-    enviar_botoes_meta(
-        t.ASK_PARA_AMIGO.format(quem=_nome_curto(membro), servico=servico),
-        [{"id": "rede_indicar", "label": "💛 Indicar alguém"},
-         {"id": "menu",         "label": "Agora não"}],
-        to=amigo["wa_id"], phone_number_id=pn)
-    # Confirmação para quem pediu, com opção de perguntar a mais alguém.
+    _enviar_pergunta_a_amigo(membro, amigo, _texto_ask(membro), pn)
     enviar_botoes_meta(t.ASK_ENVIADO.format(nome=_nome_curto(amigo)), [
         {"id": "pedir_amigos", "label": "👋 Perguntar a outro"},
         {"id": "menu",         "label": "🏠 Menu"}])
+
+
+def _enviar_ask_todos(membro):
+    """Pergunta a TODOS os amigos com conexão confirmada de uma vez (a Dorote.ia
+    envia a mensagem para cada um)."""
+    amigos = _conexoes_confirmadas(membro)
+    if not amigos:
+        enviar_botoes_meta(t.PEDIR_AMIGOS_SEM_REDE, [
+            {"id": "gerar_link", "label": "🔗 Gerar meu link"},
+            {"id": "menu",       "label": "🏠 Menu"}])
+        return
+    pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
+    texto_pergunta = _texto_ask(membro)
+    enviados = 0
+    for mid, _nome in amigos:
+        if esta_bloqueado(membro["id"], mid):
+            continue
+        amigo = buscar_membro_por_id(mid)
+        if not amigo:
+            continue
+        try:
+            _enviar_pergunta_a_amigo(membro, amigo, texto_pergunta, pn)
+            enviados += 1
+        except Exception:
+            traceback.print_exc()
+    enviar_botoes_meta(
+        f"Pronto! 💛 Perguntei para {enviados} pessoa(s) da sua rede. Se alguém "
+        "conhecer um bom contato, eu registro a indicação e te aviso.",
+        [{"id": "menu", "label": "🏠 Menu"}])
 
 
 def _enviar_alertas_busca_vermelha(recomendador, servico, cidade):
@@ -1986,6 +2032,10 @@ def enviar_menu_principal(membro, texto=None):
                      "description": "Criar o seu perfil para ser recomendado"})
     rows.append({"id": "dados", "title": "⚙️ Minha conta",
                  "description": "Sua rede e indicações que você fez"})
+    rows.append({"id": "ver_termos", "title": "📄 Termos de uso",
+                 "description": "Ler os termos e a privacidade"})
+    rows.append({"id": "dados_apagar", "title": "🚪 Sair",
+                 "description": "Encerrar a sua conta"})
     enviar_lista_meta(texto or "O que você deseja fazer? 💛", "Ver opções", rows)
 
 
@@ -3349,6 +3399,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if consentiu and cmd == "pedir_amigos":
         _pedir_amigos_lista(membro)
         return True
+    if consentiu and cmd == "ask_todos":
+        _enviar_ask_todos(membro)
+        return True
     if consentiu and cmd.startswith("ask:"):
         _enviar_ask_amigo(membro, cmd.split(":", 1)[1])
         return True
@@ -3390,6 +3443,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             dados = nlu.extrair_servico_bairro(texto)
             servico_q = (dados.get("servico") or "").strip().lower()
             bairro_q  = (dados.get("bairro")  or "").strip()
+            detalhe_q = (dados.get("detalhe") or "").strip()
             if not servico_q:
                 # Não entendeu o serviço: repergunta gentil, sem cair no menu.
                 _fluxo_set(membro, {"fluxo": "busca_query"})
@@ -3399,20 +3453,21 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                     [{"id": "menu", "label": "🏠 Menu"}])
                 return True
             if bairro_q:
-                _executar_e_enviar_busca(membro, servico_q, bairro_q, "São Paulo")
+                _executar_e_enviar_busca(membro, servico_q, bairro_q, "São Paulo", detalhe=detalhe_q)
             else:
-                _perguntar_regiao_busca(membro, servico_q)
+                _perguntar_regiao_busca(membro, servico_q, detalhe=detalhe_q)
             return True
 
     # -------- Fluxo ativo: BUSCA (perguntar a região que faltou) --------
     fbusca = _fluxo_get(membro)
     if consentiu and fbusca.get("fluxo") == "busca":
         servico_b = (fbusca.get("servico") or "").strip()
+        detalhe_b = (fbusca.get("detalhe") or "").strip()
         if cmd in ("menu", "voltar", "cancelar", "inicio"):
             _fluxo_limpar(membro); enviar_menu_principal(membro); return True
         if cmd == "busca_cidade_toda":
             _fluxo_limpar(membro)
-            _executar_e_enviar_busca(membro, servico_b, "", "São Paulo")
+            _executar_e_enviar_busca(membro, servico_b, "", "São Paulo", detalhe=detalhe_b)
             return True
         if cmd == "busca_bairro":
             fbusca["passo"] = "bairro"; _fluxo_set(membro, fbusca)
@@ -3422,7 +3477,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             return True
         if not button_id and (texto or "").strip():
             _fluxo_limpar(membro)
-            _executar_e_enviar_busca(membro, servico_b, texto.strip(), "São Paulo")
+            _executar_e_enviar_busca(membro, servico_b, texto.strip(), "São Paulo", detalhe=detalhe_b)
             return True
         # Outro botão de navegação: sai da busca e deixa o resto tratar.
         _fluxo_limpar(membro)
@@ -3695,6 +3750,12 @@ def rotear_menu(membro, texto, button_id, contatos=None):
 
     if cmd == "outras_opcoes":
         enviar_outras_opcoes(membro); return True
+    if cmd == "ver_termos":
+        enviar_botoes_meta(
+            "📄 *Termos de uso e privacidade da Dorote.ia*\n\n"
+            f"Cliente:\n{LINK_TERMOS}\n\nProfissional:\n{LINK_TERMOS_PROF}",
+            [{"id": "menu", "label": "🏠 Menu"}])
+        return True
     if cmd == "dados":
         enviar_submenu_dados(membro); return True
     if cmd == "dados_rede":
@@ -3969,6 +4030,19 @@ def redirecionar_link(codigo):
 @app.route("/", methods=["GET"])
 def home():
     return "A Dorote.ia esta viva! 🎉"
+
+
+@app.route("/version", methods=["GET"])
+def version():
+    """Mostra qual COMMIT está de fato no ar (o Render injeta RENDER_GIT_COMMIT).
+    Assim dá para conferir se o deploy pegou a última versão do código."""
+    sha = os.environ.get("RENDER_GIT_COMMIT", "")
+    corpo = json.dumps({
+        "commit": sha,
+        "commit_curto": sha[:7] if sha else "",
+        "branch": os.environ.get("RENDER_GIT_BRANCH", ""),
+    }, ensure_ascii=False)
+    return Response(corpo, mimetype="application/json")
 
 
 # ===========================================================================

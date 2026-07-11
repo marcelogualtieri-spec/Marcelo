@@ -14,18 +14,23 @@ _cliente = Anthropic()
 
 # Instrucoes que dizem a Claude exatamente o que fazer.
 _INSTRUCOES = (
-    "Voce recebe uma mensagem de WhatsApp em portugues do Brasil e extrai quatro "
-    "informacoes: qual SERVICO a pessoa procura, em qual BAIRRO, em qual CIDADE e "
-    "em qual ESTADO.\n"
-    "- 'servico': no singular e em minusculas (ex: 'encanador', 'eletricista', "
-    "'diarista'). Se a mensagem NAO for um pedido de servico, devolva string vazia.\n"
-    "- 'bairro': com a inicial maiuscula (ex: 'Perdizes', 'Savassi'). Vazio se "
-    "nao for mencionado.\n"
-    "- 'cidade': com a inicial maiuscula (ex: 'Sao Paulo', 'Belo Horizonte', "
-    "'Rio de Janeiro'). Vazio se nao for mencionada - nao infira a partir do bairro.\n"
-    "- 'estado': sigla em maiusculas (ex: 'SP', 'MG', 'RJ'). Vazio se nao "
-    "for mencionado. Pode inferir a partir da cidade quando inequivoco "
-    "(ex: cidade='Sao Paulo' -> estado='SP', cidade='Salvador' -> estado='BA')."
+    "Você recebe uma mensagem de WhatsApp em português do Brasil e extrai o pedido de "
+    "serviço. IMPORTANTE: corrija a ortografia e os ACENTOS de tudo que devolver, "
+    "escrevendo em português correto. Exemplos de correção: 'tecnico de fogao' → "
+    "'técnico de fogão'; 'medico' → 'médico'; 'eletricista em perdizes' → serviço "
+    "'eletricista', bairro 'Perdizes'.\n"
+    "- 'servico': no singular e em minúsculas, com ortografia e acentos CORRETOS "
+    "(ex.: 'encanador', 'diarista', 'técnico de fogão', 'médico'). Se a mensagem NÃO for "
+    "um pedido de serviço, devolva string vazia.\n"
+    "- 'bairro': inicial maiúscula e acentos corretos (ex.: 'Perdizes', 'Pinheiros'). "
+    "Vazio se não for mencionado.\n"
+    "- 'cidade': inicial maiúscula (ex.: 'São Paulo', 'Belo Horizonte'). Vazio se não for "
+    "mencionada — não infira a partir do bairro.\n"
+    "- 'estado': sigla maiúscula (ex.: 'SP', 'MG'). Vazio se não mencionado; pode inferir "
+    "da cidade quando inequívoco.\n"
+    "- 'detalhe': qualquer CARACTERÍSTICA específica pedida além do serviço e do bairro "
+    "(ex.: 'que atenda fim de semana', 'especialista em geladeira', 'que aceite convênio', "
+    "'para criança'). Curto e em português correto. Vazio se não houver."
 )
 
 _ESQUEMA = {
@@ -35,20 +40,21 @@ _ESQUEMA = {
         "bairro":  {"type": "string"},
         "cidade":  {"type": "string"},
         "estado":  {"type": "string"},
+        "detalhe": {"type": "string"},
     },
-    "required": ["servico", "bairro", "cidade", "estado"],
+    "required": ["servico", "bairro", "cidade", "estado", "detalhe"],
     "additionalProperties": False,
 }
 
 
 def extrair_servico_bairro(texto):
-    """Pede pra Claude entender a frase e devolve {'servico': ..., 'bairro': ...}.
-    Se algo der errado (ex: sem credito), devolve os dois campos vazios -
-    assim a Doroteia nao quebra, so deixa de entender aquele pedido."""
+    """Pede pra Claude entender a frase e devolve {servico, bairro, cidade, estado,
+    detalhe} — tudo com ortografia/acentos corrigidos. Se algo der errado, devolve os
+    campos vazios; assim a Doroteia nao quebra, so deixa de entender aquele pedido."""
     try:
         resposta = _cliente.messages.create(
             model="claude-opus-4-8",          # o modelo da Claude que vamos usar
-            max_tokens=200,                   # a resposta e curtinha (so o JSON)
+            max_tokens=250,                   # a resposta e curtinha (so o JSON)
             system=_INSTRUCOES,               # as instrucoes acima
             messages=[{"role": "user", "content": texto}],   # a frase da pessoa
             output_config={"format": {"type": "json_schema", "schema": _ESQUEMA}},
@@ -58,7 +64,7 @@ def extrair_servico_bairro(texto):
         return json.loads(bloco_texto.text)
     except Exception as erro:
         print(f"[NLU] erro ao interpretar a mensagem: {erro}")
-        return {"servico": "", "bairro": "", "cidade": "", "estado": ""}
+        return {"servico": "", "bairro": "", "cidade": "", "estado": "", "detalhe": ""}
 
 
 # ---------------------------------------------------------------------------
