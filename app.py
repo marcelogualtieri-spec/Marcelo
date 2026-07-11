@@ -2349,8 +2349,9 @@ def enviar_confirmar_exclusao(membro):
     else:
         texto = t.SAIR_PROFISSIONAL if tipo == "profissional" else t.SAIR_CLIENTE
         enviar_botoes_meta(texto, [
-            {"id": "apagar_sim", "label": "✅ Confirmar saída"},
-            {"id": "apagar_nao", "label": "💛 Quero ficar"},
+            {"id": "apagar_sim",    "label": "✅ Confirmar saída"},
+            {"id": "apagar_nao",    "label": "💛 Quero ficar"},
+            {"id": "ajuda_duracao", "label": "❓ Preciso de ajuda"},
         ])
 
 
@@ -3267,6 +3268,34 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         return True
     if cmd in ("sair", "dados_apagar") or re.search(r"\b(apagar|excluir|deletar)\b", cmd):
         enviar_confirmar_exclusao(membro)
+        return True
+
+    # -------- Fluxo: PRECISO DE AJUDA (durante processo de saída) --------
+    if cmd == "ajuda_duracao":
+        _fluxo_set(membro, {"fluxo": "ajuda"})
+        resposta_whatsapp(t.AJUDA_PEDIR_DURACAO)
+        return True
+
+    fajuda = _fluxo_get(membro)
+    if fajuda.get("fluxo") == "ajuda":
+        if cmd == "voltar_ajuda":
+            _fluxo_limpar(membro)
+            resposta_whatsapp("Que bom! 💛 Tá tudo aqui esperando você.")
+            if consentiu:
+                enviar_menu_principal(membro)
+            return True
+        if cmd == "sair_mesmo":
+            _fluxo_limpar(membro)
+            # Volta para o fluxo de saída sem fazer nada
+            return False
+        if not button_id and (texto or "").strip():
+            # Recebeu a resposta de ajuda
+            _fluxo_limpar(membro)
+            enviar_botoes_meta(t.AJUDA_AGRADECIDA, [
+                {"id": "voltar_ajuda", "label": "🏠 Voltar e continuar"},
+                {"id": "sair_mesmo",   "label": "🚪 Sair mesmo assim"},
+            ])
+            return True
         return True
 
     # -------- TROCAR de perfil (comando global, só para quem tem os dois) --------

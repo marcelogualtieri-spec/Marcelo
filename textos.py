@@ -682,16 +682,14 @@ REC_ENTROU_OK = (
 SAIR_CLIENTE = (
     "Tem certeza que quer sair? 💛\n\n"
     "Vou apagar o seu cadastro e o seu nome. As indicações que você fez continuam "
-    "ajudando a rede, mas de forma anônima (sem o seu nome).\n\n"
-    "Se quiser, digite *AJUDA* antes de sair e conte o que aconteceu."
+    "ajudando a rede, mas de forma anônima (sem o seu nome)."
 )
 
 SAIR_PROFISSIONAL = (
     "Tem certeza que quer sair? 💛\n\n"
     "Vou apagar o seu cadastro e o seu nome, e o seu perfil de profissional deixa de "
     "aparecer para a rede. As indicações que você fez continuam ajudando a rede, mas de "
-    "forma anônima (sem o seu nome).\n\n"
-    "Se quiser, digite *AJUDA* antes de sair e conte o que aconteceu."
+    "forma anônima (sem o seu nome)."
 )
 
 SAIR_HIBRIDO = (
@@ -700,6 +698,17 @@ SAIR_HIBRIDO = (
     "o seu perfil de profissional deixa de aparecer. As indicações que você fez continuam "
     "ajudando a rede, mas de forma anônima (sem o seu nome).\n\n"
     "Se preferir, dá para ficar só com um dos perfis. O que deseja fazer?"
+)
+
+
+# --- Fluxo "Preciso de ajuda" (durante processo de saída) -----------
+AJUDA_PEDIR_DURACAO = (
+    "Pode contar! 💛 Qual é sua dúvida?"
+)
+
+AJUDA_AGRADECIDA = (
+    "Obrigada por compartilhar 💛 Anotei sua mensagem.\n\n"
+    "Você quer voltar e continuar usando a Dorote.ia, ou prefere sair mesmo assim?"
 )
 
 
