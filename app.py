@@ -576,7 +576,7 @@ def montar_link_convite(numero_bot, codigo=None):
       pendente registrado), entao a mensagem fica LIMPA, sem codigo (codigo=None).
     - Link generico de divulgacao: nao ha numero pra casar, entao ai sim o codigo
       vai junto (e o unico jeito de saber quem convidou)."""
-    mensagem = "Oi! Fui convidado pra Dorote.ia 💛"
+    mensagem = "Oi! Quero fazer parte da Central de indicações de confiança Dorote.ia 💛"
     if codigo:
         mensagem += f" (convite: {codigo})"
     return f"https://wa.me/{numero_bot}?text={quote(mensagem)}"

@@ -44,8 +44,8 @@ BOAS_VINDAS_CONVIDADO = (
     "Aqui você encontra profissionais indicados por quem confia — gente de verdade, testada "
     "pela rede.\n\n"
     "🔒 Seu telefone fica protegido. Só aparece pra quem você aceitar.\n\n"
-    "Quando você entrar, a gente pede que *{nome}* confirme que vocês se conhecem. Aí "
-    "ficam conectados.\n\n"
+    "Quando você entrar, pedimos que *{nome}* confirme que vocês se conhecem. Aí ficam "
+    "conectados e podem compartilhar indicações.\n\n"
     "🔗 *Termos de uso:*\n{link}"
 )
 
