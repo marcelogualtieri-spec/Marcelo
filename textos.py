@@ -23,18 +23,17 @@ RODAPE = "\n\n_Dica: e so digitar *menu* quando quiser ver tudo que eu faco._"
 # Mensagem FIXA de boas-vindas / consentimento. Enviada exatamente assim no
 # primeiro contato (o {link} vira o endereco dos Termos de Uso e Privacidade).
 BOAS_VINDAS = (
-    "Oi! Eu sou a Dorote.ia 💛\n\n"
-    "Encontre profissionais recomendados por quem você confia — gente de verdade da sua "
-    "rede, não estranhos da internet que às vezes ganham pra elogiar 😉.\n\n"
-    "1️⃣ 🔍 *Peça uma indicação:* você diz do que precisa e eu busco profissionais já "
-    "testados por quem você confia.\n\n"
-    "2️⃣ 🤝 *Indique e convide:* recomende quem trabalha bem e chame seus contatos — "
-    "quanto mais gente de confiança, melhores as indicações.\n\n"
-    "3️⃣ 🔒 *Sua privacidade:* guardo só seu nome e telefone. Só quem se conecta com "
-    "você vê seu nome. Para sair quando quiser, digite *SAIR*.\n\n"
-    "🔗 *Termos de uso:*\n{link}\n\n"
-    "Posso te ajudar? Responda *SIM* para aceitar os termos e começar, ou digite "
-    "*SABER MAIS*."
+    "Oi! Sou Dorote.ia 💛\n\n"
+    "Central de Indicações de confiança conectada à sua rede — organizada, sem grupo confuso, "
+    "sem avaliação paga.\n\n"
+    "🔍 *Buscar:* encontre profissionais recomendados por quem você confia ou da central "
+    "qualificada.\n\n"
+    "🤝 *Indicar:* recomende alguém bom que você conhece.\n\n"
+    "🙋 *Convidar:* quanto mais pessoas que você confia, melhores as conexões e recomendações.\n\n"
+    "🔒 *Privacidade:* registro seu nome e telefone. Só quem você aprova se conecta e seu "
+    "contato.\n\n"
+    "Para sair a qualquer momento, digite *SAIR* ou use o *MENU*.\n\n"
+    "🔗 *Termos de uso:*\n{link}"
 )
 
 # Boas-vindas de quem chega POR UM CONVITE PESSOAL. Deixa claro que, ao entrar por
@@ -57,14 +56,13 @@ SABER_MAIS = (
     "A Dorote.ia é uma central de indicações de confiança: você pede um profissional "
     "(médico, encanador, professor...) e eu busco entre as recomendações de quem você "
     "conhece — nada de grupo de WhatsApp ou site duvidoso.\n\n"
-    "*Privacidade:* guardo apenas o seu nome e telefone. Os seus contatos ficam "
-    "protegidos com segurança, e o seu nome só aparece para quem você aprovar a "
-    "conexão. Para sair, é só digitar *SAIR* a qualquer momento.\n\n"
-    "💼 *Você também presta algum serviço?* Dá para ter um perfil profissional aqui. Só "
-    "lembre: um profissional só é encontrado quando está ligado a alguém do lado cliente "
-    "— quanto mais clientes indicarem, maior a chance de aparecer.\n\n"
-    "📄 Termos de uso (cliente):\n{link}\n\n"
-    "Topa começar e aceitar os termos?"
+    "🔒 *Privacidade:* registro seu nome e telefone. Seus contatos ficam protegidos com "
+    "segurança e seu nome só aparece para quem você aprovar. Para sair, digite *SAIR* a "
+    "qualquer momento.\n\n"
+    "💼 *Você também presta algum serviço?* Pode ter um perfil profissional aqui. Um profissional "
+    "só é encontrado quando ligado a alguém do lado cliente — quanto mais clientes indicarem, "
+    "maior a chance de aparecer.\n\n"
+    "🔗 *Termos de uso:*\n{link}"
 )
 
 # Caminho profissional — escolha entre os dois perfis ou só o profissional.
