@@ -505,9 +505,10 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         else:
             msg_boas = BOAS_VINDAS
         enviar_texto(_limpar_markdown(msg_boas))
+        # LGPD: não salvar conteúdo do usuário pré-aceite. Salva só um marcador mínimo
+        # (sem dados sensíveis) para que a IA saiba que já viu boas-vindas.
         salvar_historico([
-            {"role": "user", "content": conteudo_usuario},
-            {"role": "assistant", "content": msg_boas},
+            {"role": "system", "content": "Boas-vindas enviadas. Aguardando resposta pré-consentimento."},
         ])
         return
 

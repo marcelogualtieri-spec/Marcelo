@@ -334,6 +334,7 @@ def registrar_consentimento(wa_id):
         "consent": True,
         "consent_at": agora,
         "consent_version": termos.DATA_VIGENCIA,
+        "historico": [],  # Limpa marcador pré-aceite (sem dados sensíveis); histórico post-aceite começa limpo.
     }).eq("wa_id", wa_id).execute()
 
 
