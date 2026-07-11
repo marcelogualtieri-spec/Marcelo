@@ -3821,9 +3821,8 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
         Senão, envia como texto normal."""
         if interativa_enviada[0]:
             return
-        # Detecta se é uma das boas-vindas (contém a estrutura típica).
-        if ("Dorote.ia" in texto and ("Responda SIM" in texto or "Posso te ajudar" in texto or "Posso começar" in texto)
-            and "Termos de uso" in texto):
+        # Detecta se é uma das boas-vindas (contém Dorote.ia + Termos de uso).
+        if "Dorote.ia" in texto and "Termos de uso" in texto:
             # É boas-vindas: envia com botões.
             enviar_botoes_meta(texto, [
                 {"id": "consent_sim",        "label": "✅ Aceito e começar"},

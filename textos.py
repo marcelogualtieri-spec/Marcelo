@@ -40,13 +40,19 @@ BOAS_VINDAS = (
 # este convite, a pessoa já está se conectando com quem convidou (é o consentimento
 # do vínculo). {nome} = primeiro nome de quem convidou; {link} = termos.
 BOAS_VINDAS_CONVIDADO = (
-    "Oi! 💛 *{nome}* te convidou para a Dorote.ia.\n\n"
-    "Aqui você encontra profissionais indicados por quem confia — gente de verdade, testada "
-    "pela rede.\n\n"
-    "🔒 Seu telefone fica protegido. Só aparece pra quem você aceitar.\n\n"
-    "Quando você entrar, pedimos que *{nome}* confirme que vocês se conhecem. Aí ficam "
-    "conectados e podem compartilhar indicações.\n\n"
-    "🔗 *Termos de uso:*\n{link}"
+    "Oi! 💛 *{nome}* te indicou para fazer parte da Dorote.ia.\n\n"
+    "Central de Indicações de confiança conectada à sua rede — organizada, sem grupo confuso, "
+    "sem avaliação paga.\n\n"
+    "🔍 *Buscar:* encontre profissionais recomendados por quem você confia ou da central "
+    "qualificada.\n\n"
+    "🤝 *Indicar:* recomende alguém bom que você conhece.\n\n"
+    "🙋 *Convidar:* quanto mais pessoas que você confia, melhores as conexões e recomendações.\n\n"
+    "✅ *Certificação:* todas as conexões são confirmadas — assim você sabe que é gente "
+    "de verdade.\n\n"
+    "🔒 *Privacidade:* registro seu nome e telefone. Só quem você aprova se conecta e seu "
+    "contato.\n\n"
+    "Para sair a qualquer momento, digite *SAIR* ou use o *MENU*.\n\n"
+    "🔗 *Para fazer parte, aceite os Termos de uso:*\n{link}"
 )
 
 # Enviada COM BOTÕES (SIM, aceito · Quero ser prof. · Deixa pra depois).
