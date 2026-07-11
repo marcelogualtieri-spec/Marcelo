@@ -1502,7 +1502,10 @@ def _abrir_conexao_cliente(novo_membro):
     """Quando alguém entra por um convite de CLIENTE: abre a conexão mútua com quem
     convidou (§6/§7.4). Regra do titular: quem ENTROU pelo convite já consentiu o
     vínculo ao entrar — esse lado é confirmado automaticamente. Só quem CONVIDOU
-    recebe a pergunta 'vocês se conhecem?'. Ao confirmar, a conexão vira 🟢."""
+    recebe a pergunta 'vocês se conhecem?'. Ao confirmar, a conexão vira 🟢.
+
+    §7.5: Não enviamos proativo — se estiver fora da janela de 24h, Meta rejeita.
+    Em vez disso, guardamos como pendente e exibimos quando o convidante reabrir."""
     try:
         convidante = buscar_membro_por_id(novo_membro.get("invited_by"))
         if not convidante or not convidante.get("consent"):
@@ -1512,12 +1515,7 @@ def _abrir_conexao_cliente(novo_membro):
             return
         # Quem entrou (member_b) já confirmou ao entrar pelo convite pessoal.
         _confirmar_lado_de(con, novo_membro["id"])
-        pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
-        # Só quem convidou é perguntado.
-        _pedir_confirmacao_conexao(
-            convidante, con,
-            t.CONEXAO_PERGUNTA_CONVIDOU.format(nome=_nome_curto(novo_membro)),
-            to=convidante["wa_id"], phone_number_id=pn)
+        # Confirmação fica pendente; será exibida quando o convidante reabrir o chat.
     except Exception:
         traceback.print_exc()
 
@@ -3060,7 +3058,10 @@ def _tratar_botao_conexao(membro, cmd):
 
 def _abrir_conexao_indicacao(provider_membro, prest):
     """No aceite do profissional INDICADO: cria a conexão pendente com quem indicou
-    e pergunta aos DOIS lados se se conhecem (§6/§7.5)."""
+    e pergunta aos DOIS lados se se conhecem (§6/§7.5).
+
+    §7.5: Não enviamos proativo — se estiver fora da janela de 24h, Meta rejeita.
+    Em vez disso, guardamos como pendente e exibimos quando o cliente reabrir."""
     cliente = buscar_membro_por_id(provider_membro.get("invited_by"))
     if not cliente or not cliente.get("consent"):
         return
@@ -3074,11 +3075,7 @@ def _abrir_conexao_indicacao(provider_membro, prest):
     # O profissional (member_b) entrou pelo link da indicação — isso já é o consentimento
     # do vínculo. Só quem INDICOU (cliente) é perguntado se conhece.
     _confirmar_lado_de(con, provider_membro["id"])
-    pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
-    nome_prof = (prest.get("nome") or _nome_curto(provider_membro))
-    _pedir_confirmacao_conexao(cliente, con,
-                               t.INDICAR_CONFIRMA_CLIENTE.format(nome=nome_prof),
-                               to=cliente["wa_id"], phone_number_id=pn)
+    # Confirmação fica pendente; será exibida quando o cliente reabrir o chat.
 
 
 # ---------------------------------------------------------------------------
