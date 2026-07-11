@@ -3353,6 +3353,36 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             return True
         return True
 
+    # -------- Fluxo ativo: BUSCA QUERY (pediu p/ buscar; espera "o que + onde") --------
+    # O CÓDIGO conduz: extrai {servico, bairro} da frase e segue determinístico
+    # (pergunta a região por botões, ou já busca). A IA não entra aqui — assim não
+    # há pergunta em prosa nem menu duplicado por cima.
+    fbq = _fluxo_get(membro)
+    if consentiu and fbq.get("fluxo") == "busca_query":
+        if cmd in ("menu", "voltar", "cancelar", "inicio"):
+            _fluxo_limpar(membro); enviar_menu_principal(membro); return True
+        if button_id:
+            # Clicou outro botão de navegação: sai da busca e deixa o resto tratar.
+            _fluxo_limpar(membro)
+        elif (texto or "").strip():
+            _fluxo_limpar(membro)
+            dados = nlu.extrair_servico_bairro(texto)
+            servico_q = (dados.get("servico") or "").strip().lower()
+            bairro_q  = (dados.get("bairro")  or "").strip()
+            if not servico_q:
+                # Não entendeu o serviço: repergunta gentil, sem cair no menu.
+                _fluxo_set(membro, {"fluxo": "busca_query"})
+                enviar_botoes_meta(
+                    "Me diz o que você procura 🙂 Ex.: *dentista*, *encanador em "
+                    "Perdizes*, *diarista*.",
+                    [{"id": "menu", "label": "🏠 Menu"}])
+                return True
+            if bairro_q:
+                _executar_e_enviar_busca(membro, servico_q, bairro_q, "São Paulo")
+            else:
+                _perguntar_regiao_busca(membro, servico_q)
+            return True
+
     # -------- Fluxo ativo: BUSCA (perguntar a região que faltou) --------
     fbusca = _fluxo_get(membro)
     if consentiu and fbusca.get("fluxo") == "busca":
@@ -3696,12 +3726,15 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                 {"id": "buscar_geral", "label": "🔍 Buscar rede geral"},
             ])
         else:
+            # Arma o estado: a PRÓXIMA mensagem é o pedido, tratado pelo CÓDIGO (não a IA).
+            _fluxo_set(membro, {"fluxo": "busca_query"})
             enviar_botoes_meta("Me conta o que você precisa e em qual bairro ou região de "
                                "São Paulo. 🙂\nEx.: *pediatra em Pinheiros*, *encanador em "
                                "Perdizes*.",
                                [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "buscar_geral":
+        _fluxo_set(membro, {"fluxo": "busca_query"})
         enviar_botoes_meta("Me conta o que você precisa e em qual bairro ou região de "
                            "São Paulo. 🙂\nEx.: *pediatra em Pinheiros*, *encanador em "
                            "Perdizes*.",
