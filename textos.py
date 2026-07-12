@@ -540,28 +540,32 @@ PRESTADOR_QUERO_SER = (
 )
 
 PRESTADOR_QUERO_SER_OK = (
-    "Perfil profissional iniciado! 🚀 Seus dados ficam protegidos e só vão para quem "
-    "receber uma indicação sua.\n\n"
-    "Me conta tudo numa mensagem só, do seu jeito:\n\n"
+    "Perfil profissional iniciado! 🚀\n"
+    "👀 Você aparece na busca confiável após a 1ª recomendação\n"
+    "📈 + recomendações, + alcance\n\n"
+    "📣 Conte em uma mensagem:\n"
     "1️⃣ O que você faz\n"
     "2️⃣ Onde atende\n"
     "3️⃣ Seus diferenciais\n"
     "4️⃣ Como te encontrar e pagar\n\n"
-    "Ex.: _Conserto de geladeira e máquina de lavar. Atendo a zona leste de SP. Vou no "
-    "mesmo dia e dou 3 meses de garantia. Pix, cartão ou dinheiro. @geladeirafacil._"
+    "Ex.: _Conserto de geladeira. Atendo a zona leste de SP. Vou no mesmo dia e dou "
+    "3 meses de garantia. Pix, cartão ou dinheiro. Instagram @geladeirafacil._\n\n"
+    "Digite sua resposta aqui embaixo 👇 ou toque em *Menu*"
 )
 
 # Para quem já era cliente e agora vira também profissional (variação da 1ª linha).
 PRESTADOR_QUERO_SER_OK_DUAL = (
-    "Que bom ter você também como profissional! 🚀 Seus dados ficam protegidos e só vão "
-    "para quem receber uma indicação sua.\n\n"
-    "Me conta tudo numa mensagem só, do seu jeito:\n\n"
+    "Que bom ter você também como profissional! 🚀\n"
+    "👀 Você aparece na busca confiável após a 1ª recomendação\n"
+    "📈 + recomendações, + alcance\n\n"
+    "📣 Conte em uma mensagem:\n"
     "1️⃣ O que você faz\n"
     "2️⃣ Onde atende\n"
     "3️⃣ Seus diferenciais\n"
     "4️⃣ Como te encontrar e pagar\n\n"
-    "Ex.: _Conserto de geladeira e máquina de lavar. Atendo a zona leste de SP. Vou no "
-    "mesmo dia e dou 3 meses de garantia. Pix, cartão ou dinheiro. @geladeirafacil._"
+    "Ex.: _Conserto de geladeira. Atendo a zona leste de SP. Vou no mesmo dia e dou "
+    "3 meses de garantia. Pix, cartão ou dinheiro. Instagram @geladeirafacil._\n\n"
+    "Digite sua resposta aqui embaixo 👇 ou toque em *Menu*"
 )
 
 # Resumo organizado do que a Dorote.ia entendeu (validação com botões).

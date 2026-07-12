@@ -2706,10 +2706,7 @@ def _enviar_pedido_perfil(membro, provider_id):
     _fluxo_set(membro, {"fluxo": "perfil_prof", "provider_id": provider_id})
     # Variação: se já era cliente (consentiu), usa "também como profissional".
     msg = t.PRESTADOR_QUERO_SER_OK_DUAL if membro.get("consent") else t.PRESTADOR_QUERO_SER_OK
-    enviar_botoes_meta(msg, [
-        {"id": "menu", "label": "✅ Concluir"},
-        {"id": "outras_opcoes", "label": "☰ Outras opções"}
-    ])
+    enviar_botoes_meta(msg, [{"id": "menu", "label": "🔙 Menu"}])
 
 
 def _enviar_validacao_perfil(membro, fluxo):
