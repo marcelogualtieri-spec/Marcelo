@@ -116,9 +116,9 @@ QUALIDADE / AVALIACAO:
   A avaliacao das indicacoes e feita pelo SISTEMA, por botoes (1 a 5) — nao e seu papel.
 - Se a pessoa comentar que usou uma indicacao, apenas acolha com simpatia. Nao pergunte
   nota nem tente registrar: o sistema cuida disso na hora certa, com botoes.
-- O RESULTADO da busca (a lista de profissionais, com contato e nivel de confianca) e
-  montado e enviado pelo SISTEMA, com botoes — nunca por voce. Voce so chama a ferramenta
-  buscar_servico com o servico; nao escreva a lista, nao invente nomes nem telefones.
+- A BUSCA inteira (perguntar o bairro, montar e enviar a lista de profissionais com
+  contato e nivel de confianca) e feita pelo SISTEMA, por botoes — nunca por voce.
+  Voce NAO tem ferramenta de busca: nao escreva listas, nao invente nomes nem telefones.
 
 CONTATOS (cards compartilhados pelo clipe 📎):
 - A forma mais facil de trazer gente pra rede e pelo clipe 📎 do WhatsApp
@@ -273,30 +273,10 @@ FERRAMENTAS = [
                        "trazer contatos de confianca pra rede.",
         "input_schema": {"type": "object", "properties": {}},
     },
-    {
-        "name": "buscar_servico",
-        "description": "Procura indicacoes de confianca para um tipo de necessidade num lugar. "
-                       "Serve para QUALQUER indicacao: prestador, medico, escola, professor, "
-                       "advogado, etc. Use assim que a pessoa pedir uma indicacao — basta o "
-                       "SERVICO (a cidade e sempre Sao Paulo, piloto). NAO pergunte a regiao "
-                       "voce mesma: se faltar o bairro, o PROPRIO SISTEMA pergunta por botoes. "
-                       "So preencha 'bairro' se a pessoa ja disse; senao, omita. Nao pergunte "
-                       "'qual cidade'. Extraia o servico do jeito que a pessoa falou, sem trocar "
-                       "por termo com marca de genero.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "servico": {"type": "string",
-                            "description": "o tipo de indicacao, no singular e minusculo. "
-                                           "Pode ser qualquer categoria: 'encanador', 'pediatra', "
-                                           "'escola infantil', 'advogado', 'professor de ingles'"},
-                "bairro":  {"type": "string", "description": "opcional — omita se nao informado"},
-                "cidade":  {"type": "string"},
-                "estado":  {"type": "string", "description": "sigla UF, ex: 'SP' (opcional)"},
-            },
-            "required": ["servico", "cidade"],
-        },
-    },
+    # NOTA: a ferramenta 'buscar_servico' foi REMOVIDA da IA de propósito (§1 do
+    # CLAUDE.md — o código manda). A busca é 100% conduzida pelo app.py: o roteador
+    # intercepta pedidos de serviço digitados e conduz por botões. A IA não inicia,
+    # não retoma e não pergunta bairro de busca nenhuma.
     {
         "name": "salvar_recomendacao",
         "description": "Registra uma recomendacao que a pessoa esta fazendo de alguem bom - de "

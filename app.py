@@ -3444,24 +3444,26 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         return True
 
     # -------- Fluxo ativo: BUSCA RETOMADA (pedido que chegou pré-aceite) --------
+    # DETERMINÍSTICO: o nlu extrai {servico, bairro, detalhe} do pedido guardado e o
+    # código conduz (pergunta a região por botões ou já busca). Sem IA conversacional.
     fbusca_retomada = _fluxo_get(membro)
     if consentiu and fbusca_retomada.get("fluxo") == "busca_retomada":
-        # Extrai a intenção do pedido pré-aceite via IA e executa a busca.
         pedido_texto = fbusca_retomada.get("pedido_texto", "").strip()
         _fluxo_limpar(membro)
         if pedido_texto:
-            # IA vai extrair o serviço do texto (cerebro chama buscar_servico).
-            # Por enquanto, passa o texto cru pra cerebro processar.
-            # cerebro.conversar vai chamar buscar_servico com o texto como serviço.
-            usados = cerebro.conversar(
-                membro,
-                pedido_texto,
-                contatos_compartilhados,
-                executar_ferramenta=construir_executor(membro, [False]),
-                enviar_texto=enviar_texto_com_botoes_boas_vindas,
-                salvar_historico=lambda hist: salvar_historico(wa_id, hist),
-            ) or set()
-            return True
+            dados_r = nlu.extrair_servico_bairro(pedido_texto)
+            servico_r = (dados_r.get("servico") or "").strip().lower()
+            bairro_r  = (dados_r.get("bairro")  or "").strip()
+            detalhe_r = (dados_r.get("detalhe") or "").strip()
+            if servico_r and bairro_r:
+                _executar_e_enviar_busca(membro, servico_r, bairro_r, "São Paulo", detalhe=detalhe_r)
+            elif servico_r:
+                _perguntar_regiao_busca(membro, servico_r, detalhe=detalhe_r)
+            else:
+                _fluxo_set(membro, {"fluxo": "busca_query"})
+                enviar_botoes_meta("Me conta de novo o que você precisa 🙂 Ex.: *dentista*, "
+                                   "*encanador em Perdizes*.",
+                                   [{"id": "menu", "label": "🏠 Menu"}])
         return True
 
     # -------- Fluxo ativo: BUSCA QUERY (pediu p/ buscar; espera "o que + onde") --------
