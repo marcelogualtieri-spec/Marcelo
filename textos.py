@@ -23,49 +23,41 @@ RODAPE = "\n\n_Dica: e so digitar *menu* quando quiser ver tudo que eu faco._"
 # Mensagem FIXA de boas-vindas / consentimento. Enviada exatamente assim no
 # primeiro contato (o {link} vira o endereco dos Termos de Uso e Privacidade).
 BOAS_VINDAS = (
-    "Oi! Sou Dorote.ia 💛\n\n"
-    "Central de Indicações de confiança conectada à sua rede — organizada, sem grupo confuso, "
-    "sem avaliação paga.\n\n"
-    "🔍 *Buscar:* encontre profissionais recomendados por quem você confia ou da central "
-    "qualificada.\n\n"
-    "🤝 *Indicar:* recomende alguém bom que você conhece.\n\n"
-    "🙋 *Convidar:* quanto mais pessoas que você confia, melhores as conexões e recomendações.\n\n"
-    "🔒 *Privacidade:* registro seu nome e telefone. Só quem você aprova se conecta e seu "
-    "contato.\n\n"
-    "Para sair a qualquer momento, digite *SAIR* ou use o *MENU*.\n\n"
-    "🔗 *Termos de uso:*\n{link}"
+    "Oi! Sou a Dorote.ia 💛\n"
+    "Central de indicações de confiança — organizada, sem grupo confuso e sem avaliação paga.\n\n"
+    "🔎 Busque: especialistas sob recomendação de quem você confia ou da nossa rede qualificada.\n"
+    "📣 Indique: traga quem presta um serviço de excelência.\n"
+    "✉️ Convide: quanto mais gente de confiança, melhores as indicações.\n\n"
+    "✓ Rede exclusiva: a curadoria é sua! Só se conecta a você quem você aprovar.\n"
+    "🔒 Privacidade: só quem você libera tem acesso ao seu contato — registramos apenas seu nome e telefone.\n\n"
+    "📄 Aceite os Termos para começar: {link}"
 )
 
 # Boas-vindas de quem chega POR UM CONVITE PESSOAL. Deixa claro que, ao entrar por
 # este convite, a pessoa já está se conectando com quem convidou (é o consentimento
 # do vínculo). {nome} = primeiro nome de quem convidou; {link} = termos.
 BOAS_VINDAS_CONVIDADO = (
-    "Oi! *{nome}* te indicou para fazer parte da Dorote.ia 💛 Central de indicações de "
-    "confiança — organizada, sem grupo confuso e sem avaliação paga.\n\n"
-    "🔍 *Buscar:* especialistas sob recomendação de quem você confia ou da nossa central "
-    "qualificada.\n\n"
-    "🤝 *Indicar:* recomende quem presta um serviço de excelência.\n\n"
-    "🙋 *Convidar:* quanto mais gente de confiança, melhores as indicações.\n\n"
-    "✓ *Rede exclusiva:* a curadoria é sua! Só se conecta a você quem você aprovar.\n\n"
-    "🔒 *Privacidade:* só quem você libera tem acesso ao seu contato — registramos apenas "
-    "seu nome e telefone.\n\n"
-    "Aceite os Termos para começar:\n{link}"
+    "Oi! {nome} te indicou para fazer parte da Dorote.ia — Central de indicações de "
+    "confiança, organizada, sem grupo confuso e sem avaliação paga.\n\n"
+    "🔎 Busque: especialistas sob recomendação de quem você confia ou da nossa rede qualificada.\n"
+    "📣 Indique: traga quem presta um serviço de excelência.\n"
+    "✉️ Convide: quanto mais gente de confiança, melhores as indicações.\n\n"
+    "✓ Rede exclusiva: a curadoria é sua! Só se conecta a você quem você aprovar.\n"
+    "🔒 Privacidade: só quem você libera tem acesso ao seu contato — registramos apenas seu nome e telefone.\n\n"
+    "📄 Aceite os Termos para começar: {link}"
 )
 
 # Enviada COM BOTÕES (SIM, aceito · Quero ser prof. · Deixa pra depois).
 # O {link} vira o endereço dos Termos de Uso do cliente.
 SABER_MAIS = (
-    "Claro, deixa eu explicar com calma 💛\n\n"
-    "A Dorote.ia é uma central de indicações de confiança: você pede um profissional "
-    "(médico, encanador, professor...) e eu busco entre as recomendações de quem você "
-    "conhece — nada de grupo de WhatsApp ou site duvidoso.\n\n"
-    "🔒 *Privacidade:* registro seu nome e telefone. Seus contatos ficam protegidos com "
-    "segurança e seu nome só aparece para quem você aprovar. Para sair, digite *SAIR* a "
-    "qualquer momento.\n\n"
-    "💼 *Você também presta algum serviço?* Pode ter um perfil profissional aqui. Um profissional "
-    "só é encontrado quando ligado a alguém do lado cliente — quanto mais clientes indicarem, "
-    "maior a chance de aparecer.\n\n"
-    "🔗 *Termos de uso:*\n{link}"
+    "A Dorote.ia é uma central de indicações de confiança: você pede um profissional — "
+    "médica, encanador, professora — e a busca traz quem sua rede já indicou ou "
+    "recomendações qualificadas de outros membros.\n\n"
+    "Sem grupo de WhatsApp confuso, sem indicação duvidosa.\n\n"
+    "🔒 Privacidade: registramos seu nome e telefone. Seus contatos ficam protegidos e seu "
+    "nome só aparece para quem você aprovar. Para sair a qualquer momento, digite SAIR.\n\n"
+    "Você também presta algum serviço? Depois de entrar, é só ativar seu perfil profissional pelo menu.\n\n"
+    "📄 Para continuar, leia e aceite os termos de uso: {link}"
 )
 
 # Caminho profissional — escolha entre os dois perfis ou só o profissional.
@@ -95,13 +87,12 @@ PROF_SO = (
 
 # Deixar para outro momento (antes do aceite).
 ADIAR = (
-    "Tudo bem, sem pressa! 💛 Quando quiser começar, é só me mandar um *oi* por aqui. "
+    "Tudo bem, sem pressa. 💛 Quando quiser começar, é só me mandar um oi. "
     "Vou estar à disposição."
 )
 
 PRECISA_CONSENTIR = (
-    "Pra gente comecar com o pe direito, preciso so do seu \"pode ser\" 💛\n"
-    "Responde *SIM* pra topar, ou *SABER MAIS* se quiser entender melhor."
+    "Antes de seguir, preciso do seu aceite nos Termos de uso. 💛"
 )
 
 CONSENTIMENTO_OK = "Que bom ter voce comigo{voc}! 💛 Anotei seu ok.\n\n"
@@ -435,7 +426,7 @@ ADEUS = (
 
 # --- Pos-consentimento e menus do cliente novo ---------------------------
 CLIENTE_ATIVO = (
-    "Tudo pronto! O seu cadastro na Dorote.ia está ativo. 💛\n\n"
+    "Tudo pronto! 🎉 O seu cadastro na Dorote.ia está ativo.\n\n"
     "Você faz parte da central de indicações de confiança. Como a nossa rede cresce "
     "através das conexões, o que deseja fazer primeiro?"
 )
@@ -533,10 +524,11 @@ BUSCAR_SEM_REDE = (
 )
 
 PRESTADOR_QUERO_SER = (
-    "💼 *Perfil profissional*\n\n"
-    "Que ótimo! Para o seu trabalho aparecer aqui, é fundamental que clientes registrem "
-    "recomendações de verdade sobre você. Para começar, aceite os termos de uso "
-    "profissional e configure o seu perfil."
+    "Que bom que você presta um serviço! 💛\n"
+    "Para o seu trabalho aparecer aqui, é fundamental que clientes registrem recomendações "
+    "de verdade sobre você. Para começar, aceite os Termos de Uso Profissional e configure "
+    "o seu perfil.\n\n"
+    "Vamos começar?"
 )
 
 PRESTADOR_QUERO_SER_OK = (
@@ -563,46 +555,45 @@ PRESTADOR_QUERO_SER_OK_DUAL = (
     "2️⃣ Onde atende\n"
     "3️⃣ Seus diferenciais\n"
     "4️⃣ Como te encontrar e pagar\n\n"
-    "Ex.: _Conserto de geladeira. Atendo a zona leste de SP. Vou no mesmo dia e dou "
-    "3 meses de garantia. Pix, cartão ou dinheiro. Instagram @geladeirafacil._\n\n"
-    "Digite sua resposta aqui embaixo 👇 ou toque em *Menu*"
+    "Ex.: Conserto de geladeira. Atendo a zona leste de SP. Vou no mesmo dia e dou "
+    "3 meses de garantia. Pix, cartão ou dinheiro. Instagram @geladeirafacil.\n\n"
+    "*Digite sua resposta aqui embaixo 👇* ou toque em Menu"
 )
 
 # Resumo organizado do que a Dorote.ia entendeu (validação com botões).
 PRESTADOR_VALIDAR = (
-    "Deixa eu ver se entendi 💛 É assim que o seu perfil vai ficar:\n\n"
-    "🔧 O que você faz: {categoria}\n"
-    "🔖 Especialidade: {subcategoria}\n"
-    "📍 Onde atende: {regiao}\n"
-    "✨ Diferenciais: {diferenciais}\n"
-    "📇 Contato e pagamento: {contato}\n\n"
+    "Deixa eu ver se entendi — é assim que o seu perfil vai ficar:\n\n"
+    "O que você faz: {categoria}\n"
+    "Especialidade: {subcategoria}\n"
+    "Onde atende: {regiao}\n"
+    "Diferenciais: {diferenciais}\n"
+    "Contato e pagamento: {contato}\n\n"
     "Está certo? Você pode confirmar, corrigir ou ver outras opções."
 )
 
 PRESTADOR_CORRIGIR = (
-    "Sem problema 💛 É só copiar a mensagem abaixo, ajustar o que precisar e me reenviar — "
-    "eu organizo tudo de novo pra você conferir:"
+    "Sem problema! É só copiar a mensagem abaixo, ajustar o que precisar e me reenviar — "
+    "eu organizo tudo de novo para você conferir:"
 )
 
 
 # --- Prestador de servico (Fase 3) ---------------------------------------
 PRESTADOR_ACOLHIDA = (
-    "Olá! 💼 Um contato que confia no seu trabalho indicou você para fazer parte da "
+    "Olá! 🛠️ Um contato que confia no seu trabalho indicou você para fazer parte da "
     "Dorote.ia.\n\n"
-    "A Dorote.ia é uma central que conecta quem precisa de um serviço a pessoas "
-    "especialistas — como você em *{servico}*. Quando alguém da rede precisar e receber "
-    "a sua indicação, o seu contato vai só para essa pessoa. Ninguém te manda mensagem "
-    "por aqui.\n\n"
+    "A Dorote.ia é uma central que conecta quem precisa de um serviço a especialistas — "
+    "como você em {servico}. Quando alguém da rede precisar e receber a sua indicação, o "
+    "seu contato vai só para essa pessoa. Ninguém te manda mensagem por aqui.\n\n"
     "Para ativar o seu cadastro, preciso da sua autorização para usar o seu contato e a "
-    "categoria do serviço, conforme os Termos de Uso.\n\n"
-    "📄 Termos do profissional:\n{link}\n\n"
+    "categoria do serviço, conforme os Termos de Uso.\n"
+    "📄 Termos do profissional: {link}\n\n"
     "Os seus dados serão usados apenas para conectar você a quem busca o seu trabalho. "
     "Deseja prosseguir?"
 )
 
 PRESTADOR_AJUSTAR = (
     "Claro! Qual é a categoria certa do seu serviço? "
-    "Ex.: encanador, eletricista, pediatra, professor de inglês..."
+    "Ex.: encanador, eletricista, pediatra, professor de inglês…"
 )
 
 PRESTADOR_NAO = (
@@ -622,14 +613,14 @@ PRESTADOR_REFINAMENTO = (
 )
 
 PRESTADOR_PERFIL_OK = (
-    "Prontinho, perfil atualizado! 💼💛 Já está tudo certo.\n"
-    "A qualquer momento, toque em *MENU* para ajustar o seu perfil ou alternar entre as "
+    "Prontinho, perfil atualizado! 🎉 Já está tudo certo.\n\n"
+    "A qualquer momento, toque em MENU para ajustar o seu perfil ou alternar entre as "
     "visões de cliente e profissional."
 )
 
 # Mensagem 6 (§8) — honesta: o perfil só aparece na busca depois da 1ª recomendação.
 PRESTADOR_PERFIL_INVISIVEL = (
-    "Seu perfil de profissional está criado 💛\n\n"
+    "Seu perfil de profissional está criado. 💛\n\n"
     "Assim que a primeira pessoa recomendar o seu trabalho, você começa a aparecer para "
     "a rede. É a recomendação de verdade que dá força ao seu perfil aqui."
 )
