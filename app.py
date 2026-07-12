@@ -3446,10 +3446,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             return True
         novo = "cliente" if perfil_ativo(membro) == "profissional" else "profissional"
         set_perfil_ativo(membro, novo)
-        abrir_id = "perfil_profissional" if novo == "profissional" else "perfil_cliente"
-        enviar_botoes_meta(t.TROCAR_OK.format(perfil=_label_perfil(novo)), [
-            {"id": abrir_id,        "label": "📂 Abrir menu"},
-            {"id": "outras_opcoes", "label": "☰ Opções"}])
+        # Mostra direto o menu completo do novo perfil (sem os botões redundantes
+        # "Abrir menu" / "Opções"). A mensagem do TROCAR_OK vira o cabeçalho do menu.
+        enviar_menu_do_perfil_ativo(membro, t.TROCAR_OK.format(perfil=_label_perfil(novo)))
         return True
 
     # -------- Confirmacao de conexao mutua (vocês se conhecem?) --------
