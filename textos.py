@@ -445,22 +445,24 @@ SEM_BLOQUEADOS = "Você não bloqueou ninguém. 💛"
 
 # --- Busca SEM resultado (nunca pedir à pessoa que ela mesma indique) --------
 BUSCA_SEM_RESULTADO = (
-    "Ainda não tenho nenhum *{servico}* indicado na sua rede de confiança aqui de São "
-    "Paulo 😕\n\n"
-    "Mas dá pra mudar isso! E assim que alguém da sua rede indicar um *{servico}*, eu te "
-    "aviso na hora. 💛\n\n"
+    "Ainda não achei *{servico}* na sua rede nem na Central Dorote.ia. Mas há opções 👇\n\n"
+    "Posso perguntar à sua rede de confiança — assim que alguém indicar, te aviso.\n\n"
     "O que você prefere fazer agora?"
 )
 
+# PARKING_LOT (pós-teste): resposta do item "🔔 Ativar alerta" enquanto a função
+# não existe. Nenhuma lógica de alerta é criada agora (sem estado, sem gatilho).
+ALERTA_PARKING = "Essa função ainda não está ativa 💛 Em breve!"
+
 # Busca — pergunta a região quando veio só o serviço (botões [Toda a cidade] / [Escrever bairro]).
 BUSCA_FALTA_REGIAO = (
-    "Perfeito, vou procurar *{servico}*! 💛\n\n"
-    "Em que parte de São Paulo? Você pode buscar na cidade toda ou escrever um bairro."
+    "Vou procurar *{servico}* — só faltou o bairro ou região de São Paulo."
 )
 
 BUSCA_PEDIR_BAIRRO = (
-    "Qual bairro ou região de São Paulo? 💛\n"
-    "Escreva aqui embaixo. Ex.: *Pinheiros*, *zona leste*, *Santana*…"
+    "Qual bairro ou região de São Paulo?\n"
+    "*Escreva aqui embaixo* 👇 Ex.: Pinheiros, zona leste, Santana... ou toque em "
+    "*Menu* para outras opções"
 )
 
 # Rede pequena (< k): só resultados ⚪ da rede geral + convite para crescer a rede.
@@ -470,25 +472,31 @@ BUSCA_REDE_PEQUENA = (
 )
 
 PEDIR_AMIGOS_LISTA = (
-    "Para quem você quer perguntar? 💛\n"
-    "Escolha *Perguntar a todos* ou uma pessoa por vez. A mensagem vai como sendo sua."
+    "Para quem quer perguntar? 💛\n"
+    "Escolha *Perguntar a todos* ou uma pessoa por vez. A mensagem segue pelo chat da "
+    "Dorote.ia."
 )
 
 PEDIR_AMIGOS_SEM_REDE = (
-    "Você ainda não tem amigos com conexão confirmada para eu perguntar 💛\n\n"
-    "Que tal convidar pessoas de confiança primeiro? Assim a sua rede cresce e as "
-    "indicações começam a aparecer."
+    "Você ainda não tem rede com conexão confirmada.\n"
+    "Convide pessoas de confiança pra sua rede crescer."
 )
 
 ASK_ENVIADO = (
-    "Pronto, perguntei para *{nome}*! 💛 Se a pessoa conhecer alguém, eu registro a "
-    "indicação. Quer perguntar a mais alguém?"
+    "Pronto! Perguntei para *{nome}*. Se eu receber indicações, te aviso. "
+    "Quer perguntar a mais alguém?"
+)
+
+# Confirmação quando perguntou a TODOS (plural — modo_pergunta = todos).
+ASK_ENVIADO_TODOS = (
+    "Pronto! Perguntei para {n} pessoas da sua rede! Assim que alguém responder, te aviso."
 )
 
 # Mensagem que o AMIGO recebe (vai como sendo da pessoa que está procurando).
 # {onde} e {detalhe} entram só quando há bairro/característica (montados no código).
+# Sem artigo antes de {servico}: "uma marcenaria" quebrava a concordância.
 ASK_PARA_AMIGO = (
-    "Oi! 💛 *{quem}* está procurando um *{servico}*{onde}{detalhe} e lembrou de você.\n"
+    "Oi! 💛 *{quem}* está procurando *{servico}*{onde}{detalhe} e lembrou de você.\n"
     "Você conhece alguém bom para indicar?"
 )
 
@@ -515,12 +523,27 @@ TROCAR_SO_CLIENTE = (
 
 BUSCAR_SEM_REDE = (
     "🔍 *Buscar profissional*\n\n"
-    "Como você ainda está montando a sua rede, ainda não tenho indicações diretas dos "
-    "seus contatos de confiança. Você tem duas opções:\n\n"
-    "1️⃣ *Rede geral:* posso buscar recomendações anônimas na central Dorote.ia.\n"
-    "2️⃣ *Monte a sua rede:* convide pessoas de confiança. Assim que elas entrarem e "
-    "aceitarem a conexão, as indicações delas aparecem automaticamente para você.\n\n"
+    "Você ainda não tem conexões confirmadas. Duas opções:\n\n"
+    "🌐 *Rede geral:* recomendações qualificadas por membros da Dorote.ia.\n"
+    "🤝 *Monte sua rede:* convide contatos de confiança — as indicações aparecem com o "
+    "nome de quem você conhece.\n\n"
     "O que deseja fazer?"
+)
+
+# Passo 2 do Buscar — pedido de serviço + bairro (com rede ou rede geral).
+BUSCA_PEDIR_QUERY = (
+    "Claro, {nome}! O que precisa e em qual bairro de São Paulo?\n\n"
+    "Escreva tudo em uma mensagem, como um pedido em um grupo — ex.: \"dentista "
+    "pediátrica em Perdizes\" ou \"marcenaria especializada em reparos em Pinheiros\".\n\n"
+    "*Digite aqui embaixo* 👇 ou toque em *Menu* para outras opções"
+)
+
+# Passo 8 — "Buscar outro": mesma instrução, abertura diferente (evita saudação robótica).
+BUSCA_PEDIR_QUERY_OUTRO = (
+    "Vamos de novo! O que precisa e em qual bairro de São Paulo?\n\n"
+    "Escreva tudo em uma mensagem, como um pedido em um grupo — ex.: \"dentista "
+    "pediátrica em Perdizes\" ou \"marcenaria especializada em reparos em Pinheiros\".\n\n"
+    "*Digite aqui embaixo* 👇 ou toque em *Menu* para outras opções"
 )
 
 PRESTADOR_QUERO_SER = (

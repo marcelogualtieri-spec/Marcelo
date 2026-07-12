@@ -960,8 +960,9 @@ def _texto_sinais(sinais):
             "leveza a pessoa a chamar quem indicou pra essa pessoa entrar:\n" + "\n".join(linhas))
 
 
-# Quantos itens no máximo mostrar numa tela de resultado (cabe no corpo do WhatsApp).
-MAX_ITENS_RESULTADO = 6
+# Teto de resultados POR NÍVEL na tela de resultado (decisão do doc revisado do
+# Buscar: até 3 por nível; o excedente sai pelo botão "Ver mais").
+LIMITE_POR_NIVEL = 3
 
 
 def _selo_curto(p):
@@ -995,26 +996,34 @@ def _texto_iscas(sinais):
     return "\n\n" + "\n".join(linhas)
 
 
-def _linhas_resultado(com_nome, pendente, sem_nome, mostrar_regiao=False):
-    """Monta as linhas de item, na ordem de confiança (🟢, 🟡, ⚪), com contato.
-    Devolve (linhas, sobra) onde sobra = quantos ficaram de fora do teto.
-    - mostrar_regiao: quando a busca NÃO pediu bairro, mostra o bairro/região de
-      cada indicação (senão fica redundante, pois todos são do mesmo bairro).
+def _linhas_resultado(com_nome, pendente, sem_nome, mostrar_regiao=False, offset=0):
+    """Monta os BLOCOS de resultado por nível de confiança, ordem fixa 🤝 → 🔒 → 🌐
+    (doc revisado do Buscar). Cada linha: {nome} — {região} — {contato}
+    (+ "indicado por {nome}" só no 🤝). Teto de LIMITE_POR_NIVEL por nível;
+    `offset` pagina dentro de cada nível (botão "Ver mais").
+    Devolve (blocos, sobra) onde sobra = quantos ficaram de fora, somando os níveis.
     - Nota (⭐) está desativada por ora — volta no futuro (ver _selo_curto)."""
     def reg(p):
-        return _regiao_curta(p) if mostrar_regiao else ""
-    itens = []
-    for p, quem in com_nome:
-        itens.append(f"🟢 *{p['nome']}* — indicado por {_formatar_indicadores(quem)}"
-                     f"{_prova(len(quem))}{reg(p)}\n📞 {p['telefone']}")
-    for p, n in pendente:
-        itens.append(f"🟡 *{p['nome']}* — alguém da sua rede indica{_prova(n)}"
-                     f"{reg(p)}\n📞 {p['telefone']}")
-    for p, n in sem_nome:
-        itens.append(f"⚪ *{p['nome']}* — indicado pela rede Dorote.ia{_prova(n)}"
-                     f"{reg(p)}\n📞 {p['telefone']}")
-    sobra = max(0, len(itens) - MAX_ITENS_RESULTADO)
-    return itens[:MAX_ITENS_RESULTADO], sobra
+        r = (p.get("bairro") or "").strip() or (p.get("cidade") or "").strip()
+        return f" — {r}" if r else ""
+    blocos = []
+    sobra = 0
+
+    def bloco(cabecalho, pares, fmt):
+        nonlocal sobra
+        pagina = pares[offset:offset + LIMITE_POR_NIVEL]
+        sobra += max(0, len(pares) - (offset + LIMITE_POR_NIVEL))
+        if pagina:
+            blocos.append("\n".join([cabecalho] + [fmt(par) for par in pagina]))
+
+    bloco("🤝 *Indicação de conexão validada*", com_nome,
+          lambda par: (f"• *{par[0]['nome']}*{reg(par[0])} — 📞 {par[0]['telefone']} "
+                       f"_(indicado por {_formatar_indicadores(par[1])})_"))
+    bloco("🔒 *Indicação de conexão pendente*", pendente,
+          lambda par: f"• *{par[0]['nome']}*{reg(par[0])} — 📞 {par[0]['telefone']}{_prova(par[1])}")
+    bloco("🌐 *Indicação de membros*", sem_nome,
+          lambda par: f"• *{par[0]['nome']}*{reg(par[0])} — 📞 {par[0]['telefone']}{_prova(par[1])}")
+    return blocos, sobra
 
 
 def _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, sem_nome):
@@ -1026,57 +1035,60 @@ def _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, se
         registrar_indicacao_recebida(membro["id"], p, servico, bairro, cidade)
 
 
-def _executar_e_enviar_busca(membro, servico, bairro, cidade, detalhe=""):
+def _executar_e_enviar_busca(membro, servico, bairro, cidade, detalhe="", offset=0):
     """Roda a busca e ENVIA a tela de resultado pelo código (com botões). O telefone
     do profissional nunca passa pela IA. Cobre RES_OK, RES_GERAL e RES_VAZIO (§6).
-    `detalhe` = característica específica do pedido (segue para 'perguntar a amigos')."""
+    `detalhe` = característica específica do pedido (segue para 'perguntar a amigos').
+    `offset` = paginação do botão "Ver mais" (não re-registra a busca)."""
     com_nome, pendente, sem_nome = executar_busca(membro, servico, bairro, cidade)
     sinais = _sinais_anonimos(membro, servico, bairro)
     local = ", ".join(p for p in [bairro, cidade] if p) or "São Paulo"
 
-    # RES_OK — há indicações da rede (🟢 e/ou 🟡). Pode listar ⚪ junto.
-    if com_nome or pendente:
-        registrar_busca(servico, bairro, cidade, "verde" if com_nome else "amarelo_rede", membro["id"])
-        _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, sem_nome)
-        linhas, sobra = _linhas_resultado(com_nome, pendente, sem_nome, mostrar_regiao=not bairro)
-        corpo = f"🔍 O que encontrei para *{servico}* em {local}:\n\n" + "\n\n".join(linhas)
+    def _botoes_resultado(sobra, rede_pequena=False):
+        botoes = []
+        if rede_pequena:
+            botoes.append({"id": "rede_convidar", "label": "🤝 Convidar rede"})
         if sobra:
-            corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
+            botoes.append({"id": "busca_ver_mais", "label": f"➕ Ver mais ({sobra})"})
+        if len(botoes) < 2:
+            botoes.append({"id": "buscar_outro", "label": "🔍 Buscar outro"})
+        botoes.append({"id": "menu", "label": "🏠 Menu"})
+        return botoes
+
+    # RES_OK — há indicações da rede (🤝 e/ou 🔒). Pode listar 🌐 junto.
+    if com_nome or pendente:
+        if offset == 0:
+            registrar_busca(servico, bairro, cidade, "verde" if com_nome else "amarelo_rede", membro["id"])
+            _registrar_mostrados(membro, servico, bairro, cidade, com_nome, pendente, sem_nome)
+        blocos, sobra = _linhas_resultado(com_nome, pendente, sem_nome,
+                                          mostrar_regiao=not bairro, offset=offset)
+        corpo = "Veja o que encontrei:\n\n" + "\n\n".join(blocos)
         corpo += _texto_iscas(sinais)
-        # Guarda o serviço para o botão "Refinar bairro" reaproveitar a categoria.
-        _fluxo_set(membro, {"fluxo": "resultado", "servico": servico})
-        enviar_botoes_meta(corpo, [
-            {"id": "busca_refinar", "label": "📍 Refinar bairro"},
-            {"id": "rede_indicar",  "label": "💛 Indicar"},
-            {"id": "menu",          "label": "🏠 Menu"}])
+        # Guarda serviço/bairro/offset para "Ver mais" e "Refinar bairro".
+        _fluxo_set(membro, {"fluxo": "resultado", "servico": servico, "bairro": bairro,
+                            "detalhe": detalhe, "offset": offset})
+        enviar_botoes_meta(corpo, _botoes_resultado(sobra))
         _anotar_ia(membro, f"(Sistema: busca de {servico} em {local} CONCLUÍDA — a lista "
                            "com contatos já foi entregue por botões. Não refaça a busca "
                            "nem pergunte bairro.)")
         return
 
-    # Só ⚪ (rede geral / anonimizado).
+    # Só 🌐 (rede geral / anonimizado).
     if sem_nome:
-        registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
-        _registrar_mostrados(membro, servico, bairro, cidade, [], [], sem_nome)
-        linhas, sobra = _linhas_resultado([], [], sem_nome, mostrar_regiao=not bairro)
-        corpo = f"🔍 O que encontrei para *{servico}* em {local}:\n\n" + "\n\n".join(linhas)
-        if sobra:
-            corpo += f"\n\n_(e mais {sobra} — refine o bairro para ver os melhores.)_"
+        if offset == 0:
+            registrar_busca(servico, bairro, cidade, "amarelo", membro["id"])
+            _registrar_mostrados(membro, servico, bairro, cidade, [], [], sem_nome)
+        blocos, sobra = _linhas_resultado([], [], sem_nome,
+                                          mostrar_regiao=not bairro, offset=offset)
+        corpo = "Veja o que encontrei:\n\n" + "\n\n".join(blocos)
         corpo += _texto_iscas(sinais)
-        # Guarda o serviço para o botão "Refinar bairro" reaproveitar a categoria.
-        _fluxo_set(membro, {"fluxo": "resultado", "servico": servico})
+        _fluxo_set(membro, {"fluxo": "resultado", "servico": servico, "bairro": bairro,
+                            "detalhe": detalhe, "offset": offset})
         # RES_GERAL — rede pequena (< k): enquadra como rede geral e convida a crescer.
-        if _qtd_rede(membro) < K_ANONIMATO:
+        rede_pequena = _qtd_rede(membro) < K_ANONIMATO
+        if rede_pequena:
             corpo += t.BUSCA_REDE_PEQUENA
-            enviar_botoes_meta(corpo, [
-                {"id": "rede_convidar", "label": "🤝 Convidar rede"},
-                {"id": "busca_refinar", "label": "📍 Refinar bairro"},
-                {"id": "menu",          "label": "🏠 Menu"}])
-        else:
-            enviar_botoes_meta(corpo, [
-                {"id": "busca_refinar", "label": "📍 Refinar bairro"},
-                {"id": "rede_indicar",  "label": "💛 Indicar"},
-                {"id": "menu",          "label": "🏠 Menu"}])
+        enviar_botoes_meta(corpo, _botoes_resultado(sobra, rede_pequena=rede_pequena))
         _anotar_ia(membro, f"(Sistema: busca de {servico} em {local} CONCLUÍDA — a lista "
                            "com contatos já foi entregue por botões. Não refaça a busca "
                            "nem pergunte bairro.)")
@@ -1131,15 +1143,22 @@ def _enviar_sem_resultado(membro, servico, tem_sinal, bairro="", detalhe=""):
     if tem_sinal:
         texto += ("\n\n💡 Alguém da sua rede já indicou um *" + servico + "* que ainda não "
                   "entrou na Dorote.ia — convide a sua rede para destravar esse contato!")
-    # LISTA (não botões): assim cabe "Buscar em outra região" ALÉM das opções atuais.
-    # WhatsApp limita botões a 3; a lista aceita até 10 itens.
+    # LISTA (não botões): WhatsApp limita botões a 3; a lista aceita até 10 itens.
+    # Ordem e itens conforme o doc revisado do Buscar (Passo 9).
     enviar_lista_meta(texto, "Ver opções", [
-        {"id": "buscar_outra_regiao", "title": "🔎 Outra região",
+        {"id": "buscar_outra_regiao", "title": "📍 Outra região",
          "description": f"Buscar {servico} em outro bairro ou na cidade toda"},
-        {"id": "pedir_amigos", "title": "👋 Perguntar a amigos",
+        {"id": "buscar_outro", "title": "🔍 Buscar outro",
+         "description": "Procurar um serviço diferente"},
+        {"id": "pedir_amigos", "title": "👋 Perguntar à rede",
          "description": "Pedir indicação a quem você confia"},
         {"id": "gerar_link", "title": "🤝 Convidar rede",
          "description": "Trazer gente de confiança para a rede"},
+        # PARKING_LOT (decisão de produto, doc Buscar Passo 9): alerta é PÓS-TESTE.
+        # O item fica visível, mas ao tocar responde "ainda não está ativa" e
+        # reexibe esta lista. Nenhuma lógica de alerta existe (sem estado/gatilho).
+        {"id": "alerta_parking", "title": "🔔 Ativar alerta",
+         "description": "Te aviso se a Central indicar"},
         {"id": "menu", "title": "🏠 Menu",
          "description": "Voltar ao início"},
     ])
@@ -1163,8 +1182,11 @@ def _conexoes_confirmadas(membro):
     return out
 
 
-def _pedir_amigos_lista(membro):
-    """Mostra os amigos confirmados para a pessoa escolher a quem perguntar."""
+def _pedir_amigos_lista(membro, offset=0):
+    """Mostra os amigos confirmados para a pessoa escolher a quem perguntar.
+    Escolha ÚNICA (limite do WhatsApp: 10 itens, sem multi-seleção nativa).
+    Paginação manual: até 9 conexões cabem direto; acima disso, 8 nomes por
+    página + item "➡️ Ver mais nomes" (regra do doc revisado do Buscar, P1)."""
     amigos = _conexoes_confirmadas(membro)
     if not amigos:
         enviar_botoes_meta(t.PEDIR_AMIGOS_SEM_REDE, [
@@ -1173,8 +1195,18 @@ def _pedir_amigos_lista(membro):
         return
     rows = [{"id": "ask_todos", "title": "👥 Perguntar a todos",
              "description": f"Enviar para {len(amigos)} pessoa(s) da sua rede"}]
+    if len(amigos) <= 9 and offset == 0:
+        pagina, resto = amigos, 0
+    else:
+        if offset >= len(amigos):
+            offset = 0  # passou do fim: volta ao começo
+        pagina = amigos[offset:offset + 8]
+        resto = max(0, len(amigos) - (offset + 8))
     rows += [{"id": f"ask:{mid}", "title": (nome or "Amigo")[:24],
-              "description": "Perguntar só para esta pessoa"} for mid, nome in amigos[:9]]
+              "description": "Perguntar só para esta pessoa"} for mid, nome in pagina]
+    if resto:
+        rows.append({"id": f"ask_mais:{offset + 8}", "title": "➡️ Ver mais nomes",
+                     "description": f"Mostrar mais {min(8, resto)} pessoa(s)"})
     enviar_lista_meta(t.PEDIR_AMIGOS_LISTA, "Escolher", rows)
 
 
@@ -1209,6 +1241,14 @@ def _enviar_ask_amigo(membro, friend_id):
         return
     pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
     _enviar_pergunta_a_amigo(membro, amigo, _texto_ask(membro), pn)
+    # Regras de consolidação (doc Buscar): grava modo_pergunta + quem foi perguntado
+    # (preservando servico/bairro/detalhe do fluxo, usados por _texto_ask).
+    fl = _fluxo_get(membro)
+    ja = fl.get("amigos_perguntados") or []
+    if friend_id not in ja:
+        ja.append(friend_id)
+    fl.update({"modo_pergunta": "individual", "amigos_perguntados": ja})
+    _fluxo_set(membro, fl)
     enviar_botoes_meta(t.ASK_ENVIADO.format(nome=_nome_curto(amigo)), [
         {"id": "pedir_amigos", "label": "👋 Perguntar a outro"},
         {"id": "menu",         "label": "🏠 Menu"}])
@@ -1225,7 +1265,7 @@ def _enviar_ask_todos(membro):
         return
     pn = g.get("phone_number_id") or WHATSAPP_PHONE_NUMBER_ID
     texto_pergunta = _texto_ask(membro)
-    enviados = 0
+    enviados, perguntados = 0, []
     for mid, _nome in amigos:
         if esta_bloqueado(membro["id"], mid):
             continue
@@ -1235,12 +1275,15 @@ def _enviar_ask_todos(membro):
         try:
             _enviar_pergunta_a_amigo(membro, amigo, texto_pergunta, pn)
             enviados += 1
+            perguntados.append(mid)
         except Exception:
             traceback.print_exc()
-    enviar_botoes_meta(
-        f"Pronto! 💛 Perguntei para {enviados} pessoa(s) da sua rede. Se alguém "
-        "conhecer um bom contato, eu registro a indicação e te aviso.",
-        [{"id": "menu", "label": "🏠 Menu"}])
+    # Regras de consolidação (doc Buscar): grava modo_pergunta + quem foi perguntado.
+    fl = _fluxo_get(membro)
+    fl.update({"modo_pergunta": "todos", "amigos_perguntados": perguntados})
+    _fluxo_set(membro, fl)
+    enviar_botoes_meta(t.ASK_ENVIADO_TODOS.format(n=enviados),
+                       [{"id": "menu", "label": "🏠 Menu"}])
 
 
 def _enviar_alertas_busca_vermelha(recomendador, servico, cidade):
@@ -3475,8 +3518,25 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             enviar_botoes_meta("Me diz o que você procura 🙂 Ex.: *dentista*, *encanador*.",
                                [{"id": "menu", "label": "🏠 Menu"}])
         return True
+    if consentiu and cmd == "alerta_parking":
+        # PARKING_LOT (pós-teste): sem lógica de alerta. Responde e reexibe a lista
+        # do "sem resultado" — a pessoa nunca fica sem ação.
+        fl = _fluxo_get(membro)
+        resposta_whatsapp(t.ALERTA_PARKING)
+        _enviar_sem_resultado(membro, (fl.get("servico") or "o serviço"), False,
+                              bairro=(fl.get("bairro") or ""),
+                              detalhe=(fl.get("detalhe") or ""))
+        return True
     if consentiu and cmd == "pedir_amigos":
         _pedir_amigos_lista(membro)
+        return True
+    if consentiu and cmd.startswith("ask_mais:"):
+        # Paginação da lista de amigos ("Ver mais nomes").
+        try:
+            off = int(cmd.split(":", 1)[1])
+        except ValueError:
+            off = 0
+        _pedir_amigos_lista(membro, offset=off)
         return True
     if consentiu and cmd == "ask_todos":
         _enviar_ask_todos(membro)
@@ -3568,6 +3628,18 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     # serviço). Só reage ao 'busca_refinar'; qualquer outra coisa sai do estado.
     fres = _fluxo_get(membro)
     if consentiu and fres.get("fluxo") == "resultado":
+        if cmd == "busca_ver_mais":
+            # Paginação do resultado: mostra os próximos LIMITE_POR_NIVEL de cada nível.
+            servico_v = (fres.get("servico") or "").strip()
+            if servico_v:
+                novo_off = int(fres.get("offset") or 0) + LIMITE_POR_NIVEL
+                _executar_e_enviar_busca(membro, servico_v, (fres.get("bairro") or "").strip(),
+                                         "São Paulo", detalhe=(fres.get("detalhe") or "").strip(),
+                                         offset=novo_off)
+                return True
+            _fluxo_limpar(membro)
+            enviar_menu_principal(membro)
+            return True
         if cmd == "busca_refinar":
             servico_r = (fres.get("servico") or "").strip()
             if servico_r:
@@ -3916,27 +3988,29 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         n_rede = _qtd_rede(membro)
         if n_rede == 0:
             enviar_botoes_meta(t.BUSCAR_SEM_REDE, [
-                {"id": "gerar_link",  "label": "🔗 Gerar meu link"},
+                {"id": "gerar_link",   "label": "🔗 Gerar meu link"},
                 {"id": "buscar_geral", "label": "🔍 Buscar rede geral"},
+                {"id": "menu",         "label": "🏠 Menu"},
             ])
         else:
             # Arma o estado: a PRÓXIMA mensagem é o pedido, tratado pelo CÓDIGO (não a IA).
-            # Manifesta a rede: quem tem conexões sabe que as indicações delas vêm primeiro.
             _fluxo_set(membro, {"fluxo": "busca_query"})
-            plural = "conexões" if n_rede > 1 else "conexão"
-            enviar_botoes_meta(
-                f"Sua rede de confiança tem {n_rede} {plural} 💛 Indicações de quem "
-                "você conhece aparecem primeiro, com nome.\n\n"
-                "Me conta o que você precisa e em qual bairro ou região de São Paulo. 🙂\n"
-                "Ex.: *pediatra em Pinheiros*, *encanador em Perdizes*.",
-                [{"id": "menu", "label": "🏠 Menu"}])
+            nome_b = _nome_curto(membro)
+            texto_b = (t.BUSCA_PEDIR_QUERY.format(nome=nome_b) if nome_b
+                       else t.BUSCA_PEDIR_QUERY.replace("Claro, {nome}!", "Claro!"))
+            enviar_botoes_meta(texto_b, [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "buscar_geral":
         _fluxo_set(membro, {"fluxo": "busca_query"})
-        enviar_botoes_meta("Me conta o que você precisa e em qual bairro ou região de "
-                           "São Paulo. 🙂\nEx.: *pediatra em Pinheiros*, *encanador em "
-                           "Perdizes*.",
-                           [{"id": "menu", "label": "🏠 Menu"}])
+        nome_g = _nome_curto(membro)
+        texto_g = (t.BUSCA_PEDIR_QUERY.format(nome=nome_g) if nome_g
+                   else t.BUSCA_PEDIR_QUERY.replace("Claro, {nome}!", "Claro!"))
+        enviar_botoes_meta(texto_g, [{"id": "menu", "label": "🏠 Menu"}])
+        return True
+    if cmd == "buscar_outro":
+        # Passo 8 do doc Buscar: mesma instrução do Passo 2, abertura "Vamos de novo!".
+        _fluxo_set(membro, {"fluxo": "busca_query"})
+        enviar_botoes_meta(t.BUSCA_PEDIR_QUERY_OUTRO, [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "gerar_link":
         gerar_e_enviar_link_convite(membro)
