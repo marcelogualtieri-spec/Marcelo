@@ -733,14 +733,31 @@ def existe_vinculo(pedidor, recomendador):
 K_ANONIMATO = 5
 
 
-def _qtd_rede(pedidor):
-    """Quantos contatos a pessoa tem na rede (tamanho da agenda de confiança)."""
+def _qtd_conexoes_validadas(member_id):
+    """Quantas conexões VALIDADAS (confirmadas pelos dois lados) a pessoa tem."""
     try:
-        return len((supabase.table("edges").select("id")
-                    .eq("member_id", pedidor["id"]).execute().data) or [])
+        a = (supabase.table("conexoes").select("id").eq("status", "validada")
+             .eq("member_a", member_id).execute().data) or []
+        b = (supabase.table("conexoes").select("id").eq("status", "validada")
+             .eq("member_b", member_id).execute().data) or []
+        return len(a) + len(b)
     except Exception:
         traceback.print_exc()
         return 0
+
+
+def _qtd_rede(pedidor):
+    """Tamanho da rede de confiança: conexões VALIDADAS (feitas por convite/link,
+    confirmadas pelos dois lados) + contatos da agenda (edges, compartilhados pelo
+    clipe). Contar SÓ edges era um bug: quem monta a rede por convite — o fluxo
+    principal — ficava com 'rede zero' e caía na tela errada de Buscar."""
+    total = _qtd_conexoes_validadas(pedidor["id"])
+    try:
+        total += len((supabase.table("edges").select("id")
+                      .eq("member_id", pedidor["id"]).execute().data) or [])
+    except Exception:
+        traceback.print_exc()
+    return total
 
 
 def _na_rede_pendente(pedidor, recomendador):
@@ -2413,7 +2430,9 @@ def _perfil_tipo(membro):
     tem_prof = bool(prest and prest.get("status") in PRESTADOR_ATIVO_STATUS)
     if not tem_prof:
         return "cliente"
-    tem_cliente = contar("edges", membro["id"]) > 0 or contar("recommendations", membro["id"]) > 0
+    tem_cliente = (contar("edges", membro["id"]) > 0
+                   or contar("recommendations", membro["id"]) > 0
+                   or _qtd_conexoes_validadas(membro["id"]) > 0)
     return "hibrido" if tem_cliente else "profissional"
 
 
@@ -2444,7 +2463,7 @@ def enviar_escolha_ficar_um_perfil():
 
 def _resumo_dados_texto(membro):
     nome = (membro.get("nome_perfil") or "").strip() or "(sem nome)"
-    n_contatos = contar("edges", membro["id"])
+    n_contatos = _qtd_rede(membro)
     n_indic = contar("recommendations", membro["id"])
     linhas = [
         "📋 *Seus dados aqui comigo:*",
@@ -3870,7 +3889,8 @@ def rotear_menu(membro, texto, button_id, contatos=None):
 
     if cmd == "buscar":
         # Cliente novo (sem rede ainda): explica e oferece montar a rede ou rede geral.
-        if contar("edges", membro["id"]) == 0:
+        # Rede = conexões validadas + agenda (não só edges — conexão por link conta!).
+        if _qtd_rede(membro) == 0:
             enviar_botoes_meta(t.BUSCAR_SEM_REDE, [
                 {"id": "gerar_link",  "label": "🔗 Gerar meu link"},
                 {"id": "buscar_geral", "label": "🔍 Buscar rede geral"},
