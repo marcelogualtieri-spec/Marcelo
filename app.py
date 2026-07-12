@@ -2198,16 +2198,16 @@ def _ver_minha_rede(membro):
     if not confirmadas and not aguardando and not convidados:
         linhas.append("Você ainda não tem conexões. Convide quem você confia! 💛")
 
-    # Se tem pendências, oferece "Gerenciar"; senão, só "Minha conta" e "Menu"
+    # Se tem pendências, oferece "Gerenciar" + "Menu"; senão, só "Menu"
+    # (o Menu já abre o menu suspenso completo, de onde se chega à Minha conta).
     if aguardando or com_nome or sem_nome:
         _fluxo_set(membro, {"rede_aguardando": aguardando_ids, "rede_convidados": convidados_ids})
         botoes = [
             {"id": "gerenciar_rede", "label": "✏️ Gerenciar"},
-            {"id": "dados", "label": "⚙️ Minha conta"},
             {"id": "menu", "label": "🏠 Menu"}
         ]
     else:
-        botoes = _BOTOES_CONTA
+        botoes = [{"id": "menu", "label": "🏠 Menu"}]
     enviar_botoes_meta("\n".join(linhas), botoes)
 
 
