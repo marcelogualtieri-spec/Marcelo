@@ -2612,7 +2612,14 @@ ACEITES_TXT = {"sim", "aceito", "aceitar", "concordo", "pode ser", "bora", "ok",
                "topo", "claro", "aceito os termos"}
 
 MENU_TRIGGERS = {"menu", "inicio", "voltar", "home", "🏠 menu", "oi", "ola", "olá",
-                 "oie", "opa", "bom dia", "boa tarde", "boa noite", "menu principal"}
+                 "oie", "opa", "bom dia", "boa tarde", "boa noite", "menu principal",
+                 "oii", "oi dorote", "olá dorote", "ola dorote", "e ai", "eae", "opa dorote"}
+
+# Subconjunto de saudações (chega "cumprimentando") → acolhe com calor antes do menu.
+# 'menu'/'voltar'/'inicio'/'home' NÃO entram aqui (aí o texto do menu fica neutro).
+SAUDACOES = {"oi", "ola", "olá", "oie", "oii", "opa", "bom dia", "boa tarde",
+             "boa noite", "oi dorote", "olá dorote", "ola dorote", "e ai", "eae",
+             "opa dorote"}
 
 # Status de prestador que ja contam como "tem perfil profissional" (mostra visao dupla).
 PRESTADOR_ATIVO_STATUS = {"aguardando_perfil", "ativo", "pausado"}
@@ -3739,7 +3746,15 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         if pendente:
             _enviar_pergunta_avaliacao(membro, pendente[0], pendente[1])
             return True
-        enviar_menu_do_perfil_ativo(membro)
+        # Se a pessoa chegou com uma SAUDAÇÃO (oi/olá/bom dia…), acolhe com calor antes
+        # do menu — em vez do "O que você deseja fazer?" seco. Se clicou menu/voltar,
+        # mantém o texto neutro.
+        texto_menu = None
+        if cmd in SAUDACOES:
+            nome = _nome_curto(membro)
+            voc = f", {nome}" if nome else ""
+            texto_menu = f"Oi{voc}! Que bom te ver por aqui 💛 Como posso te ajudar?"
+        enviar_menu_do_perfil_ativo(membro, texto_menu)
         return True
     if cmd == "perfil_cliente":
         set_perfil_ativo(membro, "cliente")
