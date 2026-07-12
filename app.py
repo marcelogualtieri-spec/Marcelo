@@ -3904,6 +3904,25 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         resposta_whatsapp(_resumo_dados_texto(membro))
         enviar_menu_principal(membro); return True
 
+    # -------- Pedido de SERVIÇO digitado em texto livre (fora de fluxo) --------
+    # Se a pessoa JÁ diz o que quer ("preciso de um dentista"), o CÓDIGO conduz a
+    # busca (extrai o serviço e pergunta a região por botões). Não vai para a IA nem
+    # empilha o menu — ela já sabe o que quer. Indicar/convidar/recomendar e conversa
+    # geral seguem para a IA (guardados abaixo).
+    if consentiu and not button_id and (texto or "").strip():
+        baixo = (texto or "").lower()
+        if not re.search(r"(indic|convid|recomend|cadastr|ser profis|meu perfil)", baixo):
+            dados = nlu.extrair_servico_bairro(texto)
+            servico_q = (dados.get("servico") or "").strip().lower()
+            if servico_q:
+                bairro_q  = (dados.get("bairro")  or "").strip()
+                detalhe_q = (dados.get("detalhe") or "").strip()
+                if bairro_q:
+                    _executar_e_enviar_busca(membro, servico_q, bairro_q, "São Paulo", detalhe=detalhe_q)
+                else:
+                    _perguntar_regiao_busca(membro, servico_q, detalhe=detalhe_q)
+                return True
+
     return False
 
 
@@ -3966,6 +3985,8 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
 
     # Flag: se a IA mandar botoes via ferramenta, nao envia texto duplicado.
     interativa_enviada = [False]
+    # Flag: se a IA fez uma PERGUNTA (pediu mais info), não empilhamos o menu depois.
+    ia_perguntou = [False]
 
     def enviar_texto_com_botoes_boas_vindas(texto):
         """REGRA FIRME: toda mensagem de boas-vindas/consentimento (pré-aceite) SEMPRE
@@ -3981,6 +4002,9 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
                 {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
             ])
         else:
+            # A IA está perguntando algo? Então não vamos jogar o menu por cima.
+            if (texto or "").rstrip().endswith("?"):
+                ia_perguntou[0] = True
             resposta_whatsapp(texto)
 
     usados = cerebro.conversar(
@@ -3997,11 +4021,11 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     if contatos_compartilhados:
         _salvar_nomes_contatos(membro, contatos_compartilhados)
 
-    # NUNCA FICAR SOLTO (regra firme): se a pessoa já consentiu e a IA respondeu em
-    # texto (não mandou botões próprios), o sistema SEMPRE mostra o menu logo depois —
-    # seja após uma ação, uma saudação ou um papo fora do tema. Assim toda mensagem
-    # termina com navegação clara.
-    if membro.get("consent") and not interativa_enviada[0]:
+    # Menu como rede de segurança: só aparece quando a pessoa ficaria SEM caminho —
+    # ou seja, a IA respondeu em texto, NÃO mandou botões e NÃO fez uma pergunta
+    # (se ela perguntou, a pessoa já sabe o que responder; empilhar o menu confunde).
+    # Assim o "O que você deseja fazer?" para de aparecer em toda interação.
+    if membro.get("consent") and not interativa_enviada[0] and not ia_perguntou[0]:
         enviar_menu_do_perfil_ativo(membro)
 
 
