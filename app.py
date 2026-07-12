@@ -1087,10 +1087,18 @@ def _enviar_sem_resultado(membro, servico, tem_sinal, bairro="", detalhe=""):
     if tem_sinal:
         texto += ("\n\n💡 Alguém da sua rede já indicou um *" + servico + "* que ainda não "
                   "entrou na Dorote.ia — convide a sua rede para destravar esse contato!")
-    enviar_botoes_meta(texto, [
-        {"id": "pedir_amigos", "label": "👋 Perguntar a amigos"},
-        {"id": "gerar_link",   "label": "➕ Convidar rede"},
-        {"id": "menu",         "label": "🏠 Menu"}])
+    # LISTA (não botões): assim cabe "Buscar em outra região" ALÉM das opções atuais.
+    # WhatsApp limita botões a 3; a lista aceita até 10 itens.
+    enviar_lista_meta(texto, "Ver opções", [
+        {"id": "buscar_outra_regiao", "title": "🔎 Outra região",
+         "description": f"Buscar {servico} em outro bairro ou na cidade toda"},
+        {"id": "pedir_amigos", "title": "👋 Perguntar a amigos",
+         "description": "Pedir indicação a quem você confia"},
+        {"id": "gerar_link", "title": "🤝 Convidar rede",
+         "description": "Trazer gente de confiança para a rede"},
+        {"id": "menu", "title": "🏠 Menu",
+         "description": "Voltar ao início"},
+    ])
 
 
 def _conexoes_confirmadas(membro):
@@ -3403,6 +3411,19 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             return True
 
     # -------- Busca sem resultado: perguntar a amigos --------
+    if consentiu and cmd == "buscar_outra_regiao":
+        # Reaproveita o serviço da busca sem resultado e pergunta a região de novo
+        # (a pessoa pode querer um bairro vizinho ou a cidade toda).
+        fl = _fluxo_get(membro)
+        servico_o = (fl.get("servico") or "").strip()
+        detalhe_o = (fl.get("detalhe") or "").strip()
+        if servico_o:
+            _perguntar_regiao_busca(membro, servico_o, detalhe=detalhe_o)
+        else:
+            _fluxo_set(membro, {"fluxo": "busca_query"})
+            enviar_botoes_meta("Me diz o que você procura 🙂 Ex.: *dentista*, *encanador*.",
+                               [{"id": "menu", "label": "🏠 Menu"}])
+        return True
     if consentiu and cmd == "pedir_amigos":
         _pedir_amigos_lista(membro)
         return True
