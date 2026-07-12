@@ -119,6 +119,12 @@ QUALIDADE / AVALIACAO:
 - A BUSCA inteira (perguntar o bairro, montar e enviar a lista de profissionais com
   contato e nivel de confianca) e feita pelo SISTEMA, por botoes — nunca por voce.
   Voce NAO tem ferramenta de busca: nao escreva listas, nao invente nomes nem telefones.
+- ENTREGA FEITA E ENCERRADA: quando o historico tiver uma nota "(Sistema: busca ...
+  CONCLUIDA ...)", aquele pedido JA FOI atendido e acabou. Se a pessoa comentar algo
+  sobre o resultado ("essa Ju parece boa", "gostei", "obrigado"), responda SO com uma
+  frase acolhedora e se coloque a disposicao (ex.: "Que bom! 💛 Se precisar de mais
+  alguma coisa, e so falar."). NUNCA pergunte bairro, NUNCA reabra a busca, NUNCA
+  repita o pedido anterior. Assunto encerrado ate a pessoa pedir algo NOVO.
 
 CONTATOS (cards compartilhados pelo clipe 📎):
 - A forma mais facil de trazer gente pra rede e pelo clipe 📎 do WhatsApp
@@ -465,6 +471,27 @@ def _contexto_pessoa(membro):
     return "\n".join(linhas)
 
 
+def _sanitizar_mensagens(msgs):
+    """Deixa o histórico no formato que a API aceita: só papéis user/assistant,
+    começando com 'user', fundindo mensagens consecutivas do mesmo papel. Necessário
+    porque o app.py ANOTA no histórico o que o sistema determinístico entregou
+    (ex.: 'busca concluída') — e essas notas podem criar sequências fora do padrão.
+    Também descarta marcadores antigos com papel 'system' (evita erro 400)."""
+    out = []
+    for m in msgs:
+        role = m.get("role")
+        conteudo = m.get("content")
+        if role not in ("user", "assistant") or not conteudo:
+            continue
+        if out and out[-1]["role"] == role:
+            out[-1]["content"] = str(out[-1]["content"]) + "\n" + str(conteudo)
+        else:
+            out.append({"role": role, "content": conteudo})
+    if out and out[0]["role"] == "assistant":
+        out.insert(0, {"role": "user", "content": "(início da conversa)"})
+    return out
+
+
 # ---------------------------------------------------------------------------
 # O LOOP DE CONVERSA (recebe -> pensa -> [usa ferramentas] -> responde)
 # ---------------------------------------------------------------------------
@@ -502,7 +529,7 @@ def conversar(membro, texto_usuario, contatos_compartilhados, *,
         ])
         return
 
-    mensagens = historico + [{"role": "user", "content": conteudo_usuario}]
+    mensagens = _sanitizar_mensagens(historico + [{"role": "user", "content": conteudo_usuario}])
 
     sistema = SISTEMA_BASE + "\n\n" + _contexto_pessoa(membro)
     if not consentiu:

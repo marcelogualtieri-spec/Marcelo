@@ -350,6 +350,24 @@ def salvar_historico(wa_id, historico):
         traceback.print_exc()
 
 
+def _anotar_ia(membro, nota):
+    """Anota no histórico da IA o que o SISTEMA (fluxo determinístico) acabou de
+    fazer — senão a IA fica cega: acha que a busca 'ainda está pendente' e volta a
+    perguntar bairro depois da entrega. A nota entra como fala da assistente (se a
+    última já for da assistente, funde na mesma para manter a alternância)."""
+    try:
+        hist = list(membro.get("historico") or [])
+        if hist and hist[-1].get("role") == "assistant":
+            hist[-1]["content"] = (hist[-1].get("content") or "") + "\n" + nota
+        else:
+            hist.append({"role": "assistant", "content": nota})
+        hist = hist[-12:]
+        membro["historico"] = hist
+        salvar_historico(membro["wa_id"], hist)
+    except Exception:
+        traceback.print_exc()
+
+
 def contar(tabela, member_id):
     return len(supabase.table(tabela).select("id").eq("member_id", member_id).execute().data)
 
@@ -1031,6 +1049,9 @@ def _executar_e_enviar_busca(membro, servico, bairro, cidade, detalhe=""):
             {"id": "busca_refinar", "label": "📍 Refinar bairro"},
             {"id": "rede_indicar",  "label": "💛 Indicar"},
             {"id": "menu",          "label": "🏠 Menu"}])
+        _anotar_ia(membro, f"(Sistema: busca de {servico} em {local} CONCLUÍDA — a lista "
+                           "com contatos já foi entregue por botões. Não refaça a busca "
+                           "nem pergunte bairro.)")
         return
 
     # Só ⚪ (rede geral / anonimizado).
@@ -1056,11 +1077,17 @@ def _executar_e_enviar_busca(membro, servico, bairro, cidade, detalhe=""):
                 {"id": "busca_refinar", "label": "📍 Refinar bairro"},
                 {"id": "rede_indicar",  "label": "💛 Indicar"},
                 {"id": "menu",          "label": "🏠 Menu"}])
+        _anotar_ia(membro, f"(Sistema: busca de {servico} em {local} CONCLUÍDA — a lista "
+                           "com contatos já foi entregue por botões. Não refaça a busca "
+                           "nem pergunte bairro.)")
         return
 
     # RES_VAZIO — nada na rede. NUNCA pedir a quem busca que ela mesma indique.
     registrar_busca(servico, bairro, cidade, "vermelho", membro["id"])
     _enviar_sem_resultado(membro, servico, bool(sinais), bairro=bairro, detalhe=detalhe)
+    _anotar_ia(membro, f"(Sistema: busca de {servico} em {local} concluída SEM resultado — "
+                       "as opções seguintes já foram oferecidas por botões. Não refaça a "
+                       "busca nem pergunte bairro.)")
 
 
 def _perguntar_regiao_busca(membro, servico, detalhe=""):
@@ -4072,8 +4099,10 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
                 {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
             ])
         else:
-            # A IA está perguntando algo? Então não vamos jogar o menu por cima.
-            if (texto or "").rstrip().endswith("?"):
+            # A IA está perguntando OU se colocou à disposição? Não joga o menu por
+            # cima (o "?" pode estar no meio da frase, não só no final).
+            if "?" in (texto or "") or re.search(r"disposi[cç][aã]o|s[oó] falar|s[oó] chamar",
+                                                 texto or "", re.IGNORECASE):
                 ia_perguntou[0] = True
             resposta_whatsapp(texto)
 
