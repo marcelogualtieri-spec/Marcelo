@@ -2629,6 +2629,15 @@ SAUDACOES = {"oi", "ola", "olá", "oie", "oii", "opa", "bom dia", "boa tarde",
              "boa noite", "oi dorote", "olá dorote", "ola dorote", "e ai", "eae",
              "opa dorote"}
 
+# Agradecimentos / fechamentos sociais → resposta curta e determinística (NÃO vai
+# para a IA, que poderia "retomar" uma busca já concluída). §1: o código manda.
+FECHAMENTOS = {"obrigado", "obrigada", "obg", "obgd", "brigado", "brigada", "valeu",
+               "vlw", "vlww", "tmj", "show", "perfeito", "ótimo", "otimo", "legal",
+               "massa", "top", "joia", "jóia", "beleza", "blz", "ok", "okay", "okey",
+               "tá bom", "ta bom", "tabom", "fechou", "de boa", "tudo certo",
+               "era isso", "só isso", "so isso", "maravilha", "showw", "👍", "🙏",
+               "💛", "😊", "👏"}
+
 # Status de prestador que ja contam como "tem perfil profissional" (mostra visao dupla).
 PRESTADOR_ATIVO_STATUS = {"aguardando_perfil", "ativo", "pausado"}
 
@@ -3924,6 +3933,19 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if cmd == "dados_ver":
         resposta_whatsapp(_resumo_dados_texto(membro))
         enviar_menu_principal(membro); return True
+
+    # -------- Agradecimento / fechamento social (não é pedido) --------
+    # A pessoa só agradeceu / deu um "ok" depois de já ter o que queria: responde
+    # curto e PARA. Não vai para a IA (que poderia reabrir uma busca concluída) nem
+    # empilha o menu. Só pega mensagens curtas (evita falso-positivo em frases).
+    if consentiu and not button_id:
+        cmd_fech = cmd.strip(" !.,…?~-")
+        if cmd_fech in FECHAMENTOS and len((texto or "").strip()) <= 22:
+            nome = _nome_curto(membro)
+            voc = f", {nome}" if nome else ""
+            resposta_whatsapp(f"De nada{voc}! 💛 Fico à disposição — é só me chamar "
+                              "quando precisar de outra indicação.")
+            return True
 
     # -------- Pedido de SERVIÇO digitado em texto livre (fora de fluxo) --------
     # Se a pessoa JÁ diz o que quer ("preciso de um dentista"), o CÓDIGO conduz a
