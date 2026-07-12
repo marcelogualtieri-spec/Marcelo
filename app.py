@@ -3890,18 +3890,23 @@ def rotear_menu(membro, texto, button_id, contatos=None):
     if cmd == "buscar":
         # Cliente novo (sem rede ainda): explica e oferece montar a rede ou rede geral.
         # Rede = conexões validadas + agenda (não só edges — conexão por link conta!).
-        if _qtd_rede(membro) == 0:
+        n_rede = _qtd_rede(membro)
+        if n_rede == 0:
             enviar_botoes_meta(t.BUSCAR_SEM_REDE, [
                 {"id": "gerar_link",  "label": "🔗 Gerar meu link"},
                 {"id": "buscar_geral", "label": "🔍 Buscar rede geral"},
             ])
         else:
             # Arma o estado: a PRÓXIMA mensagem é o pedido, tratado pelo CÓDIGO (não a IA).
+            # Manifesta a rede: quem tem conexões sabe que as indicações delas vêm primeiro.
             _fluxo_set(membro, {"fluxo": "busca_query"})
-            enviar_botoes_meta("Me conta o que você precisa e em qual bairro ou região de "
-                               "São Paulo. 🙂\nEx.: *pediatra em Pinheiros*, *encanador em "
-                               "Perdizes*.",
-                               [{"id": "menu", "label": "🏠 Menu"}])
+            plural = "conexões" if n_rede > 1 else "conexão"
+            enviar_botoes_meta(
+                f"Sua rede de confiança tem {n_rede} {plural} 💛 Indicações de quem "
+                "você conhece aparecem primeiro, com nome.\n\n"
+                "Me conta o que você precisa e em qual bairro ou região de São Paulo. 🙂\n"
+                "Ex.: *pediatra em Pinheiros*, *encanador em Perdizes*.",
+                [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "buscar_geral":
         _fluxo_set(membro, {"fluxo": "busca_query"})
