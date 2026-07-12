@@ -353,17 +353,17 @@ CONVITE_EXTRAS = (
 # Mensagem 2 — texto pronto para encaminhar (o que a outra pessoa recebe).
 # Sai pré-escrito na conversa com a pessoa convidada (dinâmica do clipe 📎 / link wa.me).
 CONVITE_MENSAGEM_AMIGO = (
-    "Oi! 💛 Tô usando a Dorote.ia, uma central de indicações de confiança no WhatsApp. "
-    "Serve pra achar gente boa — dentista, eletricista, reforço escolar... — indicada por "
-    "quem a gente conhece, sem a bagunça dos grupos.\n\n"
-    "Entra pelo meu convite pra gente trocar indicações:\n\n{link}"
+    "Oi! 💛 Tô usando a Dorote.ia, a central de indicações de confiança no WhatsApp. "
+    "Serve para achar gente boa — dentista, eletricista, reforço escolar... — indicada por "
+    "quem confiamos, sem a bagunça dos grupos ou indicação paga.\n\n"
+    "Entre pelo meu convite pessoal para trocarmos indicações:\n\n{link}"
 )
 
 # Mensagem 1 — o que a Dorote.ia entrega para quem está convidando (perfil CLIENTE
 # trazendo outra pessoa de confiança para a rede). Não confundir com indicar um
 # profissional (esse é outro fluxo, com outro link).
 CONVIDAR_CLIENTE_VOCE = (
-    "Compartilhe o contato da pessoa pelo clipe 📎 ou toque abaixo pra gerar um link 💛"
+    "Compartilhe a mensagem abaixo 👇 O link conecta você a quem você confia. 💛"
 )
 
 # O que a Dorote.ia te responde, com o link que abre a conversa com a pessoa.

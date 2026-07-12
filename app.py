@@ -3974,8 +3974,8 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         return True
     if cmd == "rede_convidar":
         enviar_botoes_meta(
-            "Compartilhe pelo clipe 📎 o contato de quem você quer convidar — "
-            "ou toque abaixo para gerar um link e divulgar para várias pessoas. 💛",
+            "Compartilhe pelo clipe 📎 ou ➕ o contato de quem quer convidar — "
+            "ou toque abaixo para gerar um link exclusivo e divulgar para várias pessoas. 💛",
             [{"id": "gerar_link", "label": "🔗 Gerar meu link"},
              {"id": "menu",       "label": "🏠 Menu"}])
         return True
