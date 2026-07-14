@@ -1484,6 +1484,40 @@ def _ferr_convidar(membro, numeros):
     return ""
 
 
+def _convidar_contatos_direto(membro, contatos_lista):
+    """Convite DETERMINÍSTICO (botão 'Convidar rede' → contato pelo clipe).
+    O botão já definiu a intenção — nada de reperguntar 'é pra rede ou é
+    prestador?' (regra §7.1 do CLAUDE.md). Gera 1 link 'um toque' por contato,
+    usando o NOME do card (sem IA no caminho; o número nunca vai ao modelo)."""
+    pares = [(num, (nome or "").strip()) for num, nome in (contatos_lista or []) if num]
+    if not pares:
+        return False
+    _salvar_nomes_contatos(membro, contatos_lista)
+    numero_bot = g.get("display_phone_number") or ""
+    for numero, _nome in pares:
+        registrar_convite_pendente(membro, numero)
+    link_geral = encurtar_link(montar_link_convite(numero_bot))
+    msg_amigo = t.CONVITE_MENSAGEM_AMIGO.format(link=link_geral)
+    linhas = []
+    for i, (numero, nome) in enumerate(pares[:MAX_LINKS_INDIVIDUAIS], start=1):
+        link_pronto = encurtar_link(montar_link_para_contato(numero, msg_amigo))
+        rotulo = nome or f"Contato {i}"
+        linhas.append(f"• {rotulo} → {link_pronto}")
+    aviso_extra = ""
+    if len(pares) > MAX_LINKS_INDIVIDUAIS:
+        sobra = len(pares) - MAX_LINKS_INDIVIDUAIS
+        aviso_extra = (f"\n\n(Os outros {sobra} contato(s) também já estão atrelados — "
+                       "mande esses contatos de novo pra gerar os links deles.)")
+    plural = "convites" if len(pares) > 1 else "convite"
+    resposta_whatsapp(
+        f"Pronto! 💛 {len(pares)} {plural} preparado(s) — toque no link e envie:\n\n"
+        + "\n".join(linhas) + aviso_extra)
+    enviar_botoes_meta("O que você deseja fazer agora?", [
+        {"id": "rede_convidar", "label": "🤝 Convidar mais"},
+        {"id": "menu",          "label": "🏠 Menu"}])
+    return True
+
+
 def _ferr_link_generico(membro):
     numero_bot = g.get("display_phone_number") or ""
     codigo = obter_ou_criar_codigo(membro)
@@ -3656,6 +3690,49 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         # Não é refinar: sai do estado passivo e deixa o resto tratar (botões/menu/texto).
         _fluxo_limpar(membro)
 
+    # -------- Fluxo ativo: CONVIDAR rede (contato pelo clipe = convite direto) --------
+    fconv = _fluxo_get(membro)
+    if consentiu and fconv.get("fluxo") == "convidar":
+        if cmd in ("menu", "voltar", "cancelar", "inicio"):
+            _fluxo_limpar(membro); enviar_menu_principal(membro); return True
+        if cmd == "gerar_link":
+            _fluxo_limpar(membro)
+            gerar_e_enviar_link_convite(membro)
+            enviar_menu_principal(membro)
+            return True
+        if contatos:
+            _fluxo_limpar(membro)
+            if _convidar_contatos_direto(membro, contatos):
+                return True
+            # Card veio sem número: repergunta gentil, SEM sair do passo.
+            _fluxo_set(membro, {"fluxo": "convidar"})
+            enviar_botoes_meta(
+                "O contato veio sem número 😕 Pode compartilhar de novo pelo clipe 📎 "
+                "ou digitar o número com DDD — ex.: (11) 98765-4321?",
+                [{"id": "menu", "label": "🏠 Menu"}])
+            return True
+        if not button_id and (texto or "").strip():
+            # Número(s) digitado(s) no texto: convida direto, sem IA.
+            achados = re.findall(r"(\+?\d[\d\s().\-]{7,}\d)", texto)
+            numeros = []
+            for a in achados:
+                n = _e164(a)
+                if n and n not in numeros:
+                    numeros.append(n)
+            if numeros:
+                _fluxo_limpar(membro)
+                _convidar_contatos_direto(membro, [(n, "") for n in numeros])
+                return True
+            # Sem número no texto: repergunta DENTRO do fluxo (nunca cai no menu).
+            enviar_botoes_meta(
+                "Não achei um número nessa mensagem 😕 Compartilhe o contato pelo "
+                "clipe 📎, digite o número com DDD, ou toque abaixo pra gerar um link. 💛",
+                [{"id": "gerar_link", "label": "🔗 Gerar meu link"},
+                 {"id": "menu",       "label": "🏠 Menu"}])
+            return True
+        # Outro botão de navegação: sai do estado e deixa o resto tratar.
+        _fluxo_limpar(membro)
+
     # -------- Fluxo ativo: o cliente esta INDICANDO um profissional --------
     fluxo = _fluxo_get(membro)
     if consentiu and fluxo.get("fluxo") == "indicar":
@@ -4047,6 +4124,9 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         enviar_botoes_meta(t.INDICAR_INICIO, [{"id": "menu", "label": "🏠 Menu"}])
         return True
     if cmd == "rede_convidar":
+        # Arma o estado: o PRÓXIMO contato/número é convite direto (o botão já
+        # definiu a intenção — o código conduz, a IA não repergunta).
+        _fluxo_set(membro, {"fluxo": "convidar"})
         enviar_botoes_meta(
             "Compartilhe pelo clipe 📎 ou ➕ o contato de quem quer convidar — "
             "ou toque abaixo para gerar um link exclusivo e divulgar para várias pessoas. 💛",
