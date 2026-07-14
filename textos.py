@@ -530,6 +530,15 @@ BUSCAR_SEM_REDE = (
     "O que deseja fazer?"
 )
 
+# Contato compartilhado FORA de fluxo: o CÓDIGO pergunta o destino por botões
+# (a IA não decide caminho — §7.1). O contato fica guardado no estado.
+CONTATO_RECEBIDO = (
+    "Recebi o contato de *{nome}*! 💛 O que você quer fazer?"
+)
+CONTATO_RECEBIDO_VARIOS = (
+    "Recebi {n} contatos! 💛 O que você quer fazer?"
+)
+
 # Passo 2 do Buscar — pedido de serviço + bairro (com rede ou rede geral).
 BUSCA_PEDIR_QUERY = (
     "Claro, {nome}! O que precisa e em qual bairro de São Paulo?\n\n"

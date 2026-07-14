@@ -3690,6 +3690,73 @@ def rotear_menu(membro, texto, button_id, contatos=None):
         # Não é refinar: sai do estado passivo e deixa o resto tratar (botões/menu/texto).
         _fluxo_limpar(membro)
 
+    # -------- Fluxo ativo: CONTATO RECEBIDO fora de fluxo (escolha por botões) ------
+    # O contato fica GUARDADO no estado — a escolha nunca o perde (§7.1: a IA não
+    # decide caminho; quem pergunta o destino é o código, por botões).
+    fcont = _fluxo_get(membro)
+    if consentiu and fcont.get("fluxo") == "contato_recebido":
+        pares_c = [(p[0], p[1]) for p in (fcont.get("contatos") or []) if p and p[0]]
+        if cmd in ("menu", "voltar", "cancelar", "inicio"):
+            _fluxo_limpar(membro); enviar_menu_principal(membro); return True
+        baixo_c = (texto or "").lower()
+        escolha = ""
+        if cmd == "contato_rede" or (not button_id and re.search(r"\brede\b", baixo_c)):
+            escolha = "rede"
+        elif cmd == "contato_prestador" or (not button_id and
+                re.search(r"prestador|profissional|indicar|recomendar", baixo_c)):
+            escolha = "prestador"
+        if escolha == "rede":
+            _fluxo_limpar(membro)
+            if not _convidar_contatos_direto(membro, pares_c):
+                enviar_menu_principal(membro)
+            return True
+        if escolha == "prestador":
+            _fluxo_limpar(membro)
+            if not pares_c:
+                enviar_menu_principal(membro); return True
+            telefone_c, nome_c = pares_c[0]
+            if _eh_proprio_numero(membro, telefone_c):
+                _avisar_indicacao_si_mesmo()
+                return True
+            nome_c = (nome_c or "").strip() or "essa pessoa"
+            _fluxo_set(membro, {"fluxo": "indicar", "passo": "detalhes",
+                                "nome": nome_c, "telefone": telefone_c})
+            if len(pares_c) > 1:
+                resposta_whatsapp(f"Vamos indicar uma pessoa de cada vez — começando "
+                                  f"por *{nome_c}*. 💛")
+            enviar_botoes_meta(t.INDICAR_DETALHES.format(nome=nome_c),
+                               [{"id": "menu", "label": "🏠 Menu"}])
+            return True
+        if contatos:
+            # Mandou outro(s) contato(s): substitui os guardados e repergunta.
+            pares_novos = [[num, (nm or "").strip()] for num, nm in contatos if num]
+            if pares_novos:
+                _salvar_nomes_contatos(membro, contatos)
+                _fluxo_set(membro, {"fluxo": "contato_recebido", "contatos": pares_novos})
+                if len(pares_novos) == 1:
+                    txt_c = t.CONTATO_RECEBIDO.format(nome=pares_novos[0][1] or "esse contato")
+                else:
+                    txt_c = t.CONTATO_RECEBIDO_VARIOS.format(n=len(pares_novos))
+                enviar_botoes_meta(txt_c, [
+                    {"id": "contato_rede",      "label": "🤝 Trazer pra rede"},
+                    {"id": "contato_prestador", "label": "💛 Indicar prestador"},
+                    {"id": "menu",              "label": "🏠 Menu"}])
+                return True
+        if button_id:
+            # Outro botão de navegação: sai do estado e deixa o resto tratar.
+            _fluxo_limpar(membro)
+        elif (texto or "").strip():
+            # Não entendi a escolha: repergunta com botões, sem perder o contato.
+            if len(pares_c) == 1:
+                txt_c = t.CONTATO_RECEBIDO.format(nome=pares_c[0][1] or "esse contato")
+            else:
+                txt_c = t.CONTATO_RECEBIDO_VARIOS.format(n=len(pares_c))
+            enviar_botoes_meta(txt_c, [
+                {"id": "contato_rede",      "label": "🤝 Trazer pra rede"},
+                {"id": "contato_prestador", "label": "💛 Indicar prestador"},
+                {"id": "menu",              "label": "🏠 Menu"}])
+            return True
+
     # -------- Fluxo ativo: CONVIDAR rede (contato pelo clipe = convite direto) --------
     fconv = _fluxo_get(membro)
     if consentiu and fconv.get("fluxo") == "convidar":
@@ -4151,14 +4218,60 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                               "quando precisar de outra indicação.")
             return True
 
-    # -------- Pedido de SERVIÇO digitado em texto livre (fora de fluxo) --------
-    # Se a pessoa JÁ diz o que quer ("preciso de um dentista"), o CÓDIGO conduz a
-    # busca (extrai o serviço e pergunta a região por botões). Não vai para a IA nem
-    # empilha o menu — ela já sabe o que quer. Indicar/convidar/recomendar e conversa
-    # geral seguem para a IA (guardados abaixo).
+    # -------- CONTATO compartilhado FORA de fluxo (determinístico, §7.1) --------
+    # Nada de IA decidindo "rede ou prestador": o código GUARDA o contato no
+    # estado e pergunta o destino por botões — o contato nunca se perde.
+    if consentiu and contatos and not button_id:
+        pares_e = [[num, (nm or "").strip()] for num, nm in contatos if num]
+        if pares_e:
+            _salvar_nomes_contatos(membro, contatos)
+            _fluxo_set(membro, {"fluxo": "contato_recebido", "contatos": pares_e})
+            if len(pares_e) == 1:
+                txt_e = t.CONTATO_RECEBIDO.format(nome=pares_e[0][1] or "esse contato")
+            else:
+                txt_e = t.CONTATO_RECEBIDO_VARIOS.format(n=len(pares_e))
+            enviar_botoes_meta(txt_e, [
+                {"id": "contato_rede",      "label": "🤝 Trazer pra rede"},
+                {"id": "contato_prestador", "label": "💛 Indicar prestador"},
+                {"id": "menu",              "label": "🏠 Menu"}])
+            return True
+
+    # -------- Intenção EXPLÍCITA digitada (roteamento determinístico, sem IA) ----
+    # "quero indicar/recomendar" → fluxo Indicar; "convidar" → fluxo Convidar;
+    # "ser profissional" → autocadastro. O mesmo destino dos botões do menu.
     if consentiu and not button_id and (texto or "").strip():
         baixo = (texto or "").lower()
-        if not re.search(r"(indic|convid|recomend|cadastr|ser profis|meu perfil)", baixo):
+        if re.search(r"\b(indicar|indico|recomendar|recomendo)\b", baixo):
+            _fluxo_set(membro, {"fluxo": "indicar", "passo": "contato"})
+            enviar_botoes_meta(t.INDICAR_INICIO, [{"id": "menu", "label": "🏠 Menu"}])
+            return True
+        if re.search(r"\bconvidar\b|\bconvite\b", baixo):
+            _fluxo_set(membro, {"fluxo": "convidar"})
+            enviar_botoes_meta(
+                "Compartilhe pelo clipe 📎 ou ➕ o contato de quem quer convidar — "
+                "ou toque abaixo para gerar um link exclusivo e divulgar para várias pessoas. 💛",
+                [{"id": "gerar_link", "label": "🔗 Gerar meu link"},
+                 {"id": "menu",       "label": "🏠 Menu"}])
+            return True
+        if re.search(r"ser profissional|virar profissional|perfil profissional|me cadastrar", baixo):
+            if provider_do_membro(membro["id"]):
+                enviar_botoes_meta("Você já tem um perfil profissional 💛\n\nQuer editar?", [
+                    {"id": "prest_editar", "label": "✏️ Editar perfil"},
+                    {"id": "menu",         "label": "🏠 Menu"}])
+            else:
+                enviar_botoes_meta(t.PRESTADOR_QUERO_SER, [
+                    {"id": "prest_self", "label": "✅ Aceito e configuro"},
+                    {"id": "menu",       "label": "🔙 Voltar"}])
+            return True
+
+    # -------- Pedido de SERVIÇO digitado em texto livre (fora de fluxo) --------
+    # Se a pessoa JÁ diz o que quer ("preciso de um dentista" ou "quero uma
+    # indicação de dentista"), o CÓDIGO conduz a busca (extrai o serviço e
+    # pergunta a região por botões). Não vai para a IA nem empilha o menu.
+    # Só conversa geral segue para a IA.
+    if consentiu and not button_id and (texto or "").strip():
+        baixo = (texto or "").lower()
+        if not re.search(r"(convid|cadastr|ser profis|meu perfil)", baixo):
             dados = nlu.extrair_servico_bairro(texto)
             servico_q = (dados.get("servico") or "").strip().lower()
             if servico_q:
