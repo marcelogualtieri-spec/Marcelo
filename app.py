@@ -1,10 +1,10 @@
 # app.py
 # ---------------------------------------------------------------------------
-# DOROTEIA - cerebro do bot. Recebe a mensagem do WhatsApp (via WhatsApp Cloud
-# API da Meta) e delega a CONVERSA pra IA (cerebro.py), que responde em
-# linguagem natural. As ACOES sensiveis (buscar, recomendar, contatos, convite,
-# dados, exclusao, consentimento) sao executadas AQUI, de forma determinista,
-# atraves das "ferramentas" que a IA pode chamar.
+# DOROTEIA - o CODIGO conduz tudo (fluxo linear, sem bate-papo). Recebe a
+# mensagem do WhatsApp (via Cloud API da Meta) e roteia de forma deterministica:
+# botoes, comandos, estados de fluxo e menus. A IA entra SO como extratora de
+# campos (nlu.py — servico/bairro/perfil a partir de texto livre); a IA
+# conversacional (cerebro.py) foi desligada — nada de conversa aberta.
 # ---------------------------------------------------------------------------
 
 import hashlib
@@ -28,7 +28,6 @@ from supabase import create_client
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from privacidade import calcular_contact_hash, normalizar_e164
-import cerebro
 import nlu
 import textos as t
 import termos
@@ -3911,7 +3910,7 @@ def rotear_menu(membro, texto, button_id, contatos=None):
             pedido_pre = fluxo_pre.get("pedido_pre_aceite") if fluxo_pre else None
             if pedido_pre:
                 _fluxo_limpar(membro)
-                # Guarda o pedido pra retomar depois — o cerebro vai extrair a intenção.
+                # Guarda o pedido pra retomar depois — o nlu extrai a intenção no aceite.
                 resposta_whatsapp("Que bom! Vou procurar por isso pra você. 💛")
                 _fluxo_set(membro, {"fluxo": "busca_retomada", "pedido_texto": pedido_pre})
                 # Na próxima mensagem, vai retomar a busca (ver linha ~3273).
@@ -4263,6 +4262,19 @@ def rotear_menu(membro, texto, button_id, contatos=None):
                     {"id": "prest_self", "label": "✅ Aceito e configuro"},
                     {"id": "menu",       "label": "🔙 Voltar"}])
             return True
+        # Consultas do "Minha conta" digitadas → mesmas telas dos botões (sem IA).
+        if re.search(r"minha rede\b", baixo):
+            _ver_minha_rede(membro); return True
+        if re.search(r"minhas indica", baixo):
+            _ver_indicacoes_feitas(membro); return True
+        if re.search(r"meus dados|minha conta", baixo):
+            enviar_submenu_dados(membro); return True
+        if re.search(r"\btermos\b", baixo):
+            enviar_botoes_meta(
+                "📄 *Termos de uso e privacidade da Dorote.ia*\n\n"
+                f"Cliente:\n{LINK_TERMOS}\n\nProfissional:\n{LINK_TERMOS_PROF}",
+                [{"id": "menu", "label": "🏠 Menu"}])
+            return True
 
     # -------- Pedido de SERVIÇO digitado em texto livre (fora de fluxo) --------
     # Se a pessoa JÁ diz o que quer ("preciso de um dentista" ou "quero uma
@@ -4333,7 +4345,7 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     texto_recebido = limpar_texto_convite(texto_recebido)
 
     # PRIMEIRO CONTATO (sem consent, sem historico e sem onboarding de prestador):
-    # o cerebro manda a mensagem de boas-vindas fixa. Nao passa pelo roteador de menu.
+    # o codigo manda a mensagem de boas-vindas fixa. Nao passa pelo roteador de menu.
     # (O 2o teste so faz a consulta extra quando a pessoa ainda nao consentiu.)
     primeiro_contato = (not membro.get("consent") and not membro.get("historico")
                         and not provider_do_membro(membro["id"]))
@@ -4343,52 +4355,58 @@ def _processar_mensagem(wa_id, texto_recebido, nome_perfil, contatos_compartilha
     if not primeiro_contato and rotear_menu(membro, texto_recebido, button_id, contatos_compartilhados):
         return
 
-    # Flag: se a IA mandar botoes via ferramenta, nao envia texto duplicado.
-    interativa_enviada = [False]
-    # Flag: se a IA fez uma PERGUNTA (pediu mais info), não empilhamos o menu depois.
-    ia_perguntou = [False]
+    # ============ FLUXO LINEAR — SEM BATE-PAPO (a IA saiu da conversa) ============
+    # Tudo que chega aqui NÃO casou com botão, comando, fluxo armado, pedido de
+    # serviço nem intenção conhecida. Resposta determinística + menu (§1 CLAUDE.md).
+    # A IA conversacional (cerebro) não é mais chamada: só o nlu extrai campos.
 
-    def enviar_texto_com_botoes_boas_vindas(texto):
-        """REGRA FIRME: toda mensagem de boas-vindas/consentimento (pré-aceite) SEMPRE
-        sai com botões — a pessoa nunca fica sem ação. Detecta pela menção a 'Termos'
-        (todo texto de consentimento pede o aceite dos Termos), sem depender de frase
-        exata. Assim, se a copy mudar, os botões continuam aparecendo."""
-        if interativa_enviada[0]:
-            return
-        # É boas-vindas/consentimento se cita "Termos" (aceite pendente).
-        if re.search(r"\btermos\b", texto, re.IGNORECASE):
-            enviar_botoes_meta(texto, [
-                {"id": "consent_sim",        "label": "✅ Aceito e começar"},
-                {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
-            ])
+    # PRIMEIRO CONTATO: boas-vindas fixa com botões de aceite — direto pelo código.
+    if primeiro_contato:
+        convidante = (membro.get("convidado_por_nome") or "").strip()
+        if convidante:
+            msg_boas = t.BOAS_VINDAS_CONVIDADO.format(nome=convidante.split()[0],
+                                                      link=LINK_TERMOS)
         else:
-            # A IA está perguntando OU se colocou à disposição? Não joga o menu por
-            # cima (o "?" pode estar no meio da frase, não só no final).
-            if "?" in (texto or "") or re.search(r"disposi[cç][aã]o|s[oó] falar|s[oó] chamar",
-                                                 texto or "", re.IGNORECASE):
-                ia_perguntou[0] = True
-            resposta_whatsapp(texto)
+            msg_boas = t.BOAS_VINDAS.format(link=LINK_TERMOS)
+        enviar_botoes_meta(msg_boas, [
+            {"id": "consent_sim",        "label": "✅ Aceito e começar"},
+            {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
+        ])
+        # Se a 1ª mensagem já parece um pedido, guarda pra retomar após o aceite
+        # (mesma heurística do roteador pré-aceite).
+        palavras_pedido = ["preciso", "quero", "tenho", "procuro", "busco", "precisa"]
+        if (texto_recebido or "").strip() and len(texto_recebido) > 5 and \
+                any(p in texto_recebido.lower() for p in palavras_pedido):
+            _fluxo_set(membro, {"pedido_pre_aceite": texto_recebido})
+        # LGPD: não salva conteúdo pré-aceite — só o marcador de boas-vindas enviadas.
+        salvar_historico(wa_id, [
+            {"role": "system",
+             "content": "Boas-vindas enviadas. Aguardando resposta pré-consentimento."},
+        ])
+        return
 
-    usados = cerebro.conversar(
-        membro,
-        texto_recebido,
-        contatos_compartilhados,
-        executar_ferramenta=construir_executor(membro, interativa_enviada),
-        enviar_texto=enviar_texto_com_botoes_boas_vindas,
-        salvar_historico=lambda hist: salvar_historico(wa_id, hist),
-    ) or set()
+    # PRÉ-ACEITE não roteado (defensivo — o roteador cobre tudo): pede o aceite.
+    if not membro.get("consent"):
+        enviar_botoes_meta(t.PRECISA_CONSENTIR + f"\n📄 {LINK_TERMOS}", [
+            {"id": "consent_sim",        "label": "✅ Aceito e começar"},
+            {"id": "consent_saber_mais", "label": "ℹ️ Saber mais"},
+        ])
+        return
 
-    # Guarda o NOME dos contatos do cartão na agenda da pessoa (número fica só em
-    # hash) — para ela ver, na Minha rede, quem convidou e ainda não respondeu.
+    # Guarda o NOME dos contatos do cartão (número fica só em hash) — defensivo;
+    # os fluxos determinísticos já cuidam disso nos caminhos normais.
     if contatos_compartilhados:
         _salvar_nomes_contatos(membro, contatos_compartilhados)
 
-    # Menu como rede de segurança: só aparece quando a pessoa ficaria SEM caminho —
-    # ou seja, a IA respondeu em texto, NÃO mandou botões e NÃO fez uma pergunta
-    # (se ela perguntou, a pessoa já sabe o que responder; empilhar o menu confunde).
-    # Assim o "O que você deseja fazer?" para de aparecer em toda interação.
-    if membro.get("consent") and not interativa_enviada[0] and not ia_perguntou[0]:
+    # PÓS-ACEITE: dúvida de "como funciona" ganha a explicação fixa; todo o resto
+    # volta ao menu do perfil ativo. Nunca conversa aberta.
+    baixo_f = (texto_recebido or "").lower()
+    if re.search(r"como funciona|o que (é|e) (a )?dorote|o que (você|voce) faz|"
+                 r"como us|seguran|privacidade|(é|e) seguro", baixo_f):
+        resposta_whatsapp(t.FAQ_COMO_FUNCIONA)
         enviar_menu_do_perfil_ativo(membro)
+        return
+    enviar_menu_do_perfil_ativo(membro, t.NAO_ENTENDI_MENU)
 
 
 @app.route("/ping", methods=["GET"])

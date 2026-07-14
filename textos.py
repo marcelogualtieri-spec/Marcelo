@@ -530,6 +530,21 @@ BUSCAR_SEM_REDE = (
     "O que deseja fazer?"
 )
 
+# FLUXO LINEAR — sem bate-papo: dúvida comum ganha a explicação fixa; o resto
+# volta ao menu. (A IA conversacional saiu do caminho.)
+FAQ_COMO_FUNCIONA = (
+    "A Dorote.ia é uma central de indicações de confiança 💛\n\n"
+    "🔎 Busque profissionais recomendados por quem você conhece.\n"
+    "📣 Indique quem presta um bom serviço.\n"
+    "✉️ Convide gente de confiança pra sua rede.\n\n"
+    "🔒 Privacidade: seu contato só aparece para quem você aprovar. "
+    "Para sair a qualquer momento, digite SAIR."
+)
+NAO_ENTENDI_MENU = (
+    "Por aqui eu funciono por menus — assim ninguém se perde 💛\n"
+    "O que você deseja fazer?"
+)
+
 # Contato compartilhado FORA de fluxo: o CÓDIGO pergunta o destino por botões
 # (a IA não decide caminho — §7.1). O contato fica guardado no estado.
 CONTATO_RECEBIDO = (
