@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070a12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Kaizen Quest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070a12;--panel:#0d1322;--panel2:#121a2e;--line:#1f2b47;--txt:#e7ecff;--mut:#8d9abd;
+  --cyan:#00e5ff;--mag:#ff2bd6;--lime:#a6ff00;--amb:#ffb020;--red:#ff4d6d;--vio:#8b5cff;
+  --r:14px;--nav:64px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  background-image:radial-gradient(1200px 600px at 100% -10%,rgba(139,92,255,.16),transparent 60%),
+                   radial-gradient(900px 500px at -10% 110%,rgba(0,229,255,.10),transparent 60%);
+  background-attachment:fixed;
+  color:var(--txt);font-family:'Rajdhani',system-ui,-apple-system,Segoe UI,sans-serif;font-size:17px;line-height:1.45;
+  min-height:100vh;overflow-x:hidden;
+}
+h1,h2,h3,.orb{font-family:'Orbitron',system-ui,sans-serif;letter-spacing:.04em;margin:0}
+h2{font-size:1.15rem}h3{font-size:.95rem}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--cyan)}
+.app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+
+/* ---------- NAV ---------- */
+nav{position:sticky;top:0;height:100vh;padding:18px 12px;border-right:1px solid var(--line);background:rgba(8,12,22,.85);backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:6px}
+.logo{font-family:'Orbitron';font-weight:900;font-size:1.05rem;padding:6px 10px 18px;letter-spacing:.08em}
+.logo span{color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.6)}
+.navbtn{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid transparent;background:none;cursor:pointer;font-weight:700;font-size:1.02rem;color:var(--mut);text-align:left}
+.navbtn .ic{font-size:1.25rem;width:26px;text-align:center}
+.navbtn:hover{color:var(--txt);background:var(--panel2)}
+.navbtn.on{color:var(--txt);background:linear-gradient(90deg,rgba(0,229,255,.16),transparent);border-color:rgba(0,229,255,.35)}
+main{padding:22px clamp(14px,3vw,34px) 40px;max-width:1100px;width:100%;margin:0 auto}
+
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  nav{position:fixed;top:auto;bottom:0;left:0;right:0;height:calc(var(--nav) + env(safe-area-inset-bottom));padding:4px 4px env(safe-area-inset-bottom);flex-direction:row;justify-content:space-around;border-right:0;border-top:1px solid var(--line);z-index:50}
+  .logo{display:none}
+  .navbtn{flex-direction:column;gap:0;padding:6px 2px;font-size:.68rem;flex:1;justify-content:center;align-items:center;letter-spacing:.02em}
+  .navbtn .ic{font-size:1.3rem}
+  .navbtn.on{background:linear-gradient(180deg,rgba(0,229,255,.18),transparent)}
+  main{padding:14px 14px calc(var(--nav) + 30px)}
+  .toasts{top:auto;bottom:calc(var(--nav) + 12px + env(safe-area-inset-bottom));align-items:stretch}
+  .toast{max-width:none}
+}
+
+/* ---------- HUD ---------- */
+.hud{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(135deg,var(--panel),var(--panel2));margin-bottom:18px;position:relative;overflow:hidden}
+.hud::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.015) 0 2px,transparent 2px 4px);pointer-events:none}
+.avatar{width:52px;height:52px;flex:none;border-radius:14px;display:grid;place-items:center;font-family:'Orbitron';font-weight:900;font-size:1.2rem;background:conic-gradient(from 200deg,var(--cyan),var(--vio),var(--mag),var(--cyan));color:#06080f;box-shadow:0 0 18px rgba(0,229,255,.35)}
+.hud .who{flex:1;min-width:0}
+.hud .name{font-family:'Orbitron';font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hud .rank{color:var(--mut);font-size:.9rem;font-weight:600}
+.xpbar{height:10px;border-radius:99px;background:#0a0f1c;border:1px solid var(--line);overflow:hidden;margin-top:6px}
+.xpbar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--vio),var(--mag));box-shadow:0 0 10px var(--cyan);transition:width .6s}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:#0a1020;font-weight:700;font-size:.9rem;white-space:nowrap}
+.chip.fire{border-color:rgba(255,176,32,.5);color:var(--amb)}
+.chip.lvl{border-color:rgba(0,229,255,.5);color:var(--cyan)}
+.gear{background:none;border:1px solid var(--line);border-radius:10px;width:40px;height:40px;cursor:pointer;flex:none}
+
+/* ---------- COMMON ---------- */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.card{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,var(--panel),rgba(13,19,34,.7));padding:16px;position:relative}
+.card.glow{border-color:rgba(0,229,255,.35);box-shadow:0 0 0 1px rgba(0,229,255,.08),0 10px 30px rgba(0,0,0,.35)}
+.sec{margin:22px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sec h2::before{content:"// ";color:var(--cyan)}
+.mut{color:var(--mut)}.small{font-size:.9rem}
+.tag{font-family:'Orbitron';font-size:.62rem;letter-spacing:.12em;padding:3px 8px;border-radius:6px;background:rgba(0,229,255,.12);color:var(--cyan);border:1px solid rgba(0,229,255,.3);text-transform:uppercase;white-space:nowrap}
+.tag.m{background:rgba(255,43,214,.12);color:var(--mag);border-color:rgba(255,43,214,.3)}
+.tag.l{background:rgba(166,255,0,.1);color:var(--lime);border-color:rgba(166,255,0,.3)}
+.tag.a{background:rgba(255,176,32,.1);color:var(--amb);border-color:rgba(255,176,32,.35)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border-radius:12px;border:1px solid rgba(0,229,255,.45);background:linear-gradient(180deg,rgba(0,229,255,.22),rgba(0,229,255,.08));color:var(--txt);font-weight:700;font-size:1rem;cursor:pointer;min-height:46px;transition:transform .08s,box-shadow .2s;text-decoration:none}
+.btn:hover{box-shadow:0 0 18px rgba(0,229,255,.35)}
+.btn:active{transform:scale(.97)}
+.btn.mag{border-color:rgba(255,43,214,.5);background:linear-gradient(180deg,rgba(255,43,214,.25),rgba(255,43,214,.08))}
+.btn.lime{border-color:rgba(166,255,0,.5);background:linear-gradient(180deg,rgba(166,255,0,.2),rgba(166,255,0,.06))}
+.btn.ghost{border-color:var(--line);background:var(--panel2)}
+.btn.red{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.12)}
+.btn.sm{padding:7px 12px;min-height:38px;font-size:.92rem}
+.btn.full{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+label.f{display:block;font-weight:700;font-size:.92rem;margin:10px 0 4px;color:var(--mut)}
+input[type=text],input[type=password],input[type=number],select,textarea{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:#0a0f1c;outline:none;font-size:1rem}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.15)}
+textarea{min-height:170px;resize:vertical;line-height:1.5}
+.stat{text-align:center;padding:14px 8px}
+.stat b{display:block;font-family:'Orbitron';font-size:1.5rem;color:var(--cyan)}
+.stat span{color:var(--mut);font-weight:600;font-size:.9rem}
+.empty{text-align:center;padding:28px 16px;color:var(--mut);border:1px dashed var(--line);border-radius:var(--r)}
+.empty .big{font-size:2.2rem}
+.prog{height:8px;border-radius:99px;background:#0a0f1c;overflow:hidden;border:1px solid var(--line)}
+.prog i{display:block;height:100%;background:linear-gradient(90deg,var(--lime),var(--cyan))}
+
+/* ---------- MISSIONS ---------- */
+.mission{display:flex;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);margin-bottom:10px}
+.mission.done{opacity:.55}
+.mission.done .mt{text-decoration:line-through}
+.check{width:34px;height:34px;flex:none;border-radius:10px;border:2px solid var(--cyan);background:none;cursor:pointer;display:grid;place-items:center;font-weight:900;color:#06080f}
+.mission.done .check{background:var(--lime);border-color:var(--lime)}
+.mission .mt{font-weight:700}
+.mission .mb{flex:1;min-width:0}
+.mission .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;align-items:center}
+.week{display:flex;gap:8px;justify-content:space-between}
+.day{flex:1;text-align:center;font-size:.78rem;color:var(--mut);font-weight:700}
+.day i{display:block;height:34px;border-radius:9px;border:1px solid var(--line);background:#0a0f1c;margin-bottom:4px}
+.day.on i{background:linear-gradient(180deg,var(--lime),#5bbf00);border-color:var(--lime);box-shadow:0 0 12px rgba(166,255,0,.35)}
+.day.today{color:var(--cyan)}
+
+/* ---------- SCANNER ---------- */
+.drop{border:2px dashed rgba(0,229,255,.4);border-radius:var(--r);padding:26px 16px;text-align:center;background:rgba(0,229,255,.04);cursor:pointer;transition:.2s}
+.drop.over{background:rgba(0,229,255,.12);border-color:var(--cyan)}
+.drop .big{font-size:2.4rem}
+.thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.thumb{position:relative;width:92px;height:92px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb button{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:8px;border:0;background:rgba(0,0,0,.75);cursor:pointer}
+.loader{display:none;margin-top:12px}
+.loader.on{display:block}
+.scanline{height:6px;border-radius:99px;background:#0a0f1c;overflow:hidden;border:1px solid var(--line)}
+.scanline i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--mag),var(--cyan));transition:width .3s}
+.seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{flex:1;padding:10px;border:0;background:var(--panel);cursor:pointer;font-weight:700;color:var(--mut)}
+.seg button.on{background:rgba(0,229,255,.16);color:var(--txt)}
+
+/* ---------- DECK ---------- */
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin:14px 0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;padding:9px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-weight:700;color:var(--mut)}
+.tabs button.on{color:var(--txt);border-color:rgba(0,229,255,.5);background:rgba(0,229,255,.12)}
+.list{margin:0;padding-left:20px}
+.list li{margin:8px 0}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps li{counter-increment:s;position:relative;padding:10px 12px 10px 52px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:var(--panel)}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:10px;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-family:'Orbitron';font-size:.8rem;background:rgba(255,43,214,.18);color:var(--mag);border:1px solid rgba(255,43,214,.4)}
+.mm{display:flex;flex-direction:column;align-items:center}
+.mm .core{padding:14px 22px;border-radius:16px;border:2px solid var(--cyan);background:rgba(0,229,255,.1);font-family:'Orbitron';font-weight:700;text-align:center;box-shadow:0 0 22px rgba(0,229,255,.25);max-width:100%}
+.mm .stem{width:2px;height:22px;background:var(--cyan)}
+.mm .branches{width:100%;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));border-top:2px solid var(--line);padding-top:16px}
+.br{border-radius:12px;padding:12px;border:1px solid var(--line);border-left:5px solid var(--c);background:var(--panel)}
+.br b{color:var(--c);font-family:'Orbitron';font-size:.82rem;letter-spacing:.05em}
+.br ul{margin:6px 0 0;padding-left:18px;font-size:.95rem}
+.ex{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--panel)}
+.ex .hd{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:6px}
+.ex .q{white-space:pre-line;font-weight:600}
+.ans{display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(166,255,0,.07);border:1px solid rgba(166,255,0,.25);white-space:pre-line}
+.ans.on{display:block}
+.tick{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:700;font-size:.92rem;user-select:none}
+.tick input{width:20px;height:20px;accent-color:var(--lime)}
+.deckcard{cursor:pointer;transition:.15s}
+.deckcard:hover{border-color:rgba(0,229,255,.45);transform:translateY(-2px)}
+
+/* ---------- ARENA ---------- */
+.boss{display:flex;align-items:center;gap:14px}
+.boss .face{font-size:3rem;filter:drop-shadow(0 0 14px rgba(255,43,214,.6));animation:float 2.4s ease-in-out infinite}
+.boss.hit .face{animation:hit .35s}
+@keyframes float{50%{transform:translateY(-6px)}}
+@keyframes hit{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px) rotate(-6deg)}75%{transform:translateX(8px) rotate(6deg)}}
+.hp{height:14px;border-radius:99px;background:#0a0f1c;border:1px solid var(--line);overflow:hidden}
+.hp i{display:block;height:100%;background:linear-gradient(90deg,var(--red),var(--mag));transition:width .4s}
+.timer{height:6px;border-radius:99px;background:#0a0f1c;overflow:hidden;margin:12px 0}
+.timer i{display:block;height:100%;background:var(--amb);transition:width .1s linear}
+.qbox{font-size:1.12rem;font-weight:700;white-space:pre-line;margin:8px 0 14px}
+.opts{display:grid;gap:10px}
+.opt{text-align:left;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-weight:700;font-size:1.02rem;display:flex;gap:12px;align-items:flex-start}
+.opt .k{font-family:'Orbitron';font-size:.75rem;color:var(--cyan);border:1px solid rgba(0,229,255,.4);border-radius:6px;padding:2px 7px;flex:none;margin-top:2px}
+.opt:hover:not(:disabled){border-color:var(--cyan)}
+.opt.ok{border-color:var(--lime);background:rgba(166,255,0,.12)}
+.opt.bad{border-color:var(--red);background:rgba(255,77,109,.12)}
+.opt:disabled{cursor:default}
+.fb{margin-top:12px;padding:12px;border-radius:12px;white-space:pre-line}
+.fb.ok{background:rgba(166,255,0,.08);border:1px solid rgba(166,255,0,.3)}
+.fb.bad{background:rgba(255,77,109,.08);border:1px solid rgba(255,77,109,.3)}
+.hearts{font-size:1.2rem;letter-spacing:2px}
+.result{text-align:center;padding:26px 16px}
+.result h1{font-size:clamp(1.6rem,6vw,2.6rem);margin-bottom:8px}
+.win{color:var(--lime);text-shadow:0 0 20px rgba(166,255,0,.5)}
+.lose{color:var(--red);text-shadow:0 0 20px rgba(255,77,109,.5)}
+
+/* ---------- PROFILE ---------- */
+.ach{display:flex;gap:12px;align-items:center;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--panel)}
+.ach .ai{font-size:1.7rem;width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:12px;background:#0a0f1c;border:1px solid var(--line)}
+.ach.lock{opacity:.4;filter:grayscale(1)}
+.ach.got{border-color:rgba(255,176,32,.45)}
+.ach.got .ai{border-color:var(--amb);box-shadow:0 0 14px rgba(255,176,32,.35)}
+.rk{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px;background:var(--panel)}
+.rk .pos{font-family:'Orbitron';width:30px;text-align:center;color:var(--mut)}
+.rk.me{border-color:var(--cyan);background:rgba(0,229,255,.1)}
+.rk .nm{flex:1;font-weight:700}
+
+/* ---------- OVERLAYS ---------- */
+.toasts{position:fixed;top:14px;right:14px;left:14px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:200;pointer-events:none}
+.toast{pointer-events:auto;max-width:360px;padding:12px 16px;border-radius:12px;background:#0d1426;border:1px solid rgba(0,229,255,.45);box-shadow:0 10px 30px rgba(0,0,0,.5);font-weight:700;animation:tin .3s}
+.toast.xp{border-color:rgba(166,255,0,.5)}
+.toast.ach{border-color:rgba(255,176,32,.6)}
+@keyframes tin{from{opacity:0;transform:translateY(-10px)}}
+.modal{position:fixed;inset:0;background:rgba(3,5,10,.78);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:16px;z-index:150}
+.modal.on{display:flex}
+.modal .box{width:100%;max-width:480px;max-height:90vh;overflow:auto;border:1px solid rgba(0,229,255,.4);border-radius:18px;background:var(--panel);padding:20px}
+.focus{text-align:center}
+.focus .clock{font-family:'Orbitron';font-size:clamp(3rem,16vw,5rem);font-weight:900;color:var(--cyan);text-shadow:0 0 24px rgba(0,229,255,.5);margin:12px 0}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav id="nav">
+    <div class="logo">KAIZEN<span>//</span>QUEST</div>
+    <button class="navbtn" data-go="base"><span class="ic">🛰️</span>Base</button>
+    <button class="navbtn" data-go="missoes"><span class="ic">⚔️</span>Missões</button>
+    <button class="navbtn" data-go="scanner"><span class="ic">📷</span>Scanner</button>
+    <button class="navbtn" data-go="inventario"><span class="ic">🎒</span>Inventário</button>
+    <button class="navbtn" data-go="arena"><span class="ic">🐉</span>Arena</button>
+    <button class="navbtn" data-go="perfil"><span class="ic">🏆</span>Perfil</button>
+  </nav>
+  <main>
+    <div class="hud" id="hud"></div>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
+<input type="file" id="fileIn" accept="image/*" multiple class="hide">
+<input type="file" id="backupIn" accept="application/json,.json" class="hide">
+
+<script>
+/* =========================================================
+   KAIZEN QUEST — app de estudo Kaizen com estética gamer
+   Tudo salvo no localStorage do navegador.
+   ========================================================= */
+'use strict';
+
+const KEY = 'kaizenQuest.v1';
+const TESS_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+const CLAUDE_MODEL = 'claude-opus-5-5';
+
+/* ---------------- STATE ---------------- */
+const DEF = () => ({
+  v: 1,
+  player: { name: '', xp: 0, streak: 0, best: 0, lastActive: null },
+  days: {},               // 'AAAA-MM-DD' -> xp do dia
+  missions: [], campaigns: [], decks: [], battles: [],
+  stats: { missions: 0, exercises: 0, critical: 0, bosses: 0, perfect: 0, camps: 0, scans: 0 },
+  ach: {}, lastGen: null,
+  settings: { mode: 'local', apiKey: '' }
+});
+let S = load();
+let VIEW = 'base', DECK = null, DECKTAB = 'resumo', IMGS = [], B = null, BTIMER = null, FOCUS = null;
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const d = JSON.parse(raw), base = DEF();
+      return Object.assign(base, d, { player: Object.assign(base.player, d.player), stats: Object.assign(base.stats, d.stats), settings: Object.assign(base.settings, d.settings) }); }
+  } catch (e) { console.warn(e); }
+  return DEF();
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch (e) { toast('⚠️ Memória do navegador cheia. Exporte um backup no Perfil e apague conteúdos antigos.'); }
+}
+
+/* ---------------- UTILS ---------------- */
+const $ = s => document.querySelector(s);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const dstr = d => { const z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); };
+const today = () => dstr(new Date());
+const dayOffset = n => { const d = new Date(); d.setDate(d.getDate() + n); return dstr(d); };
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+/* ---------------- LEVELS ---------------- */
+const need = n => Math.round(60 * Math.pow(n - 1, 1.55));
+const levelOf = xp => { let l = 1; while (xp >= need(l + 1)) l++; return l; };
+const TITLES = [[1, 'Recruta'], [3, 'Aprendiz'], [5, 'Explorador'], [8, 'Estrategista'], [12, 'Guardião do Saber'], [16, 'Mestre Kaizen'], [20, 'Lenda']];
+const titleOf = l => TITLES.filter(t => l >= t[0]).pop()[1];
+
+function gain(xp, why) {
+  if (!xp) return;
+  const before = levelOf(S.player.xp);
+  S.player.xp += xp;
+  S.days[today()] = (S.days[today()] || 0) + xp;
+  markActive();
+  toast(`+${xp} XP · ${why}`, 'xp');
+  const after = levelOf(S.player.xp);
+  if (after > before) levelUp(after);
+  checkAch(); save(); renderHud();
+}
+function markActive() {
+  const t = today(), p = S.player;
+  if (p.lastActive === t) return;
+  p.streak = (p.lastActive === dayOffset(-1)) ? p.streak + 1 : 1;
+  p.best = Math.max(p.best, p.streak);
+  p.lastActive = t;
+}
+function streakNow() { const p = S.player; return (p.lastActive === today() || p.lastActive === dayOffset(-1)) ? p.streak : 0; }
+
+/* ---------------- ACHIEVEMENTS ---------------- */
+const ACH = [
+  ['m1', '🎯', 'Primeiro Passo', 'Concluir 1 missão', s => s.stats.missions >= 1],
+  ['m10', '⚙️', 'Máquina Kaizen', 'Concluir 10 missões', s => s.stats.missions >= 10],
+  ['m50', '🛡️', 'Disciplina de Aço', 'Concluir 50 missões', s => s.stats.missions >= 50],
+  ['s3', '🔥', 'Combo x3', '3 dias seguidos de estudo', s => s.player.best >= 3],
+  ['s7', '📅', 'Semana Perfeita', '7 dias seguidos', s => s.player.best >= 7],
+  ['s30', '👑', 'Lenda da Consistência', '30 dias seguidos', s => s.player.best >= 30],
+  ['sc1', '📡', 'Scanner Online', 'Analisar 1 conteúdo', s => s.stats.scans >= 1],
+  ['sc5', '📚', 'Arquivista', 'Ter 5 conteúdos no inventário', s => s.stats.scans >= 5],
+  ['b1', '🐉', 'Caçador de Chefes', 'Vencer 1 Boss Fight', s => s.stats.bosses >= 1],
+  ['b10', '⚔️', 'Exterminador', 'Vencer 10 Boss Fights', s => s.stats.bosses >= 10],
+  ['pf', '💎', 'Gabarito Perfeito', '100% de acertos numa batalha', s => s.stats.perfect >= 1],
+  ['ex10', '✍️', 'Mão no Caderno', '10 exercícios feitos no caderno', s => s.stats.exercises >= 10],
+  ['cr5', '🧠', 'Pensador Crítico', 'Refletir sobre 5 perguntas críticas', s => s.stats.critical >= 5],
+  ['cp1', '🗺️', 'Campanha Completa', 'Terminar uma campanha Kaizen', s => s.stats.camps >= 1],
+  ['l5', '⭐', 'Nível 5', 'Alcançar o nível 5', s => levelOf(s.player.xp) >= 5],
+  ['l10', '🌟', 'Nível 10', 'Alcançar o nível 10', s => levelOf(s.player.xp) >= 10]
+];
+function checkAch() {
+  ACH.forEach(([id, ic, nm]) => {
+    const a = ACH.find(x => x[0] === id);
+    if (!S.ach[id] && a[4](S)) { S.ach[id] = today(); setTimeout(() => toast(`${ic} Conquista desbloqueada: ${nm}`, 'ach'), 400); }
+  });
+}
+
+/* ---------------- KAIZEN: MISSÕES DIÁRIAS ---------------- */
+const CYCLE = [
+  ['Reconhecimento: leia só títulos, negritos e imagens de "{a}"', 'Leitura'],
+  ['Leia 1 parte de "{a}" e sublinhe 3 palavras-chave', 'Leitura'],
+  ['Escaneie a página de "{a}" no Scanner e monte o Mapa Mental no caderno', 'Scanner'],
+  ['Resolva 3 exercícios do Caderno sobre "{a}"', 'Caderno'],
+  ['Boss Fight: enfrente o chefe de "{a}" na Arena', 'Arena'],
+  ['Explique "{a}" em voz alta por 2 min, sem olhar (Técnica Feynman)', 'Revisão'],
+  ['Revisão relâmpago: redesenhe o mapa de "{a}" de memória e compare', 'Revisão']
+];
+function buildPlan(assunto, dias) {
+  const plan = [];
+  for (let i = 0; i < dias; i++) {
+    const c = CYCLE[i % CYCLE.length], parte = Math.floor(i / CYCLE.length) + 1;
+    plan.push({ t: c[0].replace('{a}', assunto) + (dias > CYCLE.length ? ` (rodada ${parte})` : ''), k: c[1] });
+  }
+  return plan;
+}
+function ensureToday() {
+  const t = today();
+  if (S.lastGen === t) return;
+  S.lastGen = t;
+  // missões "ritual" antigas não concluídas expiram
+  S.missions = S.missions.filter(m => !(m.ritual && !m.done && m.date !== t));
+  S.campaigns.forEach(c => {
+    if (c.step >= c.plan.length) return;
+    if (S.missions.some(m => m.camp === c.id && !m.done)) return;
+    const p = c.plan[c.step];
+    S.missions.push({ id: uid(), title: p.t, sub: c.subject, kind: p.k, min: c.min, xp: 10 + c.min * 2, date: t, camp: c.id, done: false });
+  });
+  S.missions.push({ id: uid(), title: 'Ritual 1%: abra o caderno e escreva 1 coisa que você lembra do último estudo', sub: 'Kaizen', kind: 'Ritual', min: 2, xp: 10, date: t, ritual: true, done: false });
+  // limpa concluídas com mais de 21 dias
+  const lim = dayOffset(-21);
+  S.missions = S.missions.filter(m => !m.done || m.doneAt >= lim);
+  save();
+}
+function completeMission(id) {
+  const m = S.missions.find(x => x.id === id);
+  if (!m || m.done) return;
+  m.done = true; m.doneAt = today();
+  S.stats.missions++;
+  if (m.camp) {
+    const c = S.campaigns.find(x => x.id === m.camp);
+    if (c) { c.step++; if (c.step >= c.plan.length) { S.stats.camps++; gain(100, `Campanha "${c.subject}" concluída!`); } }
+  }
+  gain(m.xp, 'Missão concluída');
+  render();
+}
+
+/* ---------------- RENDER: HUD ---------------- */
+function renderHud() {
+  const p = S.player, l = levelOf(p.xp), a = need(l), b = need(l + 1);
+  const pct = Math.min(100, ((p.xp - a) / (b - a)) * 100);
+  $('#hud').innerHTML = `
+    <div class="avatar">${esc((p.name || '?').slice(0, 2).toUpperCase())}</div>
+    <div class="who">
+      <div class="name">${esc(p.name || 'Jogador')}</div>
+      <div class="rank">${titleOf(l)} · ${p.xp - a}/${b - a} XP</div>
+      <div class="xpbar"><i style="width:${pct}%"></i></div>
+    </div>
+    <div class="chips"><span class="chip lvl">LV ${l}</span><span class="chip fire">🔥 ${streakNow()}</span></div>
+    <button class="gear" data-act="settings" title="Configurações">⚙️</button>`;
+}
+
+/* ---------------- ROUTER ---------------- */
+function go(v) {
+  VIEW = v; if (v !== 'inventario') DECK = null;
+  if (v !== 'arena') stopTimer();
+  document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('on', b.dataset.go === v));
+  render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function render() {
+  ensureToday(); renderHud();
+  const V = { base: vBase, missoes: vMissions, scanner: vScanner, inventario: vInventory, arena: vArena, perfil: vProfile }[VIEW];
+  $('#view').innerHTML = V();
+  if (VIEW === 'scanner') bindScanner();
+  if (VIEW === 'arena' && B && !B.answered && !B.over) startTimer();
+}
+
+/* ---------------- VIEW: BASE ---------------- */
+function missionHTML(m) {
+  const late = !m.done && m.date < today();
+  return `<div class="mission ${m.done ? 'done' : ''}">
+    <button class="check" data-act="done" data-id="${m.id}" aria-label="Concluir">${m.done ? '✓' : ''}</button>
+    <div class="mb"><div class="mt">${esc(m.title)}</div>
+      <div class="meta"><span class="tag">${esc(m.kind || 'Missão')}</span><span class="small mut">⏱ ${m.min} min · +${m.xp} XP</span>${m.sub ? `<span class="small mut">· ${esc(m.sub)}</span>` : ''}${late ? '<span class="tag a">Pendente</span>' : ''}</div></div>
+    ${m.done ? '' : `<button class="btn sm ghost" data-act="focus" data-id="${m.id}">▶</button>`}
+  </div>`;
+}
+function weekHTML() {
+  const names = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+  let h = '<div class="week">';
+  for (let i = -6; i <= 0; i++) {
+    const d = new Date(); d.setDate(d.getDate() + i); const k = dstr(d);
+    h += `<div class="day ${S.days[k] ? 'on' : ''} ${i === 0 ? 'today' : ''}"><i title="${S.days[k] || 0} XP"></i>${names[d.getDay()]}</div>`;
+  }
+  return h + '</div>';
+}
+function vBase() {
+  const t = today(), list = S.missions.filter(m => !m.done || m.doneAt === t);
+  const open = list.filter(m => !m.done), done = list.filter(m => m.done);
+  const pct = list.length ? Math.round(done.length / list.length * 100) : 0;
+  const lastDeck = S.decks[0];
+  return `
+  <div class="card glow">
+    <div class="row" style="justify-content:space-between">
+      <div><span class="tag m">Protocolo Kaizen</span>
+      <h2 style="margin-top:8px">${open.length ? `${open.length} missão(ões) ativa(s) hoje` : 'Missões do dia concluídas ✔'}</h2>
+      <div class="mut small">1% melhor por dia = 37× melhor em um ano. Missões curtas, todos os dias.</div></div>
+      <div class="stat"><b>${pct}%</b><span>do dia</span></div>
+    </div>
+    <div class="prog" style="margin-top:12px"><i style="width:${pct}%"></i></div>
+  </div>
+
+  <div class="sec"><h2>Missões Diárias</h2><button class="btn sm ghost" data-go="missoes">Ver todas</button></div>
+  ${open.slice(0, 3).map(missionHTML).join('') || '<div class="empty"><div class="big">🏁</div>Tudo feito por hoje. Quer XP extra? Enfrente um chefe na Arena.</div>'}
+
+  <div class="sec"><h2>Comandos Rápidos</h2></div>
+  <div class="grid g3">
+    <button class="btn full" data-go="scanner">📷 Escanear conteúdo</button>
+    <button class="btn mag full" data-go="arena">🐉 Boss Fight</button>
+    ${lastDeck ? `<button class="btn lime full" data-act="open" data-id="${lastDeck.id}">📓 Caderno: ${esc(lastDeck.title.slice(0, 22))}</button>` : `<button class="btn lime full" data-go="missoes">🗺️ Nova campanha</button>`}
+  </div>
+
+  <div class="sec"><h2>Status</h2></div>
+  <div class="grid g4">
+    <div class="card stat"><b>${S.player.xp}</b><span>XP total</span></div>
+    <div class="card stat"><b>${S.stats.missions}</b><span>Missões</span></div>
+    <div class="card stat"><b>${S.decks.length}</b><span>Conteúdos</span></div>
+    <div class="card stat"><b>${S.stats.bosses}</b><span>Chefes vencidos</span></div>
+  </div>
+  <div class="card" style="margin-top:14px"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3>Últimos 7 dias</h3><span class="small mut">Recorde: ${S.player.best} dias 🔥</span></div>${weekHTML()}</div>`;
+}
+
+/* ---------------- VIEW: MISSÕES ---------------- */
+function vMissions() {
+  const t = today();
+  const open = S.missions.filter(m => !m.done).sort((a, b) => a.date.localeCompare(b.date));
+  const done = S.missions.filter(m => m.done).sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || '')).slice(0, 8);
+  return `
+  <div class="sec" style="margin-top:0"><h2>Missões Ativas</h2><span class="tag">${open.length} ativas</span></div>
+  ${open.map(missionHTML).join('') || '<div class="empty"><div class="big">✅</div>Nenhuma missão pendente.</div>'}
+
+  <div class="grid g2" style="margin-top:18px">
+    <div class="card">
+      <h3>🗺️ Nova Campanha Kaizen</h3>
+      <div class="small mut">Quebra uma matéria grande em 1 micro-missão por dia.</div>
+      <label class="f">Matéria</label><input type="text" id="cSub" placeholder="Ex.: Ciências">
+      <label class="f">Assunto / capítulo</label><input type="text" id="cTop" placeholder="Ex.: Sistema Solar">
+      <div class="row" style="gap:10px">
+        <div style="flex:1;min-width:120px"><label class="f">Dias</label><select id="cDays">${[5, 7, 10, 14, 21].map(n => `<option ${n === 7 ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+        <div style="flex:1;min-width:120px"><label class="f">Minutos/dia</label><select id="cMin">${[5, 10, 15, 20].map(n => `<option ${n === 10 ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      </div>
+      <button class="btn full" style="margin-top:14px" data-act="newCamp">Iniciar campanha</button>
+    </div>
+    <div class="card">
+      <h3>⚡ Missão Rápida</h3>
+      <div class="small mut">Regra dos 2 minutos: comece pequeno, o resto vem.</div>
+      <label class="f">O que fazer?</label><input type="text" id="qTitle" placeholder="Ex.: Fazer 5 contas de divisão">
+      <label class="f">Duração</label><select id="qMin">${[2, 5, 10, 15, 25].map(n => `<option>${n}</option>`).join('')}</select>
+      <button class="btn lime full" style="margin-top:14px" data-act="quick">Adicionar missão</button>
+    </div>
+  </div>
+
+  <div class="sec"><h2>Campanhas</h2></div>
+  ${S.campaigns.length ? '<div class="grid g2">' + S.campaigns.map(c => {
+    const pct = Math.round(c.step / c.plan.length * 100);
+    return `<div class="card"><div class="row" style="justify-content:space-between"><div><b>${esc(c.subject)}</b><div class="small mut">${esc(c.topic)} · ${c.min} min/dia</div></div>${pct === 100 ? '<span class="tag l">Completa</span>' : `<span class="tag">${c.step}/${c.plan.length}</span>`}</div>
+    <div class="prog" style="margin:10px 0"><i style="width:${pct}%"></i></div>
+    <div class="small mut">${c.step < c.plan.length ? 'Próxima: ' + esc(c.plan[c.step].t) : 'Campanha finalizada. Respeito. 🫡'}</div>
+    <div class="row" style="margin-top:10px"><button class="btn sm red" data-act="delCamp" data-id="${c.id}">Remover</button></div></div>`;
+  }).join('') + '</div>' : '<div class="empty">Nenhuma campanha. Crie uma acima para gerar missões diárias automáticas.</div>'}
+
+  ${done.length ? `<div class="sec"><h2>Concluídas recentes</h2></div>${done.map(missionHTML).join('')}` : ''}`;
+}
+
+/* ---------------- VIEW: SCANNER ---------------- */
+function vScanner() {
+  const ai = S.settings.mode === 'ai';
+  return `
+  <div class="card glow">
+    <span class="tag m">Módulo de Entrada Visual</span>
+    <h2 style="margin:8px 0 4px">Escanear conteúdo</h2>
+    <div class="small mut">Tire foto da página do livro, caderno ou apostila. Dá para enviar várias páginas.</div>
+    <div class="seg" style="margin-top:12px">
+      <button data-act="mode" data-v="local" class="${ai ? '' : 'on'}">🔒 Modo Local (grátis)</button>
+      <button data-act="mode" data-v="ai" class="${ai ? 'on' : ''}">🤖 Modo IA (Claude)</button>
+    </div>
+    <div class="small mut" style="margin-top:6px">${ai ? (S.settings.apiKey ? 'A IA lê as fotos diretamente e gera um material mais rico.' : '⚠️ Configure a chave da API em ⚙️ Configurações para usar o Modo IA.') : 'Lê o texto da foto (OCR) aqui no aparelho e monta o material a partir dele.'}</div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="drop" id="drop"><div class="big">📸</div><b>Toque para tirar foto ou escolher imagem</b><div class="small mut">No computador: arraste aqui ou cole com Ctrl+V</div></div>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="row" style="margin-top:12px">
+      <label class="f" style="margin:0;flex:1;min-width:180px">Título (opcional)<input type="text" id="sTitle" placeholder="Ex.: Ciclo da água"></label>
+      <label class="f" style="margin:0;flex:1;min-width:150px">Matéria<input type="text" id="sSub" placeholder="Ex.: Geografia"></label>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="row" style="justify-content:space-between"><h3>📝 Texto do conteúdo</h3>
+      <button class="btn sm" data-act="ocr">🔎 Extrair texto da foto</button></div>
+    <div class="loader" id="ocrLoad"><div class="small mut" id="ocrMsg">Carregando leitor…</div><div class="scanline"><i id="ocrBar"></i></div></div>
+    <div class="small mut" style="margin:8px 0">Confira o texto lido e corrija erros. Também dá para colar ou digitar o texto direto aqui.</div>
+    <textarea id="sText" placeholder="O texto da página aparece aqui…"></textarea>
+    <button class="btn mag full" style="margin-top:12px" data-act="analyze">⚡ Gerar Mapa Mental, Resumo, Exercícios e Boss Fight</button>
+    <div class="loader" id="anLoad"><div class="small mut" id="anMsg">Analisando…</div><div class="scanline"><i id="anBar" style="width:60%"></i></div></div>
+  </div>`;
+}
+function bindScanner() {
+  const drop = $('#drop');
+  drop.onclick = () => $('#fileIn').click();
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); addFiles(e.dataTransfer.files); };
+  drawThumbs();
+}
+function drawThumbs() {
+  const t = $('#thumbs'); if (!t) return;
+  t.innerHTML = IMGS.map((src, i) => `<div class="thumb"><img src="${src}" alt="página ${i + 1}"><button data-act="rmImg" data-i="${i}">✕</button></div>`).join('');
+}
+function addFiles(files) {
+  [...files].filter(f => f.type.startsWith('image/')).forEach(f => {
+    const r = new FileReader();
+    r.onload = () => shrink(r.result).then(d => { IMGS.push(d); drawThumbs(); });
+    r.readAsDataURL(f);
+  });
+}
+function shrink(src, max = 1800) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+      res(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => res(src);
+    img.src = src;
+  });
+}
+function loadScript(url) {
+  return new Promise((ok, no) => {
+    if (window.Tesseract) return ok();
+    const s = document.createElement('script'); s.src = url; s.onload = ok; s.onerror = () => no(new Error('Sem internet para baixar o leitor de texto.'));
+    document.head.appendChild(s);
+  });
+}
+async function runOCR() {
+  if (!IMGS.length) return toast('📷 Adicione uma foto primeiro.');
+  const L = $('#ocrLoad'), msg = $('#ocrMsg'), bar = $('#ocrBar');
+  L.classList.add('on');
+  try {
+    msg.textContent = 'Baixando leitor de texto (só na primeira vez)…';
+    await loadScript(TESS_URL);
+    let page = 0;
+    const worker = await Tesseract.createWorker('por', 1, {
+      logger: m => { if (m.status === 'recognizing text') { bar.style.width = Math.round(((page + m.progress) / IMGS.length) * 100) + '%'; msg.textContent = `Lendo página ${page + 1} de ${IMGS.length}…`; } }
+    });
+    let out = '';
+    for (page = 0; page < IMGS.length; page++) { const r = await worker.recognize(IMGS[page]); out += r.data.text.trim() + '\n\n'; }
+    await worker.terminate();
+    const ta = $('#sText'); ta.value = (ta.value ? ta.value + '\n\n' : '') + out.trim();
+    toast('✅ Texto extraído. Confira e corrija antes de gerar.');
+  } catch (e) { toast('⚠️ ' + e.message); }
+  L.classList.remove('on'); bar.style.width = '0';
+}
+
+/* ---------------- ANALYZE ---------------- */
+async function analyze() {
+  const txt = $('#sText').value.trim(), title = $('#sTitle').value.trim(), sub = $('#sSub').value.trim();
+  const useAI = S.settings.mode === 'ai';
+  if (useAI && !S.settings.apiKey) { openSettings(); return toast('🔑 Coloque a chave da API para usar o Modo IA.'); }
+  if (useAI && !IMGS.length && txt.length < 40) return toast('Adicione uma foto ou cole o texto do conteúdo.');
+  if (!useAI && txt.length < 80) return toast(IMGS.length ? 'Toque em "Extrair texto da foto" primeiro.' : 'Cole ou digite o texto do conteúdo (ou envie uma foto).');
+  const L = $('#anLoad'); L.classList.add('on');
+  $('#anMsg').textContent = useAI ? 'A IA está lendo o material… (pode levar até 1 minuto)' : 'Montando seu material…';
+  try {
+    const a = useAI ? normalize(await callClaude(IMGS, txt, title)) : analyzeLocal(txt, title);
+    const deck = { id: uid(), title: a.titulo || title || 'Conteúdo', subject: sub || 'Geral', date: today(), text: txt.slice(0, 20000), a, exDone: [], qDone: [], src: useAI ? 'IA' : 'Local' };
+    S.decks.unshift(deck); S.stats.scans++;
+    const t = today();
+    [['Monte o Mapa Mental de "' + deck.title + '" no caderno', 'Caderno', 10], ['Resolva 3 exercícios do Caderno: "' + deck.title + '"', 'Caderno', 10], ['Boss Fight: "' + deck.title + '"', 'Arena', 5]]
+      .forEach(([tt, k, mn]) => S.missions.push({ id: uid(), title: tt, sub: deck.subject, kind: k, min: mn, xp: 10 + mn * 2, date: t, done: false }));
+    IMGS = [];
+    gain(25, 'Conteúdo escaneado');
+    DECK = deck.id; DECKTAB = 'resumo'; VIEW = 'inventario';
+    go('inventario'); DECK = deck.id; render();
+  } catch (e) { console.error(e); toast('⚠️ ' + e.message); }
+  L.classList.remove('on');
+}
+
+/* ---------- MOTOR LOCAL (sem internet, baseado só no texto) ---------- */
+const STOP = new Set(('a o e é de da do das dos em no na nos nas um uma uns umas para por com sem que se ao aos à às ou como mais mas foi são ser ter tem têm sua seu suas seus ele ela eles elas isso esse essa este esta isto aquele aquela aquilo também quando onde qual quais muito muita muitos muitas pelo pela pelos pelas entre sobre até depois antes porque pois já não sim era eram está estão estava estavam foram será serão podem pode cada outro outra outros outras mesmo mesma lhe nós vos todo toda todos todas assim então ainda apenas desde durante numa num dele dela deles delas seja sejam há houve fazer feito sendo tendo algumas alguns alguma algum qualquer vez vezes forma parte tipo exemplo meio através esses essas estes estas nesse nessa neste nesta desse dessa deste desta naquele daquele grande grandes maior menor muito bem quanto quantos toda também possui possuem chamado chamada chamados chamadas importante página capítulo figura vamos você vocês sobre usa usam usado usada usados usadas onde seguinte seguintes acima abaixo veja observe responda atividade exercício texto').split(/\s+/));
+const COLORS = ['#00e5ff', '#ff2bd6', '#a6ff00', '#ffb020', '#8b5cff', '#ff4d6d'];
+
+function cleanText(t) {
+  // linhas curtas sem pontuação final (títulos) viram parágrafos próprios
+  t = t.replace(/\r/g, '').split('\n').map(l => { const s = l.trim(); return (s && s.length <= 60 && !/[.!?:;,\-]$/.test(s)) ? '\n' + s + '\n' : l; }).join('\n');
+  return t.replace(/(\p{L})-\n(\p{L})/gu, '$1$2').replace(/[|_~^`#*]/g, ' ').replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\u0002').replace(/\n/g, ' ').replace(/\u0002/g, '\n').trim();
+}
+function splitSentences(t) {
+  return t.split('\n').flatMap(p => p.replace(/([.!?…;])\s+(?=["“(]?[A-ZÀ-Ú0-9])/g, '$1\u0001').split('\u0001'))
+    .map(s => s.trim().replace(/^[-•–—\d.)\s]+(?=\p{L})/u, ''))
+    .filter(s => s.split(/\s+/).length >= 5 && s.length >= 25)
+    .map(s => s.length > 240 ? s.slice(0, 237).replace(/\s\S*$/, '') + '…' : s);
+}
+function guessTitle(raw) {
+  const lines = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  for (const l of lines.slice(0, 6)) {
+    const w = l.split(/\s+/).length;
+    if (l.length >= 3 && l.length <= 60 && w <= 8 && !/[.:;,]$/.test(l) && /\p{L}{3}/u.test(l)) return cap(l.toLowerCase());
+  }
+  return '';
+}
+const kwRe = k => new RegExp('(^|[^\\p{L}])(' + escRe(k) + ')(?![\\p{L}])', 'iu');
+const hasKw = (s, k) => kwRe(k).test(s);
+const blank = (s, k) => s.replace(kwRe(k), (m, p) => p + '________');
+const swapKw = (s, k, n) => s.replace(kwRe(k), (m, p) => p + n);
+
+function extractKeywords(sents, boost = new Set()) {
+  const freq = {}, forms = {}, bi = {};
+  const LINK = /^(de|da|do|das|dos)$/;
+  sents.forEach(s => s.split(/[,;:()"“”.!?]/).forEach(chunk => {
+    let prev = null, link = '';
+    (chunk.match(/\p{L}[\p{L}-]*/gu) || []).forEach(w => {
+      const l = w.toLowerCase();
+      if (prev && !link && LINK.test(l)) { link = l; return; }
+      if (l.length < 4 || STOP.has(l)) { prev = null; link = ''; return; }
+      freq[l] = (freq[l] || 0) + 1;
+      (forms[l] = forms[l] || {})[w] = (forms[l][w] || 0) + 1;
+      if (prev) { const b = prev + ' ' + (link ? link + ' ' : '') + l; bi[b] = (bi[b] || 0) + 1; }
+      prev = l; link = '';
+    });
+  }));
+  const disp = l => { const f = forms[l]; if (!f) return l; if (f[l]) return l; return Object.entries(f).sort((a, b) => b[1] - a[1])[0][0]; };
+  const cands = [];
+  Object.entries(freq).forEach(([l, f]) => cands.push({ k: disp(l), l, f, s: f * (1 + Math.min(l.length, 12) / 10) + (boost.has(l) ? 5 : 0) }));
+  Object.entries(bi).filter(([, c]) => c >= 2).forEach(([b, c]) => { const ws = b.split(' '); cands.push({ k: ws.map((w, i) => i === 0 || i === ws.length - 1 ? disp(w) : w).join(' '), l: b, f: c, s: c * 5 + (boost.has(b) ? 5 : 0) }); });
+  cands.sort((a, b) => b.s - a.s);
+  const out = [];
+  for (const c of cands) {
+    if (out.some(o => (o.l.includes(c.l) && c.f < o.f * 2) || (c.l.includes(o.l) && o.f >= c.f * 2) || o.l === c.l)) continue;
+    out.push(c); if (out.length >= 16) break;
+  }
+  return out;
+}
+function fragment(s, k, n = 9) {
+  const ws = s.split(/\s+/), lk = k.toLowerCase().split(' ')[0];
+  let i = k.includes('___') ? ws.findIndex(w => w.includes('___')) : ws.findIndex(w => w.toLowerCase().replace(/[^\p{L}-]/gu, '') === lk);
+  if (i < 0) i = 0;
+  const a = Math.max(0, i - 3), b = Math.min(ws.length, a + n);
+  return (a > 0 ? '…' : '') + ws.slice(a, b).join(' ').replace(/[.,;:]$/, '') + (b < ws.length ? '…' : '');
+}
+function findDefs(sents) {
+  const re = /^(.{3,70}?)\s+(é|são|significa|significam|consiste em|consistem em|chama-se|chamam-se|denomina-se|representa|representam|refere-se a)\s+(.{8,})$/i;
+  const out = [];
+  sents.forEach(s => {
+    const m = s.match(re); if (!m) return;
+    let term = m[1].split(/[,:]/).pop().trim().split(/\s+/).slice(-5).join(' ').replace(/^(o|a|os|as|um|uma)\s+/i, '');
+    if (term.length < 3 || /^(isso|ele|ela|eles|elas|este|esta|que)$/i.test(term)) return;
+    if (/^(muito|mais|menos|importante|fundamental|essencial|necessári|possível|bom|boa|ruim|fácil|difícil)/i.test(m[3])) return;
+    if (out.some(o => o.term.toLowerCase() === term.toLowerCase())) return;
+    out.push({ term: cap(term), verb: m[2].toLowerCase(), def: m[3].replace(/[.;]$/, ''), s });
+  });
+  return out.slice(0, 8);
+}
+function analyzeLocal(raw, titleHint) {
+  const text = cleanText(raw), sents = splitSentences(text);
+  if (sents.length < 3) throw new Error('Texto curto demais. Envie pelo menos um parágrafo completo.');
+  const defs = findDefs(sents);
+  const all = extractKeywords(sents, new Set(defs.map(d => d.term.toLowerCase()))), kws = all.slice(0, 6), pool = all.map(x => x.k);
+  if (kws.length < 3) throw new Error('Não encontrei palavras-chave suficientes. Confira o texto.');
+  const K = i => kws[i % kws.length].k;
+  const titulo = titleHint || guessTitle(raw) || cap(K(0));
+
+  // resumo executivo: frases com mais palavras-chave
+  const kset = all.slice(0, 10);
+  const scored = sents.map((s, i) => ({ s, i, sc: kset.reduce((n, k) => n + (hasKw(s, k.k) ? k.f : 0), 0) / Math.sqrt(s.split(' ').length) + (i === 0 ? 1.5 : 0) }));
+  const resumo = scored.slice().sort((a, b) => b.sc - a.sc).slice(0, Math.min(6, Math.max(3, Math.round(sents.length / 4)))).sort((a, b) => a.i - b.i).map(x => x.s);
+
+  // mapa mental
+  const usedS = new Set();
+  const ramos = kws.map(k => {
+    const d = defs.find(x => k.l.includes(x.term.toLowerCase()));
+    const itens = [];
+    if (d) { usedS.add(d.s); itens.push(`${d.verb} ${d.def}`.slice(0, 80)); }
+    for (const s of sents) { if (itens.length >= 3) break; if (!usedS.has(s) && hasKw(s, k.k)) { usedS.add(s); itens.push(fragment(s, k.k)); } }
+    return { nome: cap(k.k), itens };
+  }).filter(r => r.itens.length);
+  const conexoes = [];
+  for (let i = 0; i < kws.length && conexoes.length < 4; i++) for (let j = i + 1; j < kws.length && conexoes.length < 4; j++) {
+    const s = sents.find(x => hasKw(x, kws[i].k) && hasKw(x, kws[j].k));
+    if (s) conexoes.push(`${cap(kws[i].k)} ↔ ${cap(kws[j].k)}: “${fragment(s, kws[j].k, 12)}”`);
+  }
+  const nums = sents.filter(s => /\b\d{1,4}\b/.test(s)).slice(0, 4);
+
+  const passos_mapa = [
+    `Vire o caderno na horizontal (paisagem) e use uma página inteira só para o mapa.`,
+    `No centro, escreva "${titulo}" em letras grandes e desenhe uma moldura ou um ícone em volta.`,
+    `Puxe ${ramos.length} galhos grossos saindo do centro, cada um de uma cor: ${ramos.map(r => r.nome).join(', ')}.`,
+    `Em cada galho escreva só a PALAVRA-CHAVE (sem frases longas). Letra de forma, em cima da linha.`,
+    `Dos galhos, puxe galhos finos com 2 ou 3 detalhes curtos (use a prévia abaixo como guia, mas resuma com suas palavras).`,
+    `Desenhe um mini ícone ao lado de cada palavra-chave. Desenho ruim também vale: o cérebro lembra de imagens.`,
+    conexoes.length ? `Ligue com setas tracejadas as ideias que se conectam: ${conexoes.slice(0, 2).map(c => c.split(':')[0]).join('; ')}.` : `Ligue com setas tracejadas as ideias que se conectam entre galhos diferentes.`,
+    `Teste final: feche o livro e explique o mapa em voz alta, galho por galho, em 1 minuto.`
+  ];
+
+  const dicas = [
+    { titulo: 'Método Cornell', texto: `Divida a folha: coluna da esquerda (5 cm) com as palavras-chave (${kws.slice(0, 3).map(k => k.k).join(', ')}); à direita, as anotações; no rodapé, um resumo de 2 linhas com suas palavras.` },
+    { titulo: 'Código de 3 cores', texto: 'Escolha uma cor para CONCEITO, outra para EXEMPLO e outra para CONEXÃO/CAUSA. Use sempre as mesmas cores em todas as matérias.' },
+    { titulo: 'Abreviações de agente secreto', texto: '→ leva a / causa · ≠ diferente · ≈ parecido · ∴ portanto · ↑ aumenta · ↓ diminui · ★ cai na prova · ? dúvida para tirar.' },
+    { titulo: 'Sketchnote', texto: `Crie um símbolo simples para cada ideia principal: um para "${K(0)}", outro para "${K(1)}". Repita os símbolos sempre que a ideia aparecer.` },
+    defs.length
+      ? { titulo: 'Flashcards de papel', texto: `Recorte cartões. Frente: "O que ${defs[0].verb === 'são' ? 'são' : 'é'} ${defs[0].term}?" · Verso: a resposta com suas palavras. Faça um para cada definição do texto (${defs.length} encontrada(s)).` }
+      : { titulo: 'Flashcards de papel', texto: `Recorte cartões. Frente: uma palavra-chave (${K(0)}, ${K(1)}…) · Verso: explicação em 1 frase com suas palavras.` },
+    nums.length
+      ? { titulo: 'Linha do tempo / números', texto: 'O texto tem números ou datas. Desenhe uma linha horizontal e marque cada número com o que ele significa.' }
+      : { titulo: 'Esquema em caixas', texto: `Desenhe caixas ligadas por setas mostrando como "${K(0)}" se conecta com "${K(1)}" e "${K(2)}".` },
+    { titulo: 'Revisão espaçada (Kaizen)', texto: 'Revise este mapa hoje, amanhã, daqui a 3 dias e daqui a 7 dias. Só 3 minutos cada vez. Marque ✓ no canto da página a cada revisão.' }
+  ];
+
+  const frase = resumo[1] || resumo[0];
+  const perguntas = [
+    `Por que "${K(0)}" é tão importante neste conteúdo? O que mudaria se isso não existisse?`,
+    `Qual é a relação entre "${K(0)}" e "${K(1)}"? Um causa o outro ou eles só aparecem juntos? Justifique.`,
+    `Se você tivesse que explicar "${K(2)}" para alguém mais novo, que exemplo do dia a dia usaria?`,
+    `Releia esta frase: “${fragment(frase, K(0), 16)}”. O que ela quer mostrar? Você concorda? Por quê?`,
+    `Compare "${K(1)}" e "${K(3)}": em que se parecem e em que são diferentes?`,
+    `Qual informação do texto você acha a MAIS importante? Prove com uma frase do próprio texto.`,
+    `Que pergunta sobre "${K(0)}" o texto NÃO respondeu? Onde você poderia procurar a resposta?`
+  ];
+
+  // exercícios no caderno
+  const exercicios = [], sUsed = new Set();
+  const pickS = (k, avoid) => sents.find(s => !avoid.has(s) && hasKw(s, k));
+  const lac = [];
+  kws.forEach(k => { if (lac.length >= 4) return; const s = pickS(k.k, sUsed); if (s) { sUsed.add(s); lac.push([blank(s, k.k), k.k]); } });
+  if (lac.length) exercicios.push({ tipo: 'Lacunas', enunciado: 'Copie no caderno e complete as frases SEM olhar o texto:\n\n' + lac.map((x, i) => `${i + 1}) ${x[0]}`).join('\n'), resposta: lac.map((x, i) => `${i + 1}) ${x[1]}`).join('\n') });
+  defs.slice(0, 3).forEach(d => exercicios.push({ tipo: 'Definição', enunciado: `Sem olhar o texto, escreva com suas palavras: o que ${d.verb === 'são' ? 'são' : 'é'} "${d.term}"? Depois, dê um exemplo seu.`, resposta: `${d.term} ${d.verb} ${d.def}.` }));
+  const pares = kws.slice(0, 5).map(k => { const s = sents.find(x => hasKw(x, k.k)); return s ? [cap(k.k), fragment(blank(s, k.k), '________', 10)] : null; }).filter(Boolean);
+  if (pares.length >= 3) {
+    const right = shuffle(pares.map((p, i) => ({ t: p[1], i })));
+    exercicios.push({ tipo: 'Ligue as colunas', enunciado: 'Copie as duas colunas e ligue com setas cada palavra à frase em que ela se encaixa:\n\n' + pares.map((p, i) => `${'ABCDE'[i]}) ${p[0]}`).join('\n') + '\n\n' + right.map((r, j) => `${j + 1}) ${r.t}`).join('\n'), resposta: right.map((r, j) => `${j + 1} → ${'ABCDE'[r.i]} (${pares[r.i][0]})`).join('\n') });
+  }
+  for (let i = 0; i < kws.length && exercicios.filter(e => e.tipo === 'Caça ao erro').length < 2; i++) {
+    const k = kws[i].k, other = kws[(i + 2) % kws.length].k, s = pickS(k, sUsed);
+    if (s && !hasKw(s, other)) { sUsed.add(s); exercicios.push({ tipo: 'Caça ao erro', enunciado: `Esta frase tem UM erro. Copie, circule o erro e reescreva a frase correta:\n\n“${swapKw(s, k, other)}”`, resposta: `Correto: “${s}”` }); }
+  }
+  const ord = scored.filter(x => x.s.length < 160).slice(0, 12);
+  if (ord.length >= 4) {
+    const pick = shuffle(ord).slice(0, 4).sort((a, b) => a.i - b.i), mix = shuffle(pick.map((p, n) => ({ ...p, n })));
+    exercicios.push({ tipo: 'Sequência', enunciado: 'Numere as ideias na ordem em que aparecem/acontecem no conteúdo:\n\n' + mix.map((m, j) => `( ) ${fragment(m.s, '', 14)}`).join('\n'), resposta: mix.map((m, j) => `Item ${j + 1} → ${m.n + 1}º`).join('\n') });
+  }
+  exercicios.push({ tipo: 'Tabela comparativa', enunciado: `Desenhe uma tabela com 2 colunas ("${cap(K(0))}" | "${cap(K(1))}") e 3 linhas: O que é? · Exemplo · Por que importa?`, resposta: 'Resposta pessoal. Confira cada célula voltando ao texto e marque ✓ no que estiver certo.' });
+  nums.slice(0, 2).forEach(s => { const n = s.match(/\b\d{1,4}\b/)[0]; exercicios.push({ tipo: 'Números', enunciado: `No conteúdo aparece o número ${n}. O que ele representa? Escreva uma frase completa.`, resposta: `No texto: “${s}”` }); });
+  exercicios.push({ tipo: 'Crie a prova', enunciado: `Você é o professor: escreva 2 perguntas de prova sobre "${K(0)}" e "${K(2)}" e responda as duas com frases completas.`, resposta: 'Resposta pessoal. Desafio extra: troque o caderno com alguém e responda as perguntas dele.' });
+
+  // quiz (Arena)
+  const quiz = [], qUsed = new Set();
+  const distract = (k, n) => shuffle(pool.filter(p => p.toLowerCase() !== k.toLowerCase() && !p.toLowerCase().includes(k.toLowerCase()) && !k.toLowerCase().includes(p.toLowerCase()))).slice(0, n);
+  all.slice(0, 10).forEach(k => {
+    const s = sents.find(x => !qUsed.has(x) && hasKw(x, k.k)); if (!s) return;
+    const d = distract(k.k, 3); if (d.length < 3) return;
+    qUsed.add(s);
+    const opts = shuffle([k.k, ...d]);
+    quiz.push({ tipo: 'mc', pergunta: 'Complete a frase do conteúdo:\n“' + blank(s, k.k) + '”', opcoes: opts, correta: opts.indexOf(k.k), explicacao: '“' + s + '”' });
+  });
+  defs.forEach(d => {
+    const opts = shuffle([d.term, ...distract(d.term, 3).map(cap)]); if (opts.length < 4) return;
+    quiz.push({ tipo: 'mc', pergunta: `Segundo o conteúdo, o que ${d.verb} ${d.def.slice(0, 120)}?`, opcoes: opts, correta: opts.indexOf(d.term), explicacao: '“' + d.s + '”' });
+  });
+  let flip = true;
+  all.slice(0, 10).forEach((k, i) => {
+    const s = sents.find(x => !qUsed.has(x) && hasKw(x, k.k)); if (!s) return;
+    qUsed.add(s);
+    const other = all[(i + 3) % all.length].k;
+    if (flip && !hasKw(s, other)) quiz.push({ tipo: 'vf', pergunta: 'Verdadeiro ou falso?\n“' + swapKw(s, k.k, other) + '”', opcoes: ['Verdadeiro', 'Falso'], correta: 1, explicacao: 'Falso. O certo é: “' + s + '”' });
+    else quiz.push({ tipo: 'vf', pergunta: 'Verdadeiro ou falso?\n“' + s + '”', opcoes: ['Verdadeiro', 'Falso'], correta: 0, explicacao: 'Verdadeiro, está no conteúdo.' });
+    flip = !flip;
+  });
+
+  return { titulo, resumo, mapa: { centro: titulo, ramos }, conexoes, passos_mapa, dicas, perguntas, exercicios, quiz: shuffle(quiz).slice(0, 12) };
+}
+
+/* ---------- MODO IA (Claude API, opcional) ---------- */
+const AI_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['titulo', 'resumo', 'mapa', 'conexoes', 'passos_mapa', 'dicas', 'perguntas', 'exercicios', 'quiz'],
+  properties: {
+    titulo: { type: 'string' },
+    resumo: { type: 'array', items: { type: 'string' } },
+    mapa: { type: 'object', additionalProperties: false, required: ['centro', 'ramos'], properties: {
+      centro: { type: 'string' },
+      ramos: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['nome', 'itens'], properties: { nome: { type: 'string' }, itens: { type: 'array', items: { type: 'string' } } } } } } },
+    conexoes: { type: 'array', items: { type: 'string' } },
+    passos_mapa: { type: 'array', items: { type: 'string' } },
+    dicas: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['titulo', 'texto'], properties: { titulo: { type: 'string' }, texto: { type: 'string' } } } },
+    perguntas: { type: 'array', items: { type: 'string' } },
+    exercicios: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['tipo', 'enunciado', 'resposta'], properties: { tipo: { type: 'string' }, enunciado: { type: 'string' }, resposta: { type: 'string' } } } },
+    quiz: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['tipo', 'pergunta', 'opcoes', 'correta', 'explicacao'], properties: {
+      tipo: { type: 'string', enum: ['mc', 'vf'] }, pergunta: { type: 'string' }, opcoes: { type: 'array', items: { type: 'string' } }, correta: { type: 'integer' }, explicacao: { type: 'string' } } } }
+  }
+};
+function aiPrompt(text, title) {
+  return `Você é um tutor de estudos para um estudante de 11 anos, muito inteligente. Linguagem direta, clara e respeitosa, sem infantilizar.
+
+REGRA PRINCIPAL: use EXCLUSIVAMENTE o conteúdo das imagens e/ou do texto enviados. Não acrescente fatos, datas, nomes ou conceitos que não estejam no material. Se algo estiver ilegível, ignore.
+${title ? `Título indicado pelo aluno: "${title}".` : ''}
+${text ? `Texto extraído/digitado (pode ter erros de leitura; use as imagens como referência principal se houver):\n"""${text.slice(0, 15000)}"""` : ''}
+
+Gere em português do Brasil, no formato JSON pedido:
+- titulo: título curto do conteúdo.
+- resumo: 4 a 7 tópicos de Resumo Executivo, cada um com 1 frase objetiva.
+- mapa: centro (tema) e 4 a 6 ramos; cada ramo com nome curto (1 a 3 palavras) e 2 a 3 itens curtos (até 8 palavras).
+- conexoes: 2 a 4 ligações entre ramos diferentes ("A ↔ B: motivo").
+- passos_mapa: 6 a 8 passos práticos para desenhar esse mapa mental no caderno de papel (cores, ícones, palavras-chave, setas), citando os ramos reais.
+- dicas: 5 a 7 dicas de estudo analógico no caderno (anotação rápida, conexões visuais, esquemas), adaptadas a ESTE conteúdo. Cada uma com titulo e texto.
+- perguntas: 6 perguntas críticas que façam pensar (por quê, e se, compare, relacione, avalie), respondíveis a partir do conteúdo.
+- exercicios: 7 a 9 exercícios para resolver NO CADERNO, com abordagens diferentes das do texto original (lacunas, explicar com suas palavras, ligar colunas, caça ao erro, sequência, tabela comparativa, problema aplicado, desenhar esquema, criar exemplo), mantendo estritamente a mesma base de conteúdo. Se for matemática, crie problemas novos do mesmo tipo e nível. "resposta" é o gabarito curto.
+- quiz: 10 questões para batalha. Misture "mc" (exatamente 4 opcoes) e "vf" (opcoes exatamente ["Verdadeiro","Falso"]). "correta" é o índice (começando em 0) da opção certa. "explicacao" em 1 frase, baseada no conteúdo. Varie a posição da resposta certa.`;
+}
+async function callClaude(images, text, title) {
+  const content = images.map(d => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: d.split(',')[1] } }));
+  content.push({ type: 'text', text: aiPrompt(text, title) });
+  const base = { model: CLAUDE_MODEL, max_tokens: 16000, messages: [{ role: 'user', content }] };
+  const headers = { 'content-type': 'application/json', 'x-api-key': S.settings.apiKey.trim(), 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+  const attempts = [
+    { body: { ...base, output_config: { format: { type: 'json_schema', schema: AI_SCHEMA } }, fallbacks: 'default' }, extra: { 'anthropic-beta': 'server-side-fallback-2026-07-01' } },
+    { body: base, extra: {} } // plano B: sem recursos opcionais
+  ];
+  let lastErr;
+  for (const at of attempts) {
+    const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { ...headers, ...at.extra }, body: JSON.stringify(at.body) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) {
+      if (j.stop_reason === 'refusal') throw new Error('A IA não conseguiu processar este conteúdo. Tente o Modo Local.');
+      const out = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+      const a = out.indexOf('{'), b = out.lastIndexOf('}');
+      if (a < 0 || b < a) throw new Error('Resposta da IA veio incompleta. Tente de novo.');
+      return JSON.parse(out.slice(a, b + 1));
+    }
+    lastErr = j.error?.message || ('Erro ' + r.status);
+    if (r.status === 401) throw new Error('Chave da API inválida. Confira em ⚙️ Configurações.');
+    if (r.status !== 400) break;
+  }
+  throw new Error('IA indisponível: ' + lastErr);
+}
+function normalize(a) {
+  const arr = x => Array.isArray(x) ? x : [];
+  a.resumo = arr(a.resumo).map(String);
+  a.mapa = a.mapa || { centro: a.titulo, ramos: [] };
+  a.mapa.ramos = arr(a.mapa.ramos).map(r => ({ nome: String(r.nome || ''), itens: arr(r.itens).map(String) }));
+  ['conexoes', 'passos_mapa', 'perguntas'].forEach(k => a[k] = arr(a[k]).map(String));
+  a.dicas = arr(a.dicas).map(d => ({ titulo: String(d.titulo || 'Dica'), texto: String(d.texto || '') }));
+  a.exercicios = arr(a.exercicios).map(e => ({ tipo: String(e.tipo || 'Exercício'), enunciado: String(e.enunciado || ''), resposta: String(e.resposta || '') }));
+  a.quiz = arr(a.quiz).filter(q => arr(q.opcoes).length >= 2 && Number.isInteger(q.correta) && q.correta >= 0 && q.correta < q.opcoes.length)
+    .map(q => ({ tipo: q.tipo === 'vf' ? 'vf' : 'mc', pergunta: String(q.pergunta), opcoes: q.opcoes.map(String), correta: q.correta, explicacao: String(q.explicacao || '') }));
+  if (!a.resumo.length && !a.quiz.length) throw new Error('A IA não encontrou conteúdo legível nas fotos.');
+  return a;
+}
+
+/* ---------------- VIEW: INVENTÁRIO ---------------- */
+function vInventory() {
+  if (DECK) { const d = S.decks.find(x => x.id === DECK); if (d) return vDeck(d); DECK = null; }
+  if (!S.decks.length) return `<div class="sec" style="margin-top:0"><h2>Inventário de Conhecimento</h2></div>
+    <div class="empty"><div class="big">🎒</div>Inventário vazio.<br>Escaneie uma página para criar seu primeiro item de conhecimento.<br><br><button class="btn" data-go="scanner">📷 Abrir Scanner</button></div>`;
+  return `<div class="sec" style="margin-top:0"><h2>Inventário de Conhecimento</h2><span class="tag">${S.decks.length} itens</span></div>
+  <div class="grid g3">${S.decks.map(d => {
+    const ex = d.a.exercicios.length, done = d.exDone.length, best = Math.max(0, ...S.battles.filter(b => b.deck === d.id).map(b => b.score));
+    return `<div class="card deckcard" data-act="open" data-id="${d.id}">
+      <div class="row" style="justify-content:space-between"><span class="tag m">${esc(d.subject)}</span><span class="small mut">${d.date.split('-').reverse().join('/')}</span></div>
+      <h3 style="margin:10px 0 6px">${esc(d.title)}</h3>
+      <div class="small mut">📓 ${done}/${ex} exercícios · 🐉 recorde ${best} pts · ${esc(d.src)}</div>
+      <div class="prog" style="margin-top:10px"><i style="width:${ex ? done / ex * 100 : 0}%"></i></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+function vDeck(d) {
+  const a = d.a, T = [['resumo', '📋 Resumo'], ['mapa', '🧠 Mapa Mental'], ['dicas', '✏️ Dicas'], ['perguntas', '❓ Perguntas Críticas'], ['caderno', '📓 Caderno']];
+  let body = '';
+  if (DECKTAB === 'resumo') body = `<div class="card"><h3 style="margin-bottom:8px">Resumo Executivo</h3><ul class="list">${a.resumo.map(s => `<li>${esc(s)}</li>`).join('')}</ul></div>`;
+  if (DECKTAB === 'mapa') body = `
+    <div class="card"><h3 style="margin-bottom:12px">Passo a passo no caderno</h3><ol class="steps">${a.passos_mapa.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
+    <div class="card" style="margin-top:14px"><h3 style="margin-bottom:12px">Prévia do mapa</h3>
+      <div class="mm"><div class="core">${esc(a.mapa.centro || d.title)}</div><div class="stem"></div>
+      <div class="branches">${a.mapa.ramos.map((r, i) => `<div class="br" style="--c:${COLORS[i % COLORS.length]}"><b>${esc(r.nome)}</b><ul>${r.itens.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div>`).join('')}</div></div>
+      ${a.conexoes.length ? `<h3 style="margin:16px 0 6px">Conexões (setas tracejadas)</h3><ul class="list small">${a.conexoes.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+    </div>`;
+  if (DECKTAB === 'dicas') body = `<div class="grid g2">${a.dicas.map((t, i) => `<div class="card"><span class="tag ${['', 'm', 'l', 'a'][i % 4]}">Técnica ${i + 1}</span><h3 style="margin:8px 0 4px">${esc(t.titulo)}</h3><div>${esc(t.texto)}</div></div>`).join('')}</div>`;
+  if (DECKTAB === 'perguntas') body = `<div class="small mut" style="margin-bottom:10px">Responda no caderno com frases completas. Não existe resposta "decorada": use o conteúdo para justificar. +5 XP cada.</div>` +
+    a.perguntas.map((q, i) => `<div class="ex"><div class="hd"><span class="tag m">Pergunta ${i + 1}</span>
+      <label class="tick"><input type="checkbox" data-act="qDone" data-id="${d.id}" data-i="${i}" ${d.qDone.includes(i) ? 'checked disabled' : ''}> Refleti no caderno</label></div><div class="q">${esc(q)}</div></div>`).join('');
+  if (DECKTAB === 'caderno') body = `<div class="small mut" style="margin-bottom:10px">Resolva no caderno, à mão. Só abra o gabarito depois de terminar. +8 XP cada.</div>` +
+    a.exercicios.map((e, i) => `<div class="ex"><div class="hd"><span class="tag l">${i + 1} · ${esc(e.tipo)}</span>
+      <label class="tick"><input type="checkbox" data-act="exDone" data-id="${d.id}" data-i="${i}" ${d.exDone.includes(i) ? 'checked disabled' : ''}> Feito no caderno</label></div>
+      <div class="q">${esc(e.enunciado)}</div>
+      <button class="btn sm ghost" style="margin-top:10px" data-act="ans" data-i="${i}">👁 Ver gabarito</button><div class="ans" id="ans${i}">${esc(e.resposta)}</div></div>`).join('');
+  return `
+  <div class="row" style="justify-content:space-between"><button class="btn sm ghost" data-act="back">← Inventário</button><button class="btn sm red" data-act="delDeck" data-id="${d.id}">Apagar</button></div>
+  <div class="card glow" style="margin-top:12px"><span class="tag m">${esc(d.subject)}</span><h2 style="margin:8px 0 4px">${esc(d.title)}</h2>
+    <div class="small mut">${a.exercicios.length} exercícios · ${a.quiz.length} questões de batalha · modo ${esc(d.src)}</div>
+    <button class="btn mag" style="margin-top:12px" data-act="fight" data-id="${d.id}" ${a.quiz.length ? '' : 'disabled'}>🐉 Boss Fight deste conteúdo</button></div>
+  <div class="tabs">${T.map(([k, n]) => `<button data-act="tab" data-v="${k}" class="${DECKTAB === k ? 'on' : ''}">${n}</button>`).join('')}</div>
+  ${body}`;
+}
+
+/* ---------------- VIEW: ARENA ---------------- */
+const BOSSES = [['🗿', 'Golem do Esquecimento'], ['🐍', 'Hidra da Distração'], ['🐉', 'Dragão da Procrastinação'], ['👻', 'Espectro da Preguiça'], ['🦑', 'Kraken da Confusão'], ['🤖', 'Mecha do "Depois Eu Vejo"']];
+const QTIME = 25;
+function vArena() {
+  if (B) return B.over ? arenaEnd() : arenaFight();
+  const decks = S.decks.filter(d => d.a.quiz.length);
+  const top = S.battles.slice().sort((a, b) => b.score - a.score).slice(0, 5);
+  return `
+  <div class="card glow"><span class="tag m">Arena de Batalha</span><h2 style="margin:8px 0 4px">Escolha seu chefe</h2>
+    <div class="small mut">Acerte para causar dano. Responda rápido para ganhar bônus. Errou? Perde um coração. 3 corações por batalha.</div></div>
+  ${decks.length ? `<div class="grid g3" style="margin-top:14px">
+    ${decks.length > 1 ? `<button class="card deckcard" style="text-align:left" data-act="fight" data-id="mix"><span class="tag a">Modo Caos</span><h3 style="margin:8px 0 4px">⚡ Mix de tudo</h3><div class="small mut">Questões misturadas de todo o inventário</div></button>` : ''}
+    ${decks.map((d, i) => `<button class="card deckcard" style="text-align:left" data-act="fight" data-id="${d.id}"><span class="tag m">${esc(d.subject)}</span><h3 style="margin:8px 0 4px">${BOSSES[i % BOSSES.length][0]} ${esc(d.title)}</h3><div class="small mut">${Math.min(10, d.a.quiz.length)} questões</div></button>`).join('')}
+  </div>` : `<div class="empty" style="margin-top:14px"><div class="big">🐉</div>Nenhum chefe disponível.<br>Escaneie um conteúdo para invocar um chefe.<br><br><button class="btn" data-go="scanner">📷 Scanner</button></div>`}
+  ${top.length ? `<div class="sec"><h2>Hall da Fama</h2></div>${top.map((b, i) => `<div class="rk"><span class="pos">${['🥇', '🥈', '🥉', '4', '5'][i]}</span><span class="nm">${esc(b.title)}</span><span class="small mut">${b.acc}% · </span><b>${b.score}</b></div>`).join('')}` : ''}`;
+}
+function startFight(id) {
+  let qs, title;
+  if (id === 'mix') { qs = S.decks.flatMap(d => d.a.quiz); title = 'Modo Caos'; }
+  else { const d = S.decks.find(x => x.id === id); if (!d) return; qs = d.a.quiz; title = d.title; }
+  qs = shuffle(qs).slice(0, 10).map(q => {
+    if (q.tipo === 'vf') return q;
+    const order = shuffle(q.opcoes.map((o, i) => i));
+    return { ...q, opcoes: order.map(i => q.opcoes[i]), correta: order.indexOf(q.correta) };
+  });
+  if (!qs.length) return toast('Sem questões neste conteúdo.');
+  const bo = BOSSES[Math.floor(Math.random() * BOSSES.length)];
+  const maxHp = Math.ceil(qs.length * 0.7) * 100;
+  B = { deck: id, title, qs, i: 0, hp: maxHp, maxHp, lives: 3, score: 0, combo: 0, correct: 0, t: QTIME, answered: false, pick: -1, over: false, face: bo[0], boss: bo[1], hit: false };
+  go('arena');
+}
+function arenaFight() {
+  const q = B.qs[B.i];
+  return `
+  <div class="card glow">
+    <div class="boss ${B.hit ? 'hit' : ''}"><div class="face">${B.face}</div>
+      <div style="flex:1"><div class="row" style="justify-content:space-between"><b class="orb small">${esc(B.boss)}</b><span class="small mut">${B.hp}/${B.maxHp} HP</span></div>
+      <div class="hp" style="margin-top:6px"><i style="width:${B.hp / B.maxHp * 100}%"></i></div></div></div>
+    <div class="row" style="justify-content:space-between;margin-top:12px">
+      <span class="hearts">${'❤️'.repeat(B.lives)}${'🖤'.repeat(3 - B.lives)}</span>
+      <span class="chip">⚡ ${B.score} pts</span>${B.combo > 1 ? `<span class="chip fire">Combo x${B.combo}</span>` : ''}
+      <span class="small mut">Questão ${B.i + 1}/${B.qs.length}</span>
+    </div>
+    <div class="timer"><i id="tbar" style="width:${B.t / QTIME * 100}%"></i></div>
+    <div class="qbox">${esc(q.pergunta)}</div>
+    <div class="opts">${q.opcoes.map((o, i) => {
+      let c = ''; if (B.answered) { if (i === q.correta) c = 'ok'; else if (i === B.pick) c = 'bad'; }
+      return `<button class="opt ${c}" data-act="answer" data-i="${i}" ${B.answered ? 'disabled' : ''}><span class="k">${q.tipo === 'vf' ? (i ? 'F' : 'V') : 'ABCD'[i]}</span><span>${esc(o)}</span></button>`;
+    }).join('')}</div>
+    ${B.answered ? `<div class="fb ${B.pick === q.correta ? 'ok' : 'bad'}"><b>${B.pick === q.correta ? `✔ Golpe crítico! +${B.gainNow} pts` : B.pick < 0 ? '⏱ Tempo esgotado!' : '✖ O chefe bloqueou!'}</b>\n${esc(q.explicacao)}</div>
+    <button class="btn full" style="margin-top:12px" data-act="next">${B.lives && B.hp > 0 && B.i < B.qs.length - 1 ? 'Próxima ▶' : 'Ver resultado ▶'}</button>` : ''}
+  </div>
+  <div class="row" style="margin-top:12px"><button class="btn sm ghost" data-act="flee">🏳️ Fugir da batalha</button></div>`;
+}
+function startTimer() {
+  stopTimer();
+  BTIMER = setInterval(() => {
+    if (!B || B.answered || B.over) return stopTimer();
+    B.t = Math.max(0, B.t - 0.1);
+    const bar = $('#tbar'); if (bar) bar.style.width = (B.t / QTIME * 100) + '%';
+    if (B.t <= 0) answer(-1);
+  }, 100);
+}
+function stopTimer() { if (BTIMER) clearInterval(BTIMER); BTIMER = null; }
+function answer(i) {
+  if (!B || B.answered) return;
+  stopTimer();
+  const q = B.qs[B.i]; B.answered = true; B.pick = i;
+  if (i === q.correta) {
+    B.combo++; B.correct++;
+    B.gainNow = Math.round((100 + Math.round(B.t * 6)) * (1 + (B.combo - 1) * 0.25));
+    B.score += B.gainNow; B.hp = Math.max(0, B.hp - 100); B.hit = true;
+  } else {
+    B.combo = 0; B.lives--; B.hit = false;
+    if (navigator.vibrate) navigator.vibrate(120);
+  }
+  render(); B.hit = false;
+}
+function nextQ() {
+  if (B.lives <= 0 || B.hp <= 0 || B.i >= B.qs.length - 1) return finishFight();
+  B.i++; B.t = QTIME; B.answered = false; B.pick = -1; render();
+}
+function finishFight() {
+  B.over = true;
+  B.win = B.hp <= 0;
+  B.acc = Math.round(B.correct / (B.i + 1) * 100);
+  const perfect = B.win && B.correct === B.qs.length;
+  B.xp = Math.round(B.score / 20) + (B.win ? 40 : 10) + (perfect ? 30 : 0);
+  S.battles.push({ deck: B.deck, title: B.title, score: B.score, acc: B.acc, win: B.win, date: today() });
+  if (S.battles.length > 200) S.battles = S.battles.slice(-200);
+  if (B.win) S.stats.bosses++;
+  if (perfect) S.stats.perfect++;
+  // conclui missão de arena pendente, se houver
+  const m = S.missions.find(x => !x.done && x.kind === 'Arena' && (B.deck === 'mix' || x.title.includes(B.title)));
+  gain(B.xp, B.win ? 'Chefe derrotado!' : 'Batalha concluída');
+  if (m) completeMission(m.id); else render();
+}
+function arenaEnd() {
+  return `<div class="card glow result">
+    <div style="font-size:3.4rem">${B.win ? '🏆' : B.face}</div>
+    <h1 class="${B.win ? 'win' : 'lose'}">${B.win ? 'VITÓRIA' : 'DERROTA'}</h1>
+    <div class="mut">${B.win ? `Você derrotou ${esc(B.boss)}!` : `${esc(B.boss)} resistiu. Revise o Resumo e tente de novo. Todo erro hoje é acerto amanhã.`}</div>
+    <div class="grid g3" style="margin:18px 0">
+      <div class="card stat"><b>${B.score}</b><span>Pontos</span></div>
+      <div class="card stat"><b>${B.acc}%</b><span>Precisão</span></div>
+      <div class="card stat"><b>+${B.xp}</b><span>XP</span></div>
+    </div>
+    <div class="row" style="justify-content:center"><button class="btn mag" data-act="fight" data-id="${B.deck}">🔁 Revanche</button><button class="btn ghost" data-act="arenaHome">Arena</button></div>
+  </div>`;
+}
+
+/* ---------------- VIEW: PERFIL ---------------- */
+const RIVALS = [['NeoByte', 120], ['Kira_77', 380], ['Zer0Cool', 900], ['Atlas.exe', 1700], ['Vortex', 3000], ['Oráculo', 5200], ['Sensei Kaizen', 9000]];
+function vProfile() {
+  const me = { n: S.player.name || 'Você', xp: S.player.xp, me: true };
+  const list = RIVALS.map(([n, xp]) => ({ n, xp })).concat(me).sort((a, b) => b.xp - a.xp);
+  const got = ACH.filter(a => S.ach[a[0]]).length;
+  return `
+  <div class="sec" style="margin-top:0"><h2>Liga Kaizen</h2><span class="small mut">Ultrapasse os rivais acumulando XP</span></div>
+  ${list.map((r, i) => `<div class="rk ${r.me ? 'me' : ''}"><span class="pos">${i + 1}</span><span class="nm">${esc(r.n)}${r.me ? ' (você)' : ''}</span><span class="small mut">LV ${levelOf(r.xp)}</span><b>${r.xp} XP</b></div>`).join('')}
+
+  <div class="sec"><h2>Conquistas</h2><span class="tag a">${got}/${ACH.length}</span></div>
+  <div class="grid g2">${ACH.map(([id, ic, nm, ds]) => `<div class="ach ${S.ach[id] ? 'got' : 'lock'}"><div class="ai">${ic}</div><div><b>${nm}</b><div class="small mut">${ds}${S.ach[id] ? ' · ' + S.ach[id].split('-').reverse().join('/') : ''}</div></div></div>`).join('')}</div>
+
+  <div class="sec"><h2>Estatísticas</h2></div>
+  <div class="grid g4">
+    <div class="card stat"><b>${S.player.best}</b><span>Maior sequência</span></div>
+    <div class="card stat"><b>${S.stats.exercises}</b><span>Exercícios no caderno</span></div>
+    <div class="card stat"><b>${S.stats.critical}</b><span>Reflexões</span></div>
+    <div class="card stat"><b>${S.battles.length}</b><span>Batalhas</span></div>
+  </div>
+  <div class="row" style="margin-top:16px"><button class="btn ghost" data-act="settings">⚙️ Configurações e backup</button></div>`;
+}
+
+/* ---------------- MODAIS ---------------- */
+function modal(html) { $('#modalBox').innerHTML = html; $('#modal').classList.add('on'); }
+function closeModal() { $('#modal').classList.remove('on'); if (FOCUS) { clearInterval(FOCUS.iv); FOCUS = null; } }
+function levelUp(l) {
+  setTimeout(() => modal(`<div class="focus"><div style="font-size:3rem">⬆️</div><h1 class="win">LEVEL UP!</h1><div class="clock">${l}</div><div>Nova patente: <b>${titleOf(l)}</b></div><button class="btn full" style="margin-top:18px" data-act="close">Continuar</button></div>`), 300);
+}
+function openSettings() {
+  modal(`<h2>⚙️ Configurações</h2>
+    <label class="f">Seu codinome</label><input type="text" id="setName" value="${esc(S.player.name)}" maxlength="20">
+    <label class="f">Modo do Scanner</label>
+    <select id="setMode"><option value="local" ${S.settings.mode === 'local' ? 'selected' : ''}>🔒 Local (grátis, sem conta)</option><option value="ai" ${S.settings.mode === 'ai' ? 'selected' : ''}>🤖 IA Claude (precisa de chave)</option></select>
+    <label class="f">Chave da API Anthropic (opcional — só para o Modo IA)</label>
+    <input type="password" id="setKey" value="${esc(S.settings.apiKey)}" placeholder="sk-ant-...">
+    <div class="small mut" style="margin-top:6px">Área do responsável: a chave fica salva só neste navegador e é enviada apenas para api.anthropic.com. Cada análise gera um pequeno custo na sua conta Anthropic.</div>
+    <button class="btn full" style="margin-top:14px" data-act="saveSet">Salvar</button>
+    <h3 style="margin:22px 0 8px">💾 Backup</h3>
+    <div class="row"><button class="btn sm ghost" data-act="export">⬇ Exportar progresso</button><button class="btn sm ghost" data-act="import">⬆ Importar</button></div>
+    <h3 style="margin:22px 0 8px">☢️ Zona de perigo</h3>
+    <button class="btn sm red" data-act="reset">Apagar todo o progresso</button>
+    <button class="btn ghost full" style="margin-top:18px" data-act="close">Fechar</button>`);
+}
+function openFocus(id) {
+  const m = S.missions.find(x => x.id === id); if (!m) return;
+  FOCUS = { id, left: m.min * 60, run: true };
+  modal(`<div class="focus"><span class="tag">Modo Foco</span><h3 style="margin:12px 0">${esc(m.title)}</h3>
+    <div class="clock" id="fclock"></div><div class="small mut">Celular longe, uma coisa de cada vez. Se acabar antes, pode concluir.</div>
+    <div class="row" style="justify-content:center;margin-top:16px"><button class="btn ghost" data-act="fpause" id="fpause">⏸ Pausar</button><button class="btn lime" data-act="fdone">✔ Concluir missão</button></div>
+    <button class="btn sm ghost" style="margin-top:14px" data-act="close">Fechar</button></div>`);
+  const draw = () => { const c = $('#fclock'); if (c) c.textContent = String(Math.floor(FOCUS.left / 60)).padStart(2, '0') + ':' + String(FOCUS.left % 60).padStart(2, '0'); };
+  draw();
+  FOCUS.iv = setInterval(() => {
+    if (!FOCUS || !FOCUS.run) return;
+    FOCUS.left = Math.max(0, FOCUS.left - 1); draw();
+    if (FOCUS.left === 0) { FOCUS.run = false; toast('⏰ Tempo! Missão cumprida? Toque em Concluir.'); if (navigator.vibrate) navigator.vibrate([200, 100, 200]); }
+  }, 1000);
+}
+function onboarding() {
+  modal(`<div class="focus"><div class="avatar" style="margin:0 auto 12px;width:70px;height:70px">KQ</div>
+    <h2>Bem-vindo ao Kaizen Quest</h2>
+    <p class="mut">Missões curtas todo dia. Escaneie o conteúdo, monte mapas no caderno e derrote chefes na Arena.</p>
+    <label class="f" style="text-align:left">Escolha seu codinome</label><input type="text" id="onName" maxlength="20" placeholder="Ex.: ShadowByte">
+    <button class="btn full" style="margin-top:14px" data-act="onOk">Iniciar jogo ▶</button></div>`);
+}
+
+/* ---------------- TOAST ---------------- */
+function toast(msg, kind = '') {
+  const t = document.createElement('div'); t.className = 'toast ' + kind; t.textContent = msg;
+  $('#toasts').appendChild(t); setTimeout(() => t.remove(), 3200);
+}
+
+/* ---------------- EVENTOS ---------------- */
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]'); if (g) { go(g.dataset.go); return; }
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  if (el.tagName === 'INPUT') return; // checkboxes tratados no change
+  const { act, id, i, v } = el.dataset;
+  switch (act) {
+    case 'done': completeMission(id); break;
+    case 'focus': openFocus(id); break;
+    case 'fpause': FOCUS.run = !FOCUS.run; el.textContent = FOCUS.run ? '⏸ Pausar' : '▶ Retomar'; break;
+    case 'fdone': { const fid = FOCUS.id; closeModal(); completeMission(fid); break; }
+    case 'close': closeModal(); break;
+    case 'settings': openSettings(); break;
+    case 'newCamp': {
+      const sub = $('#cSub').value.trim(), top = $('#cTop').value.trim();
+      if (!sub || !top) return toast('Preencha matéria e assunto.');
+      S.campaigns.push({ id: uid(), subject: sub, topic: top, min: +$('#cMin').value, plan: buildPlan(top, +$('#cDays').value), step: 0 });
+      S.lastGen = null; save(); toast('🗺️ Campanha iniciada! Primeira missão liberada.'); render(); break;
+    }
+    case 'quick': {
+      const t = $('#qTitle').value.trim(); if (!t) return toast('Escreva a missão.');
+      const mn = +$('#qMin').value;
+      S.missions.push({ id: uid(), title: t, kind: 'Rápida', min: mn, xp: 5 + mn * 2, date: today(), done: false });
+      save(); render(); break;
+    }
+    case 'delCamp': if (confirm('Remover esta campanha?')) { S.campaigns = S.campaigns.filter(c => c.id !== id); S.missions = S.missions.filter(m => m.camp !== id || m.done); save(); render(); } break;
+    case 'mode': S.settings.mode = v; save(); render(); break;
+    case 'rmImg': IMGS.splice(+i, 1); drawThumbs(); break;
+    case 'ocr': runOCR(); break;
+    case 'analyze': analyze(); break;
+    case 'open': DECK = id; DECKTAB = 'resumo'; VIEW = 'inventario'; document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('on', b.dataset.go === 'inventario')); render(); window.scrollTo(0, 0); break;
+    case 'back': DECK = null; render(); break;
+    case 'tab': DECKTAB = v; render(); break;
+    case 'ans': $('#ans' + i).classList.toggle('on'); break;
+    case 'delDeck': if (confirm('Apagar este conteúdo do inventário?')) { S.decks = S.decks.filter(d => d.id !== id); DECK = null; save(); render(); } break;
+    case 'fight': startFight(id); break;
+    case 'answer': answer(+i); break;
+    case 'next': nextQ(); break;
+    case 'flee': if (confirm('Fugir da batalha? O progresso dela será perdido.')) { stopTimer(); B = null; render(); } break;
+    case 'arenaHome': B = null; render(); break;
+    case 'saveSet':
+      S.player.name = $('#setName').value.trim().slice(0, 20) || S.player.name;
+      S.settings.mode = $('#setMode').value; S.settings.apiKey = $('#setKey').value.trim();
+      save(); closeModal(); render(); toast('✅ Configurações salvas.'); break;
+    case 'export': {
+      const blob = new Blob([JSON.stringify({ ...S, settings: { ...S.settings, apiKey: '' } }, null, 1)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kaizen-quest-backup-' + today() + '.json'; a.click(); break;
+    }
+    case 'import': $('#backupIn').click(); break;
+    case 'reset': if (confirm('Tem certeza? Todo o progresso será apagado.') && confirm('Última chance: apagar mesmo?')) { const k = S.settings.apiKey; S = DEF(); S.settings.apiKey = k; save(); closeModal(); onboarding(); render(); } break;
+    case 'onOk': { const n = $('#onName').value.trim(); if (!n) return toast('Escolha um codinome.'); S.player.name = n.slice(0, 20); save(); closeModal(); render(); toast('🎮 Jogo iniciado. Sua primeira missão já está na Base.'); break; }
+  }
+});
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.id === 'fileIn') { addFiles(el.files); el.value = ''; return; }
+  if (el.id === 'backupIn') {
+    const f = el.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { try { const d = JSON.parse(r.result); if (!d.player) throw 0; const k = S.settings.apiKey; localStorage.setItem(KEY, JSON.stringify(d)); S = load(); if (!S.settings.apiKey) S.settings.apiKey = k; save(); closeModal(); render(); toast('✅ Backup restaurado.'); } catch { toast('⚠️ Arquivo inválido.'); } };
+    r.readAsText(f); el.value = ''; return;
+  }
+  const act = el.dataset.act; if (!act || !el.checked) return;
+  const d = S.decks.find(x => x.id === el.dataset.id), i = +el.dataset.i; if (!d) return;
+  if (act === 'exDone' && !d.exDone.includes(i)) {
+    d.exDone.push(i); S.stats.exercises++;
+    const m = S.missions.find(x => !x.done && x.kind === 'Caderno' && x.title.includes('exercícios') && x.title.includes(d.title));
+    gain(8, 'Exercício no caderno');
+    if (m && d.exDone.length >= 3) completeMission(m.id); else render();
+  }
+  if (act === 'qDone' && !d.qDone.includes(i)) { d.qDone.push(i); S.stats.critical++; gain(5, 'Pensamento crítico'); render(); }
+});
+document.addEventListener('paste', e => {
+  const files = [...(e.clipboardData?.items || [])].filter(it => it.type.startsWith('image/')).map(it => it.getAsFile());
+  if (!files.length) return;
+  e.preventDefault();
+  if (VIEW !== 'scanner') go('scanner');
+  addFiles(files); toast('📋 Imagem colada.');
+});
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && !$('#onName')) closeModal(); });
+document.addEventListener('keydown', e => {
+  if (VIEW === 'arena' && B && !B.over) {
+    const q = B.qs[B.i], map = { a: 0, b: 1, c: 2, d: 3, v: 0, f: 1, 1: 0, 2: 1, 3: 2, 4: 3 };
+    const k = e.key.toLowerCase();
+    if (!B.answered && k in map && map[k] < q.opcoes.length && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) answer(map[k]);
+    else if (B.answered && e.key === 'Enter') nextQ();
+  }
+  if (e.key === 'Escape' && !$('#onName')) closeModal();
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { ensureToday(); render(); } });
+
+/* ---------------- BOOT ---------------- */
+go('base');
+if (!S.player.name) onboarding();
+</script>
+</body>
+</html>
